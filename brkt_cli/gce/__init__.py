@@ -21,6 +21,7 @@ from brkt_cli.gce import (
     launch_gce_image_args,
     update_gce_image,
     update_encrypted_gce_image_args,
+    share_logs_gce_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -216,11 +217,85 @@ class LaunchGCEImageSubcommand(Subcommand):
         print(encrypted_instance_id)
         return 0
 
+class ShareLogsGCESubcommand(Subcommand):
+
+    def name(self):
+        return 'share-logs-gce'
+
+    def register(self, subparsers, parsed_config):
+        self.config = parsed_config
+        share_logs_parser = subparsers.add_parser(
+            'share-logs-gce',
+            formatter_class=brkt_cli.SortingHelpFormatter,
+            description='Share Logs',
+            help='Share logs'
+        )
+        share_logs_gce_args.setup_share_logs_gce_args(share_logs_parser)
+        setup_instance_config_args(share_logs_parser)
+
+    def run(self, values):
+        gce_svc = gce_service.GCEService(values.image_project, None, log)
+        instance_config = instance_config_from_values(
+            values, mode=INSTANCE_METAVISOR_MODE, cli_config=self.config)
+
+	disks= {
+		    'boot': False,
+		    'autoDelete': True,
+                    'source': 'zones/%s/disks/sdb' %(values.zone),
+	       },
+	
+	meta_data = '#!/bin/bash\n' + \
+                    'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb7 /mnt\n' + \
+                    'sudo tar czvf /tmp/diags.tar.gz -C /mnt .\n' + \
+                    'sudo gsutil cp /tmp/diags.tar.gz gs://marks-test-buckit/\n'
+
+	sdb = None
+	snap = None
+	instance = None
+
+        try:
+            # Create snapshot from root disk
+            gce_svc.create_snapshot(values.zone,'brkt-diag-instance', 'brkt-diag-snapshot')
+                    
+            # Wait for the snapshot to finish
+            gce_svc.wait_snapshot('brkt-diag-snapshot')
+                    
+            # Get snapshot object
+            snap = gce_svc.get_snapshot('brkt-diag-snapshot')
+                    
+            # Get size of snapshot
+            snap_size = int(snap['diskSizeGb'])
+                        
+            # Create disk from snapshot and wait for it to be ready
+            sdb = gce_svc.create_disk(values.zone,'sdb',snap_size)
+	
+            # launch the instance and wait for it to initialize
+            instance = gce_svc.run_instance(values.zone, "brkt-diag-instance", values.image, disks=disks,metadata=meta_data)
+
+
+        except Exception as e:
+            print 'share_logs errors', e
+            
+	# Kill the instance, disks, and snapshot
+        finally:
+            # Delete the Snapshot
+            if snap:
+                print 'Deleting Snapshot'
+                gce_svc.delete_snapshot('brkt-diag-snapshot')
+
+            # Delete the instance and disks that were created 
+            if instance:
+                print 'Deleting Instance and Disks'
+                gce_svc.delete_instance(values.zone, 'brkt-diag-instance')
+
+        return 0
+
 
 def get_subcommands():
     return [EncryptGCEImageSubcommand(),
             UpdateGCEImageSubcommand(),
-            LaunchGCEImageSubcommand()]
+            LaunchGCEImageSubcommand(),
+	    ShareLogsGCESubcommand()]
 
 
 def check_args(values, gce_svc, cli_config):

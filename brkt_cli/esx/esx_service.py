@@ -26,7 +26,7 @@ import boto.s3
 
 from functools import wraps
 from threading import Thread
-from pyVim import connect
+from pyvim import connect
 from pyVmomi import vmodl
 from pyVmomi import vim
 from brkt_cli.util import (
