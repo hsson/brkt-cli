@@ -21,7 +21,6 @@ from brkt_cli.gce import (
     launch_gce_image_args,
     update_gce_image,
     update_encrypted_gce_image_args,
-    share_logs_gce_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -230,14 +229,14 @@ class ShareLogsGCESubcommand(Subcommand):
             description='Share Logs',
             help='Share logs'
         )
-        share_logs_gce_args.setup_share_logs_gce_args(share_logs_parser)
-        setup_instance_config_args(share_logs_parser)
+        share_logs_parser.setup_share_logs_gce_args(share_logs_parser)
+        setup_instance_config_args(launch_gce_image_parser,
+                                   mode=INSTANCE_METAVISOR_MODE)
 
     def run(self, values):
         gce_svc = gce_service.GCEService(values.image_project, None, log)
         instance_config = instance_config_from_values(
             values, mode=INSTANCE_METAVISOR_MODE, cli_config=self.config)
-
 	disks= {
 		    'boot': False,
 		    'autoDelete': True,
@@ -294,8 +293,7 @@ class ShareLogsGCESubcommand(Subcommand):
 def get_subcommands():
     return [EncryptGCEImageSubcommand(),
             UpdateGCEImageSubcommand(),
-            LaunchGCEImageSubcommand(),
-	    ShareLogsGCESubcommand()]
+            LaunchGCEImageSubcommand()]
 
 
 def check_args(values, gce_svc, cli_config):
