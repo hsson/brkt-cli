@@ -1,0 +1,57 @@
+# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# A copy of the License is located at
+#
+# https://github.com/brkt/brkt-cli/blob/master/LICENSE
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and
+# limitations under the License.
+
+
+def setup_share_logs_gce_args(parser):
+    parser.add_argument(
+        '--instance',
+        metavar='ID',
+        dest='instance',
+        help='The instance with Bracket system logs to be shared'
+    )
+    parser.add_argument(
+        '--zone',
+        metavar='NAME',
+        help='GCE zone (e.g. us-west-2)',
+        dest='zone',
+        required=True
+    )
+    parser.add_argument(
+        '--account',
+        metavar='NAME',
+        help='account to share logs with (e.g. email address)',
+        dest='account',
+        required=True
+    )
+    parser.add_argument(
+        '--bucket',
+        metavar='NAME',
+        help='bucket/file name to store logs',
+        dest='bucket',
+        required=True
+    )
+    parser.add_argument(
+        '--file',
+        metavar='NAME',
+        help='file name to store logs',
+        dest='file',
+        default='diags.tar.gz'
+    )
+    parser.add_argument(
+        '--project',
+        metavar='NAME',
+        help='Name of project',
+        dest='project',
+        required=True
+    )

@@ -32,7 +32,8 @@ brkt_image_buckets = {
 
 
 def retry(function, timeout=15.0):
-    return brkt_cli.util.retry(function, on=[socket.error, errors.HttpError], timeout=timeout)
+    return brkt_cli.util.retry(
+        function, on=[socket.error, errors.HttpError], timeout=timeout)
 
 
 def execute_gce_api_call(gce_object):
@@ -202,10 +203,33 @@ class GCEService(BaseGCEService):
     def __init__(self, project, session_id, logger):
         super(GCEService, self).__init__(project, session_id, logger)
         self.credentials = GoogleCredentials.get_application_default()
-        self.compute = discovery.build('compute', 'v1',
-                credentials=self.credentials)
-        self.storage = discovery.build('storage', 'v1',
-                credentials=self.credentials)
+        self.compute = discovery.build(
+            'compute', 'v1', credentials=self.credentials)
+
+        self.storage = discovery.build(
+            'storage', 'v1', credentials=self.credentials)
+
+    def check_bucket_file(self, bucket, file):
+        try:
+            existing_file = self.storage.objects().get(
+                    bucket=bucket,
+                    object=file).execute()
+            if existing_file:
+                return True
+        except:
+            return False
+        return False
+
+    def wait_bucket_file(self, bucket, file):
+        for i in range(60):
+            try:
+                self.storage.objects().get(
+                   bucket=bucket,
+                   object=file).execute()
+                return True
+            except:
+                time.sleep(10)
+        return False
 
     def cleanup(self, zone, encryptor_image, keep_encryptor=False):
         try:
@@ -235,8 +259,8 @@ class GCEService(BaseGCEService):
         return self.session_id
 
     def get_snapshot(self, name):
-        snap_req = self.compute.snapshots().get(project=self.project,
-                snapshot=name)
+        snap_req = self.compute.snapshots().get(
+            project=self.project, snapshot=name)
         return retry(execute_gce_api_call)(snap_req)
 
     def wait_snapshot(self, snapshot):

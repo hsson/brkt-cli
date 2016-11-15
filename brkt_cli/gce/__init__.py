@@ -21,6 +21,7 @@ from brkt_cli.gce import (
     launch_gce_image_args,
     update_gce_image,
     update_encrypted_gce_image_args,
+    share_logs_gce_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -131,7 +132,8 @@ def run_launch(values, config):
     if values.instance_name:
         gce_service.validate_image_name(values.instance_name)
 
-    encrypted_instance_id = launch_gce_image.launch(log,
+    encrypted_instance_id = launch_gce_image.launch(
+                            log,
                             gce_svc,
                             values.image,
                             values.instance_name,
@@ -142,6 +144,104 @@ def run_launch(values, config):
                             values.subnetwork,
                             metadata)
     print(encrypted_instance_id)
+    return 0
+
+
+def run_sharelogs(values, config):
+    session_id = util.make_nonce()
+    gce_svc = gce_service.GCEService(values.project, session_id, log)
+    return share_logs(values, gce_svc)
+
+
+def share_logs(values, gce_svc):
+    snap = None
+    snapshot_name = 'brkt-diag-snapshot-' + gce_svc.get_session_id()
+    instance_name = 'brkt-diag-instance-' + gce_svc.get_session_id()
+    disk_name = 'sdb-' + gce_svc.get_session_id()
+    log.info('Sharing logs')
+
+    try:
+        image_project = 'ubuntu-os-cloud'
+        ubuntu_image = 'ubuntu-1404-trusty-v20160222'
+
+        # Check to see if the tar file is already in the bucket
+        if gce_svc.check_bucket_file(values.bucket, values.file):
+            print 'File already exists: Delete diags file and run again'
+            return 1
+
+        # Create snapshot from root disk
+        gce_svc.create_snapshot(
+            values.zone, values.instance, snapshot_name)
+
+        # Wait for the snapshot to finish
+        gce_svc.wait_snapshot(snapshot_name)
+
+        # Get snapshot object
+        snap = gce_svc.get_snapshot(snapshot_name)
+
+        # Get size of snapshot
+        snap_size = int(snap['diskSizeGb'])
+
+        # Create disk from snapshot and wait for it to be ready
+        gce_svc.create_disk(values.zone, disk_name, snap_size)
+
+        # Commands to mount file system and compress into tar file
+        cmds = '#!/bin/bash\n' + \
+            'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb7 /mnt\n' + \
+            'sudo tar czvf /tmp/diags.tar.gz -C /mnt .\n' + \
+            'sudo gsutil mb gs://%s/\n' % (values.bucket) + \
+            'sudo gsutil cp /tmp/diags.tar.gz gs://%s/\n' % (values.bucket)
+
+        metadata = {
+            "items": [
+                {
+                    "key": "startup-script",
+                    "value": cmds,
+                },
+            ]
+        }
+
+        # Attach new disk to instance
+        disks = [
+            {
+                'boot': False,
+                'autoDelete': False,
+                'source': 'zones/%s/disks/%s' % (values.zone, disk_name),
+            },
+        ]
+
+        # launch the instance and wait for it to initialize
+        gce_svc.run_instance(
+            values.zone, instance_name, ubuntu_image, disks=disks,
+            image_project=image_project, metadata=metadata, delete_boot=True)
+
+        # Wait for tar file to upload to bucket
+        if gce_svc.wait_bucket_file(values.bucket, values.file):
+
+            # Add account to access control list
+            gce_svc.storage.objectAccessControls().insert(
+                bucket=values.bucket,
+                object=values.file,
+                body={'entity': 'user-%s' % (values.account),
+                      'role': 'READER'}).execute()
+        else:
+            log.info("Can't upload log files")
+
+        log.info(
+            'Logs available at https://storage.cloud.google.com/%s/%s'
+            % (values.bucket, values.file))
+
+    except Exception as e:
+        log.info('share_logs error: %s ' % e)
+
+    # Delete the instance, disks, and snapshot
+    finally:
+        if snap:
+            gce_svc.delete_snapshot(snapshot_name)
+
+        # Delete the instance and disks that were created
+        gce_svc.cleanup(values.zone, None)
+
     return 0
 
 
@@ -210,6 +310,16 @@ class GCESubcommand(Subcommand):
         setup_instance_config_args(launch_gce_image_parser, parsed_config,
                                    mode=INSTANCE_METAVISOR_MODE)
 
+        share_logs_parser = gce_subparsers.add_parser(
+            'share-logs',
+            description='Share Logs',
+            help='Share logs',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        share_logs_gce_args.setup_share_logs_gce_args(share_logs_parser)
+        setup_instance_config_args(
+            share_logs_parser, parsed_config, mode=INSTANCE_METAVISOR_MODE)
+
     def debug_log_to_temp_file(self, values):
         return True
 
@@ -220,6 +330,8 @@ class GCESubcommand(Subcommand):
             return run_update(values, self.config)
         if values.gce_subcommand == 'launch':
             return run_launch(values, self.config)
+        if values.gce_subcommand == 'share-logs':
+            return run_sharelogs(values, self.config)
 
 
 class EncryptGCEImageSubcommand(Subcommand):
@@ -240,7 +352,6 @@ class EncryptGCEImageSubcommand(Subcommand):
         config.register_option(
             '%s.zone' % (self.name(),),
             'The GCE zone metavisors will be launched into')
-
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
@@ -351,23 +462,51 @@ class LaunchGCEImageSubcommand(Subcommand):
         return run_launch(values, self.config)
 
 
+class ShareLogsGCESubcommand(Subcommand):
+
+    def name(self):
+        return 'share-logs-gce'
+
+    def register(self, subparsers, parsed_config):
+        self.config = parsed_config
+        share_logs_parser = subparsers.add_parser(
+            'share-logs',
+            formatter_class=brkt_cli.SortingHelpFormatter,
+            description='Share Logs',
+            help='Share logs'
+        )
+        share_logs_gce_args.setup_share_logs_gce_args(share_logs_parser)
+        setup_instance_config_args(share_logs_parser, parsed_config)
+
+    def run(self, values):
+        log.warn(
+            'This command syntax has been deprecated.  Please use brkt gce '
+            'share-logs instead'
+        )
+        return run_launch(values, self.config)
+
+
 def get_subcommands():
     return [GCESubcommand(),
             EncryptGCEImageSubcommand(),
             UpdateGCEImageSubcommand(),
-            LaunchGCEImageSubcommand()]
+            LaunchGCEImageSubcommand(),
+            ShareLogsGCESubcommand()]
 
 
 def check_args(values, gce_svc, cli_config):
     if values.encryptor_image:
         if values.bucket != 'prod':
-            raise ValidationError("Please provided either an encryptor image or an image bucket")
+            raise ValidationError(
+                "Please provided either an encryptor image or an image bucket")
     if not values.token:
         raise ValidationError('Must provide a token')
 
     if values.validate:
         if not gce_svc.project_exists(values.project):
-            raise ValidationError("Project provider either does not exist or you do not have access to it")
+            raise ValidationError(
+                "Project provider either does not exist"
+                "or you do not have access to it")
         if not gce_svc.network_exists(values.network):
             raise ValidationError("Network provided does not exist")
         brkt_env = brkt_cli.brkt_env_from_values(values)
