@@ -1,5 +1,6 @@
 import brkt_cli
 import logging
+import time
 
 from brkt_cli.subcommand import Subcommand
 
@@ -21,6 +22,7 @@ from brkt_cli.gce import (
     launch_gce_image_args,
     update_gce_image,
     update_encrypted_gce_image_args,
+    share_logs_gce_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -229,71 +231,133 @@ class ShareLogsGCESubcommand(Subcommand):
             description='Share Logs',
             help='Share logs'
         )
-        share_logs_parser.setup_share_logs_gce_args(share_logs_parser)
-        setup_instance_config_args(launch_gce_image_parser,
+        share_logs_gce_args.setup_share_logs_gce_args(share_logs_parser)
+        setup_instance_config_args(share_logs_parser,
                                    mode=INSTANCE_METAVISOR_MODE)
 
-    def run(self, values):
-        gce_svc = gce_service.GCEService(values.image_project, None, log)
-        instance_config = instance_config_from_values(
-            values, mode=INSTANCE_METAVISOR_MODE, cli_config=self.config)
-	disks= {
-		    'boot': False,
-		    'autoDelete': True,
-                    'source': 'zones/%s/disks/sdb' %(values.zone),
-	       },
-	
-	meta_data = '#!/bin/bash\n' + \
-                    'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb7 /mnt\n' + \
-                    'sudo tar czvf /tmp/diags.tar.gz -C /mnt .\n' + \
-                    'sudo gsutil cp /tmp/diags.tar.gz gs://marks-test-buckit/\n'
 
-	sdb = None
-	snap = None
-	instance = None
+    def share_logs(self, values, gce_svc):
+        snap = None
+        instance = None
 
         try:
+            image_project = 'ubuntu-os-cloud'
+            ubuntu_image = 'ubuntu-1404-trusty-v20160222'
+
+            # Check to see if the tar file is already in the bucket
+            if gce_svc.check_bucket(values.bucket,'diags.tar.gz'):
+                print 'File already exists: Delete diags file then run program again'
+                return
+            """
+            try:
+                existing_file = gce_svc.storage.objects().get(
+                        bucket=values.bucket,
+                        object='diags.tar.gz').execute()
+                if existing_file:
+                    print 'File already exists: Delete diags file then run program again'
+                    return
+            except Exception as e:
+                pass
+            """
+
             # Create snapshot from root disk
-            gce_svc.create_snapshot(values.zone,'brkt-diag-instance', 'brkt-diag-snapshot')
-                    
+            gce_svc.create_snapshot(values.zone, values.instance, 'brkt-diag-snapshot')
+
             # Wait for the snapshot to finish
             gce_svc.wait_snapshot('brkt-diag-snapshot')
-                    
+
             # Get snapshot object
             snap = gce_svc.get_snapshot('brkt-diag-snapshot')
-                    
+     
             # Get size of snapshot
             snap_size = int(snap['diskSizeGb'])
-                        
+
             # Create disk from snapshot and wait for it to be ready
-            sdb = gce_svc.create_disk(values.zone,'sdb',snap_size)
-	
+            gce_svc.create_disk(values.zone,'sdb',snap_size)
+
+            # Commands to mount file system and compress into tar file
+            cmds = '#!/bin/bash\n' + \
+                'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb7 /mnt\n' + \
+                'sudo tar czvf /tmp/diags.tar.gz -C /mnt .\n' + \
+                'sudo gsutil mb gs://%s/\n' % (values.bucket) + \
+                'sudo gsutil cp /tmp/diags.tar.gz gs://%s/\n' % (values.bucket)
+
+            metadata = {
+                "items":[
+                    {
+                        "key": "startup-script",
+                        "value": cmds,
+                    },
+                ]
+            }
+
+
+            gce_res_uri = "https://www.googleapis.com/compute/v1/"
+
+            if image_project:
+                source_disk_image = "projects/%s/global/images/%s" % (
+                image_project, ubuntu_image)
+
+            # Attach new disk to instance
+            disks = [
+            {
+                'boot': False,
+                'autoDelete': True,
+                'source': 'zones/%s/disks/sdb' % (values.zone),
+            },
+            ]
+
             # launch the instance and wait for it to initialize
-            instance = gce_svc.run_instance(values.zone, "brkt-diag-instance", values.image, disks=disks,metadata=meta_data)
+            instance = gce_svc.run_instance(values.zone,
+                "brkt-diag-instance", ubuntu_image, disks=disks, image_project=image_project, metadata=metadata, delete_boot=True)
 
 
+            # Wait for tar file to upload to bucket
+            gce_svc.wait_bucket(values.bucket,'diags.tar.gz')
+            """
+            while True:
+                try:
+                    gce_svc.storage.objects().get(
+                       bucket=values.bucket,
+                       object='diags.tar.gz').execute()
+                    break
+                except Exception as e:
+                    print 'Waiting for file to upload'
+                    time.sleep(2)
+            """
+
+            # Add account to access control list
+            gce_svc.storage.objectAccessControls().insert(
+                bucket=values.bucket,
+                object='diags.tar.gz',
+                body={'entity': 'user-%s' %(values.account), 'role': 'READER'}).execute()
+            
+        
         except Exception as e:
             print 'share_logs errors', e
             
-	# Kill the instance, disks, and snapshot
+       # Kill the instance, disks, and snapshot
         finally:
-            # Delete the Snapshot
             if snap:
-                print 'Deleting Snapshot'
                 gce_svc.delete_snapshot('brkt-diag-snapshot')
 
             # Delete the instance and disks that were created 
-            if instance:
-                print 'Deleting Instance and Disks'
-                gce_svc.delete_instance(values.zone, 'brkt-diag-instance')
+            gce_svc.delete_instance(values.zone, 'brkt-diag-instance')
 
         return 0
+
+    def run(self, values):
+        gce_svc = gce_service.GCEService(values.project, None, log)
+        self.share_logs(values, gce_svc)
+
+
 
 
 def get_subcommands():
     return [EncryptGCEImageSubcommand(),
             UpdateGCEImageSubcommand(),
-            LaunchGCEImageSubcommand()]
+            LaunchGCEImageSubcommand(),
+            ShareLogsGCESubcommand()]
 
 
 def check_args(values, gce_svc, cli_config):

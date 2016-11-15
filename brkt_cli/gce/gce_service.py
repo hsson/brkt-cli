@@ -197,6 +197,7 @@ class BaseGCEService(object):
         pass
 
 
+
 class GCEService(BaseGCEService):
     def __init__(self, project, session_id, logger):
         super(GCEService, self).__init__(project, session_id, logger)
@@ -205,6 +206,27 @@ class GCEService(BaseGCEService):
                 credentials=self.credentials)
         self.storage = discovery.build('storage', 'v1',
                 credentials=self.credentials)
+
+    def check_bucket(self,bucket,file):
+        try:
+            existing_file = self.storage.objects().get(
+                    bucket=bucket,
+                    object=file).execute()
+            if existing_file:
+                return True
+        except:
+            return False
+
+    def wait_bucket(self,bucket,file):
+        while True:
+            try:
+                self.storage.objects().get(
+                   bucket=bucket,
+                   object=file).execute()
+                break
+            except Exception as e:
+                print 'Waiting for file to upload'
+                time.sleep(5)
 
     def cleanup(self, zone, encryptor_image, keep_encryptor=False):
         try:
