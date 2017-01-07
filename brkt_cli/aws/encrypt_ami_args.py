@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import argparse
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 
 
 def setup_encrypt_ami_args(parser):
@@ -135,4 +139,14 @@ def setup_encrypt_ami_args(parser):
         action='store_false',
         default=True,
         help=argparse.SUPPRESS
+    )
+    # Optional argument for root disk crypto policy. The supported values
+    # currently are "gcm" and "xts" with "gcm" being the default
+    parser.add_argument(
+        '--crypto-policy',
+        dest='crypto',
+        metavar='NAME',
+        choices=[CRYPTO_GCM, CRYPTO_XTS],
+        help=argparse.SUPPRESS,
+        default=None
     )

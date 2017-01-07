@@ -1,4 +1,8 @@
 import argparse
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 
 
 def setup_encrypt_gce_image_args(parser, parsed_config):
@@ -98,4 +102,14 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
         dest='keep_encryptor',
         action='store_true',
         help=argparse.SUPPRESS
+    )
+    # Optional argument for root disk crypto policy. The supported values
+    # currently are "gcm" and "xts" with "gcm" being the default
+    parser.add_argument(
+        '--crypto-policy',
+        dest='crypto',
+        metavar='NAME',
+        choices=[CRYPTO_GCM, CRYPTO_XTS],
+        help=argparse.SUPPRESS,
+        default=None
     )

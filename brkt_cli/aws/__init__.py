@@ -39,14 +39,18 @@ from brkt_cli.aws.encrypt_ami import (
 from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
-    INSTANCE_UPDATER_MODE
+    INSTANCE_UPDATER_MODE,
 )
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
 from brkt_cli.subcommand import Subcommand
-from brkt_cli.util import BracketError
+from brkt_cli.util import (
+    BracketError,
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 from brkt_cli.validation import ValidationError
 
 log = logging.getLogger(__name__)
@@ -227,6 +231,27 @@ def run_encrypt(values, config, verbose=False):
         _validate(aws_svc, values, encryptor_ami)
         brkt_cli.validate_ntp_servers(values.ntp_servers)
 
+    mv_image = aws_svc.get_image(encryptor_ami)
+    if values.crypto is None:
+        if mv_image.name.startswith('brkt-avatar-freebsd'):
+            crypto_policy = CRYPTO_XTS
+        elif mv_image.name.startswith('brkt-avatar'):
+            crypto_policy = CRYPTO_GCM
+        else:
+            log.warn(
+                "Unable to determine encryptor type for image %s. "
+                "Default boot volume crypto policy to %s",
+                mv_image.name, CRYPTO_XTS
+            )
+            crypto_policy = CRYPTO_XTS
+    else:
+        crypto_policy = values.crypto
+        if crypto_policy == CRYPTO_XTS and not mv_image.name.startswith('brkt-avatar-freebsd'):
+            raise ValidationError(
+                'Unsupported crypto policy %s for encryptor %s' %
+                crypto_policy, mv_image.name
+            )
+
     instance_config = instance_config_from_values(
         values, mode=INSTANCE_CREATOR_MODE, cli_config=config)
     if verbose:
@@ -243,6 +268,7 @@ def run_encrypt(values, config, verbose=False):
         image_id=guest_image.id,
         encryptor_ami=encryptor_ami,
         encrypted_ami_name=values.encrypted_ami_name,
+        crypto_policy=crypto_policy,
         subnet_id=values.subnet_id,
         security_group_ids=values.security_group_ids,
         guest_instance_type=values.guest_instance_type,

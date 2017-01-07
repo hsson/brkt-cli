@@ -7,7 +7,7 @@ from brkt_cli import encryptor_service, util
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_METAVISOR_MODE,
-    INSTANCE_UPDATER_MODE
+    INSTANCE_UPDATER_MODE,
 )
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
@@ -41,6 +41,7 @@ def run_encrypt(values, config):
                                     values.encryptor_image,
                                     values.image,
                                     values.image_project)
+
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
@@ -55,6 +56,7 @@ def run_encrypt(values, config):
         zone=values.zone,
         instance_config=instance_config_from_values(
             values, mode=INSTANCE_CREATOR_MODE, cli_config=config),
+        crypto_policy=values.crypto,
         image_project=values.image_project,
         keep_encryptor=values.keep_encryptor,
         image_file=values.image_file,
