@@ -59,7 +59,9 @@ from brkt_cli.util import (
     Deadline,
     make_nonce,
     sleep,
-    append_suffix)
+    append_suffix,
+    CRYPTO_XTS
+)
 from datetime import datetime
 
 # End user-visible terminology.  These are resource names and descriptions
@@ -325,13 +327,14 @@ def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=\
 
 def _run_encryptor_instance(
         aws_svc, encryptor_image_id, snapshot, root_size, guest_image_id,
-        security_group_ids=None, subnet_id=None, zone=None,
+        crypto_policy, security_group_ids=None, subnet_id=None, zone=None,
         instance_config=None,
         status_port=encryptor_service.ENCRYPTOR_STATUS_PORT):
     bdm = BlockDeviceMapping()
 
     if instance_config is None:
         instance_config = InstanceConfig()
+    instance_config.brkt_config['crypto_policy_type'] = crypto_policy
 
     # Use gp2 for fast burst I/O copying root drive
     guest_unencrypted_root = EBSBlockDeviceType(
@@ -345,7 +348,10 @@ def _run_encryptor_instance(
     guest_encrypted_root = EBSBlockDeviceType(
         volume_type='gp2',
         delete_on_termination=True)
-    guest_encrypted_root.size = 2 * root_size + 1
+    if crypto_policy == CRYPTO_XTS:
+        guest_encrypted_root.size = root_size + 1
+    else:
+        guest_encrypted_root.size = 2 * root_size + 1
 
     # Use 'sd' names even though AWS maps these to 'xvd'
     # The AWS GUI only exposes 'sd' names, and won't allow
@@ -898,7 +904,7 @@ def register_ami(aws_svc, encryptor_instance, encryptor_image, name,
     return ami_info
 
 
-def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami,
+def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             encrypted_ami_name=None, subnet_id=None, security_group_ids=None,
             guest_instance_type='m3.medium', instance_config=None,
             save_encryptor_logs=True,
@@ -935,6 +941,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami,
                  "preserved because the root disk is attached at %s "
                  "instead of /dev/sda1", guest_image.root_device_name)
         legacy = True
+
     try:
         guest_instance = run_guest_instance(aws_svc,
             image_id, subnet_id=subnet_id, instance_type=guest_instance_type)
@@ -959,6 +966,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami,
             snapshot=snapshot_id,
             root_size=size,
             guest_image_id=image_id,
+            crypto_policy=crypto_policy,
             security_group_ids=security_group_ids,
             subnet_id=subnet_id,
             zone=guest_instance.placement,

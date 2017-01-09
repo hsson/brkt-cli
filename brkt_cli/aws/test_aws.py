@@ -26,6 +26,7 @@ from brkt_cli.aws import (
 )
 from brkt_cli.aws.test_aws_service import build_aws_service, new_id
 from brkt_cli.validation import ValidationError
+from brkt_cli.util import CRYPTO_GCM
 
 
 class DummyValues(object):
@@ -42,6 +43,7 @@ class DummyValues(object):
         self.proxies = []
         self.proxy_config_file = None
         self.status_port = None
+        self.crypto = CRYPTO_GCM
 
 
 class TestValidation(unittest.TestCase):

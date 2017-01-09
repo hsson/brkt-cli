@@ -12,6 +12,11 @@ from brkt_cli.encryptor_service import (
 from brkt_cli.gce.gce_service import gce_metadata_from_userdata
 from brkt_cli.util import Deadline, retry, append_suffix
 from googleapiclient import errors
+from brkt_cli.validation import ValidationError
+from brkt_cli.util import (
+    CRYPTO_XTS,
+    CRYPTO_GCM
+)
 
 
 log = logging.getLogger(__name__)
@@ -22,7 +27,8 @@ def setup_encryption(gce_svc,
                      encrypted_image_disk,
                      instance_name,
                      zone,
-                     image_project):
+                     image_project,
+                     crypto_policy):
     try:
         # create disk from guest image
         gce_svc.disk_from_image(zone, image_id, instance_name, image_project)
@@ -34,7 +40,10 @@ def setup_encryption(gce_svc,
         # dd'd to this disk. Blank disk should be 2x the size
         # of the unencrypted guest root (GCM)
         log.info('Creating disk for encrypted image')
-        gce_svc.create_disk(zone, encrypted_image_disk, guest_size * 2 + 1)
+        if crypto_policy == CRYPTO_XTS:
+            gce_svc.create_disk(zone, encrypted_image_disk, guest_size + 1)
+        else:
+            gce_svc.create_disk(zone, encrypted_image_disk, guest_size * 2 + 1)
         #
         # Amazing but true - just attach a big drive to get more IOPS
         # to be shared by all volumes attached to this VM. We don't
@@ -57,9 +66,11 @@ def do_encryption(gce_svc,
                   instance_name,
                   instance_config,
                   encrypted_image_disk,
+                  crypto_policy,
                   network,
                   subnetwork,
                   status_port=ENCRYPTOR_STATUS_PORT):
+    instance_config.brkt_config['crypto_policy_type'] = crypto_policy
     metadata = gce_metadata_from_userdata(instance_config.make_userdata())
     log.info('Launching encryptor instance')
     dummy_name = append_suffix(encrypted_image_disk, "-dummy-iops", 64)
@@ -113,10 +124,10 @@ def create_image(gce_svc, zone, encrypted_image_disk, encrypted_image_name, encr
 
 
 def encrypt(gce_svc, enc_svc_cls, image_id, encryptor_image,
-            encrypted_image_name, zone, instance_config, image_project=None,
-            keep_encryptor=False, image_file=None, image_bucket=None,
-            network=None, subnetwork=None, status_port=ENCRYPTOR_STATUS_PORT,
-            cleanup=True):
+            encrypted_image_name, zone, instance_config, crypto_policy,
+            image_project=None, keep_encryptor=False, image_file=None,
+            image_bucket=None, network=None, subnetwork=None,
+            status_port=ENCRYPTOR_STATUS_PORT, cleanup=True):
     try:
         # create metavisor image from file in GCS bucket
         log.info('Retrieving encryptor image from GCS bucket')
@@ -132,19 +143,38 @@ def encrypt(gce_svc, enc_svc_cls, image_id, encryptor_image,
             # Keep user provided encryptor image
             keep_encryptor = True
 
+        if crypto_policy is None:
+            if encryptor_image.name.startswith('gce-image'):
+                crypto_policy = CRYPTO_GCM
+            elif encryptor_image.name.startswith('metavisor'):
+                crypto_policy = CRYPTO_XTS
+            else:
+                log.warn(
+                    "Unable to determine encryptor type for image %s. "
+                    "Defaulting boot policy crypto policy to %s",
+                    encryptor_image.name, CRYPTO_XTS
+                )
+                crypto_policy = CRYPTO_XTS
+
+        if crypto_policy == CRYPTO_XTS and not encryptor_image.name.startwith('metavisor'):
+            raise ValidationError(
+                'Unsupported crypto policy %s for encryptor %s' %
+                crypto_policy, encryptor_image.name
+            )
+
         instance_name = 'brkt-guest-' + gce_svc.get_session_id()
         encryptor = instance_name + '-encryptor'
         encrypted_image_disk = 'encrypted-image-' + gce_svc.get_session_id()
 
         # create guest root disk and blank disk to dd to
         setup_encryption(gce_svc, image_id, encrypted_image_disk,
-                         instance_name, zone, image_project)
+                         instance_name, zone, image_project, crypto_policy)
 
         # run encryptor instance with avatar_creator as root,
         # customer image and blank disk
         do_encryption(gce_svc, enc_svc_cls, zone, encryptor, encryptor_image,
                       instance_name, instance_config, encrypted_image_disk,
-                      network, subnetwork, status_port=status_port)
+                      crypto_policy, network, subnetwork, status_port=status_port)
 
         # create image
         create_image(gce_svc, zone, encrypted_image_disk, encrypted_image_name, encryptor)

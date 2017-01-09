@@ -26,6 +26,10 @@ from brkt_cli.validation import ValidationError
 SLEEP_ENABLED = True
 MAX_BACKOFF_SECS = 10
 
+# Supported crypto options for the disks
+CRYPTO_GCM = 'gcm'
+CRYPTO_XTS = 'xts'
+
 
 log = logging.getLogger(__name__)
 
