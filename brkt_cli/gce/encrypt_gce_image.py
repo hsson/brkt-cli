@@ -12,7 +12,6 @@ from brkt_cli.encryptor_service import (
 from brkt_cli.gce.gce_service import gce_metadata_from_userdata
 from brkt_cli.util import Deadline, retry, append_suffix
 from googleapiclient import errors
-from brkt_cli.validation import ValidationError
 from brkt_cli.util import (
     CRYPTO_XTS,
     CRYPTO_GCM
@@ -143,24 +142,10 @@ def encrypt(gce_svc, enc_svc_cls, image_id, encryptor_image,
             # Keep user provided encryptor image
             keep_encryptor = True
 
+        # For GCE there is no way to identify the encryptor type
+        # Default to GCM
         if crypto_policy is None:
-            if encryptor_image.name.startswith('gce-image'):
-                crypto_policy = CRYPTO_GCM
-            elif encryptor_image.name.startswith('metavisor'):
-                crypto_policy = CRYPTO_XTS
-            else:
-                log.warn(
-                    "Unable to determine encryptor type for image %s. "
-                    "Defaulting boot policy crypto policy to %s",
-                    encryptor_image.name, CRYPTO_XTS
-                )
-                crypto_policy = CRYPTO_XTS
-
-        if crypto_policy == CRYPTO_XTS and not encryptor_image.name.startwith('metavisor'):
-            raise ValidationError(
-                'Unsupported crypto policy %s for encryptor %s' %
-                crypto_policy, encryptor_image.name
-            )
+            crypto_policy = CRYPTO_GCM
 
         instance_name = 'brkt-guest-' + gce_svc.get_session_id()
         encryptor = instance_name + '-encryptor'
