@@ -89,7 +89,7 @@ usage: brkt gce update [-h] [--encrypted-image-name NAME] --zone ZONE
 Update an encrypted GCE image with the latest Metavisor release
 
 positional arguments:
-  ID                    The image that will be encrypted
+  ID                    The image that will be updated
 
 optional arguments:
   --encrypted-image-name NAME
@@ -136,7 +136,7 @@ usage: brkt gce launch [-h] [--instance-name NAME]
 Launch a GCE image
 
 positional arguments:
-  ID                    The image that will be encrypted
+  ID                    The image that will be launched
 
 optional arguments:
   --delete-boot         Delete boot disk when instance is deleted (default:

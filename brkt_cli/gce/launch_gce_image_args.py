@@ -7,7 +7,7 @@ def setup_launch_gce_image_args(parser):
     parser.add_argument(
         'image',
         metavar='ID',
-        help='The image that will be encrypted',
+        help='The image that will be launched',
     )
     parser.add_argument(
         '--instance-name',

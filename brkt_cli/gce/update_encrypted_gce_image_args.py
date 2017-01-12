@@ -5,7 +5,7 @@ def setup_update_gce_image_args(parser, parsed_config):
     parser.add_argument(
         'image',
         metavar='ID',
-        help='The image that will be encrypted',
+        help='The image that will be updated',
     )
     parser.add_argument(
         '--encrypted-image-name',

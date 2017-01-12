@@ -132,6 +132,7 @@ def parse_brkt_env(brkt_env_string):
                 # service-domain makes. Hopefully we'll remove brkt-env
                 # soon and we can get rid of it
                 be.public_api_host = be.api_host.replace('yetiapi', 'api')
+                be.public_api_port = be.api_port
         except ValueError:
             raise ValidationError(error_msg)
 
