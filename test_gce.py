@@ -8,6 +8,7 @@ from brkt_cli import util
 from brkt_cli.gce import encrypt_gce_image
 from brkt_cli.gce import gce_service
 from brkt_cli.gce import update_gce_image
+from brkt_cli.gce import share_logs
 from brkt_cli.instance_config import InstanceConfig
 from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
@@ -48,7 +49,16 @@ class DummyGCEService(gce_service.BaseGCEService):
         return self.session_id
 
     def get_snapshot(self, name):
-        return {'status':'READY'}
+        return {'status': 'READY', 'diskSizeGb': '1'}
+
+    def check_bucket_name(self, bucket):
+        return False
+
+    def wait_bucket_file(self, bucket, file):
+        return True
+
+    def check_bucket_file(self, bucket, file):
+        return False
 
     def wait_snapshot(self, snapshot):
         while True:
@@ -77,7 +87,7 @@ class DummyGCEService(gce_service.BaseGCEService):
             return True
         else:
             return False
-            
+
     def project_exists(self, project=None):
         if project == 'testproject':
             return True
@@ -348,5 +358,71 @@ class TestRunUpdate(unittest.TestCase):
         )
 
         self.assertIsNotNone(encrypted_image)
+        self.assertEqual(len(gce_svc.disks), 0)
+        self.assertEqual(len(gce_svc.instances), 0)
+
+
+class ShareLogsValues():
+    def __init__(self):
+        self.instance = 'test-instance'
+        self.zone = 'us-central1-a'
+        self.account = 'markvoll26@gmail.com'
+        self.bucket = 'test-bucket'
+        self.project = 'test-project'
+        self.file = 'test-file'
+
+
+class GCEService1(DummyGCEService):
+    def check_bucket_name(self, bucket):
+        return True
+
+
+class GCEService2(DummyGCEService):
+    def wait_bucket_file(self, bucket, file):
+        return False
+
+
+class GCEService3(DummyGCEService):
+    def check_bucket_file(self, bucket, file):
+        return True
+
+
+class TestShareLogs(unittest.TestCase):
+
+    def setUp(self):
+        util.SLEEP_ENABLED = False
+        self.values = ShareLogsValues()
+
+    # Run the program under normal conditions
+    def test_normal(self):
+        gce_svc = DummyGCEService()
+        logs = share_logs(self.values, gce_svc)
+
+        self.assertEqual(logs, 0)
+        self.assertEqual(len(gce_svc.disks), 0)
+        self.assertEqual(len(gce_svc.instances), 0)
+
+    # This tests if a file with the same name has already
+    # Been uploaded to the bucket
+    def test_file_exists(self):
+        gce_svc = GCEService1()
+        logs = share_logs(self.values, gce_svc)
+        self.assertEqual(logs, 1)
+        self.assertEqual(len(gce_svc.disks), 0)
+        self.assertEqual(len(gce_svc.instances), 0)
+
+    # This tests if the file is unable to upload
+    def test_wait_file(self):
+        gce_svc = GCEService2()
+        logs = share_logs(self.values, gce_svc)
+        self.assertEqual(logs, 1)
+        self.assertEqual(len(gce_svc.disks), 0)
+        self.assertEqual(len(gce_svc.instances), 0)
+
+    # This tests if the bucket name chosen has been already taken
+    def bucket_name_exists(self):
+        gce_svc = GCEService3()
+        logs = share_logs(self.values, gce_svc)
+        self.assertEqual(logs, 1)
         self.assertEqual(len(gce_svc.disks), 0)
         self.assertEqual(len(gce_svc.instances), 0)

@@ -1,6 +1,5 @@
 import brkt_cli
 import logging
-
 from brkt_cli.subcommand import Subcommand
 
 from brkt_cli import encryptor_service, util
@@ -164,9 +163,14 @@ def share_logs(values, gce_svc):
         image_project = 'ubuntu-os-cloud'
         ubuntu_image = 'ubuntu-1404-trusty-v20160222'
 
+        # Check to see if the bucket-name is valid
+        if gce_svc.check_bucket_name(values.bucket):
+            log.info('Bucket-name is not valid')
+            return 1
+
         # Check to see if the tar file is already in the bucket
         if gce_svc.check_bucket_file(values.bucket, values.file):
-            print 'File already exists: Delete diags file and run again'
+            log.info('File already exists: Delete diags file and run again')
             return 1
 
         # Create snapshot from root disk
@@ -179,18 +183,19 @@ def share_logs(values, gce_svc):
         # Get snapshot object
         snap = gce_svc.get_snapshot(snapshot_name)
 
-        # Get size of snapshot
-        snap_size = int(snap['diskSizeGb'])
-
         # Create disk from snapshot and wait for it to be ready
-        gce_svc.create_disk(values.zone, disk_name, snap_size)
+        gce_svc.disk_from_snapshot(values.zone, snapshot_name, disk_name)
+
+        # Wait for disk to initialize
+        gce_svc.wait_for_disk(values.zone, disk_name)
 
         # Commands to mount file system and compress into tar file
         cmds = '#!/bin/bash\n' + \
-            'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb7 /mnt\n' + \
-            'sudo tar czvf /tmp/diags.tar.gz -C /mnt .\n' + \
+            'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/sdb4 /mnt ||\n' + \
+            'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb5 /mnt\n' + \
+            'sudo tar czvf /tmp/%s -C /mnt .\n' % (values.file) + \
             'sudo gsutil mb gs://%s/\n' % (values.bucket) + \
-            'sudo gsutil cp /tmp/diags.tar.gz gs://%s/\n' % (values.bucket)
+            'sudo gsutil cp /tmp/%s gs://%s/\n' % (values.file, values.bucket)
 
         metadata = {
             "items": [
@@ -217,15 +222,19 @@ def share_logs(values, gce_svc):
 
         # Wait for tar file to upload to bucket
         if gce_svc.wait_bucket_file(values.bucket, values.file):
-
             # Add account to access control list
-            gce_svc.storage.objectAccessControls().insert(
+            if gce_svc.storage.objectAccessControls().insert(
                 bucket=values.bucket,
                 object=values.file,
                 body={'entity': 'user-%s' % (values.account),
-                      'role': 'READER'}).execute()
+                      'role': 'READER'}).execute():
+                log.info('Updated bucket permissions')
+            else:
+                log.info('Error: Invalid or non-google account')
+                return 1
         else:
             log.info("Can't upload log files")
+            return 1
 
         log.info(
             'Logs available at https://storage.cloud.google.com/%s/%s'
@@ -241,9 +250,7 @@ def share_logs(values, gce_svc):
 
         # Delete the instance and disks that were created
         gce_svc.cleanup(values.zone, None)
-
     return 0
-
 
 class GCESubcommand(Subcommand):
 

@@ -18,7 +18,8 @@ def setup_share_logs_gce_args(parser):
         '--instance',
         metavar='ID',
         dest='instance',
-        help='The instance with Bracket system logs to be shared'
+        help='The instance with Bracket system logs to be shared',
+        required=True
     )
     parser.add_argument(
         '--zone',

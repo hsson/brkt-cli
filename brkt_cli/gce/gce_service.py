@@ -209,6 +209,20 @@ class GCEService(BaseGCEService):
         self.storage = discovery.build(
             'storage', 'v1', credentials=self.credentials)
 
+    # if bucket exists do we have permission?
+    def check_bucket_name(self, bucket):
+        try:
+            bucket = self.storage.buckets().get(
+                bucket=bucket).execute()
+            return False
+        except errors.HttpError as e:
+            code = json.loads(e.content)['error']['code']
+            if code == 403:
+                return True
+            else:
+                return False
+
+
     def check_bucket_file(self, bucket, file):
         try:
             existing_file = self.storage.objects().get(
