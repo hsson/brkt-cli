@@ -54,7 +54,7 @@ def validate_proxy_config(proxy_yaml):
     try:
         d = yaml.safe_load(proxy_yaml)
     except yaml.YAMLError as e:
-        raise ValidationError('Unable to parse proxy config: %s', e.message)
+        raise ValidationError('Unable to parse proxy config: %s' % e)
 
     if 'proxies' not in d:
         raise ValidationError('Could not find "proxies" section')
