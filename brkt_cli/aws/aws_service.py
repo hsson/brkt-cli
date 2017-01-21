@@ -174,6 +174,11 @@ class BaseAWSService(object):
         pass
 
     @abc.abstractmethod
+    def modify_instance_attribute(self, instance_id, attribute,
+                               value, dry_run=False):
+        pass
+
+    @abc.abstractmethod
     def retry(self, function, error_code_regexp=None, timeout=None):
         pass
 
@@ -500,6 +505,16 @@ class AWSService(BaseAWSService):
         return get_instance_attribute(
             instance_id,
             attribute,
+            dry_run=dry_run
+        )
+
+    def modify_instance_attribute(self, instance_id, attribute,
+                                  value, dry_run=False):
+        modify_instance_attribute = self.retry(self.conn.modify_instance_attribute)
+        return modify_instance_attribute(
+            instance_id,
+            attribute,
+            value,
             dry_run=dry_run
         )
 
