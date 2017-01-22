@@ -173,7 +173,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         crypto_policy = values.crypto
         if crypto_policy is None:
             crypto_policy = CRYPTO_XTS
-        instance_config['crypto_policy_type'] = crypto_policy
+        instance_config.brkt_config['crypto_policy_type'] = crypto_policy
         user_data_str = vc_swc.create_userdata_str(instance_config,
             update=False, ssh_key_file=values.ssh_public_key_file)
         if (values.encryptor_vmdk is not None):
