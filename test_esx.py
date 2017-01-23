@@ -11,6 +11,10 @@ from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
 )
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 
 TOKEN = 'token'
@@ -226,6 +230,7 @@ class TestRunEncryption(unittest.TestCase):
             vc_swc,
             DummyEncryptorService,
             guest_vmdk,
+            crypto_policy=CRYPTO_GCM,
             vm_name="template-encrypted",
             create_ovf=False, create_ova=False,
             target_path=mv_ovf,
@@ -241,7 +246,32 @@ class TestRunEncryption(unittest.TestCase):
         self.assertEqual(len(template_vm.disks), 2)
         self.assertEqual(template_vm.name, "template-encrypted")
         self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
+        # Verify disk size for GCM
         self.assertEqual(template_vm.disks[1].size, 33*1024*1024)
+        self.assertTrue(template_vm.template)
+
+        encrypt_vmdk.encrypt_from_s3(
+            vc_swc,
+            DummyEncryptorService,
+            guest_vmdk,
+            crypto_policy=CRYPTO_XTS,
+            vm_name="template-encrypted",
+            create_ovf=False, create_ova=False,
+            target_path=mv_ovf,
+            image_name=None,
+            ovftool_path=None,
+            ovf_name="mv-ovf",
+            download_file_list=[],
+            user_data_str=None
+        )
+        self.assertEqual(len(vc_swc.vms), 1)
+        self.assertEqual(len(vc_swc.disks), 4)
+        template_vm = (vc_swc.vms.values())[0]
+        self.assertEqual(len(template_vm.disks), 2)
+        self.assertEqual(template_vm.name, "template-encrypted")
+        self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
+        # Verify disk size for XTS
+        self.assertEqual(template_vm.disks[1].size, 17*1024*1024)
         self.assertTrue(template_vm.template)
 
     def test_cleanup_on_bad_guest_image(self):
@@ -309,6 +339,7 @@ class TestRunEncryption(unittest.TestCase):
                 vc_swc,
                 FailedEncryptionService,
                 guest_vmdk,
+                crypto_policy=CRYPTO_GCM,
                 vm_name="template-encrypted",
                 create_ovf=False, create_ova=False,
                 target_path=mv_ovf,

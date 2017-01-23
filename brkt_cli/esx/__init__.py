@@ -33,6 +33,7 @@ from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
+from brkt_cli.util import CRYPTO_XTS
 
 from brkt_cli.esx import (
     encrypt_vmdk,
@@ -169,13 +170,18 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
     try:
         instance_config = instance_config_from_values(
             values, mode=INSTANCE_CREATOR_MODE, cli_config=parsed_config)
+        crypto_policy = values.crypto
+        if crypto_policy is None:
+            crypto_policy = CRYPTO_XTS
+        instance_config.brkt_config['crypto_policy_type'] = crypto_policy
         user_data_str = vc_swc.create_userdata_str(instance_config,
             update=False, ssh_key_file=values.ssh_public_key_file)
         if (values.encryptor_vmdk is not None):
             # Create from MV VMDK
             encrypt_vmdk.encrypt_from_vmdk(
                 vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, vm_name=values.template_vm_name,
+                values.vmdk, crypto_policy,
+                vm_name=values.template_vm_name,
                 create_ovf=values.create_ovf,
                 create_ova=values.create_ova,
                 target_path=values.target_path,
@@ -190,7 +196,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             # Create from MV OVF in local directory
             encrypt_vmdk.encrypt_from_local_ovf(
                 vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, vm_name=values.template_vm_name,
+                values.vmdk, crypto_policy,
+                vm_name=values.template_vm_name,
                 create_ovf=values.create_ovf,
                 create_ova=values.create_ova,
                 target_path=values.target_path,
@@ -206,7 +213,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             # Create from MV OVF in S3
             encrypt_vmdk.encrypt_from_s3(
                 vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, vm_name=values.template_vm_name,
+                values.vmdk, crypto_policy,
+                vm_name=values.template_vm_name,
                 create_ovf=values.create_ovf,
                 create_ova=values.create_ova,
                 target_path=values.target_path,
