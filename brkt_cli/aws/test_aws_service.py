@@ -355,6 +355,11 @@ class DummyAWSService(aws_service.BaseAWSService):
             return dict()
         return None
 
+    def modify_instance_attribute(self, instance_id, attribute, value, dry_run=False):
+        if attribute == 'sriovNetSupport':
+            return dict()
+        return None
+
     def retry(self, function, error_code_regexp=None, timeout=None):
         return aws_service.retry_boto(
             function,

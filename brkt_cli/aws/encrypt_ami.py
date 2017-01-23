@@ -950,10 +950,10 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             aws_svc, guest_instance, image_id
         )
 
+        net_sriov_attr = aws_svc.get_instance_attribute(guest_instance.id,
+                                                        "sriovNetSupport")
         if (guest_image.virtualization_type == 'hvm' and
             'brkt-avatar-freebsd' not in mv_image.name):
-            net_sriov_attr = aws_svc.get_instance_attribute(guest_instance.id,
-                                                            "sriovNetSupport")
             if net_sriov_attr.get("sriovNetSupport") == "simple":
                 log.warn("Guest Operating System license information will not "
                          "be preserved because guest has sriovNetSupport "
@@ -988,6 +988,23 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
                 encryptor_instance, mv_image, image_id=image_id,
                 vol_type=vol_type, iops=iops, legacy=legacy,
                 save_encryptor_logs=save_encryptor_logs, status_port=status_port)
+
+        if 'brkt-avatar-freebsd' in mv_image.name and \
+            net_sriov_attr.get("sriovNetSupport") != "simple":
+            log.info('Enabling sriovNetSupport for guest instance %s',
+                      guest_instance.id)
+            try:
+                ret = aws_svc.modify_instance_attribute(guest_instance.id,
+                                                        "sriovNetSupport",
+                                                        "simple")
+                if ret:
+                    log.info('sriovNetSupport enabled successfully')
+                else:
+                    log.info('Failed to enable sriovNetSupport')
+            except EC2ResponseError as e:
+                log.warn('Unable to enable sriovNetSupport for guest '
+                         'instance %s with error %s', guest_instance.id, e)
+
         ami_info = register_ami(aws_svc, encryptor_instance, mv_image, name,
                 description, legacy=legacy, guest_instance=guest_instance,
                 mv_root_id=mv_root_id,
