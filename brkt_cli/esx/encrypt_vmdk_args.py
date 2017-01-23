@@ -12,6 +12,10 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 
 
 def setup_encrypt_vmdk_args(parser):
@@ -223,4 +227,14 @@ def setup_encrypt_vmdk_args(parser):
         dest='nic_type',
         help=argparse.SUPPRESS,
         default="Port"
+    )
+    # Optional argument for root disk crypto policy. The supported values
+    # currently are "gcm" and "xts" with "xts" being the default
+    parser.add_argument(
+        '--crypto-policy',
+        dest='crypto',
+        metavar='NAME',
+        choices=[CRYPTO_GCM, CRYPTO_XTS],
+        help=argparse.SUPPRESS,
+        default=None
     )
