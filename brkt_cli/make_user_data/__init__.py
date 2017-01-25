@@ -14,18 +14,18 @@
 import argparse
 import logging
 import os
-import sys
 import re
 
 import brkt_cli
-from brkt_cli.subcommand import Subcommand
-from brkt_cli.instance_config import INSTANCE_METAVISOR_MODE
 from brkt_cli.instance_config import GuestFile
-from brkt_cli.validation import ValidationError
+from brkt_cli.instance_config import INSTANCE_METAVISOR_MODE
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
+from brkt_cli.subcommand import Subcommand
+from brkt_cli.validation import ValidationError
+
 log = logging.getLogger(__name__)
 
 
@@ -51,7 +51,37 @@ def _add_guest_files_to_instance_config(instance_cfg, guest_files):
             raise ValidationError('Unable to read file: %s' % guest_file.dest_file)
         instance_cfg.add_guest_file(guest_file)
         
-        
+
+def make(values):
+    """ Generate user-data based on command line options.
+    :return the MIME content as a string
+    """
+    instance_cfg = instance_config_from_values(values,
+                                               mode=INSTANCE_METAVISOR_MODE)
+
+    if values.make_user_data_brkt_files:
+        _add_files_to_instance_config(instance_cfg,
+                                      values.make_user_data_brkt_files)
+
+    if values.make_user_data_guest_files:
+        guest_files = []
+        for fname in values.make_user_data_guest_files:
+            match = re.match('(.+):(.+)', fname)
+            if match:
+                guest_file = GuestFile(match.group(1), match.group(2), None)
+                guest_files.append(guest_file)
+            else:
+                raise ValidationError(
+                    'Unable to parse guest file and type: %s' % fname)
+        _add_guest_files_to_instance_config(instance_cfg, guest_files)
+
+    if values.make_user_data_guest_fqdn:
+        vpn_config = 'fqdn: %s\n' % (values.make_user_data_guest_fqdn,)
+        instance_cfg.add_brkt_file('vpn.yaml', vpn_config)
+
+    return instance_cfg.make_userdata()
+
+
 class MakeUserDataSubcommand(Subcommand):
 
     def name(self):
@@ -107,30 +137,8 @@ class MakeUserDataSubcommand(Subcommand):
     def verbose(self, values):
         return values.make_user_data_verbose
 
-    def run(self, values, out=sys.stdout):
-        instance_cfg = instance_config_from_values(values,
-            mode=INSTANCE_METAVISOR_MODE)
-
-        if values.make_user_data_brkt_files:
-            _add_files_to_instance_config(instance_cfg,
-                                          values.make_user_data_brkt_files)
-
-        if values.make_user_data_guest_files:
-            guest_files = []
-            for fname in values.make_user_data_guest_files:
-                match = re.match('(.+):(.+)', fname)
-                if match:
-                    guest_file = GuestFile(match.group(1), match.group(2), None)
-                    guest_files.append(guest_file)
-                else:
-                    raise ValidationError('Unable to parse guest file and type: %s' % fname)
-            _add_guest_files_to_instance_config(instance_cfg, guest_files)
-
-        if values.make_user_data_guest_fqdn:
-            vpn_config = 'fqdn: %s\n' % (values.make_user_data_guest_fqdn,)
-            instance_cfg.add_brkt_file('vpn.yaml', vpn_config)
-
-        out.write(instance_cfg.make_userdata())
+    def run(self, values):
+        print make(values)
         return 0
 
 
