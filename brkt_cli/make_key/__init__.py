@@ -14,6 +14,8 @@
 import getpass
 import logging
 
+from brkt_cli import argutil
+from brkt_cli import util
 from brkt_cli.validation import ValidationError
 
 from brkt_cli.subcommand import Subcommand
@@ -58,6 +60,7 @@ class MakeKeySubcommand(Subcommand):
                 "passphrase."
             )
         )
+        argutil.add_out(parser)
         parser.add_argument(
             '--public-out',
             metavar='PATH',
@@ -83,7 +86,10 @@ class MakeKeySubcommand(Subcommand):
                 raise ValidationError('Passphrases do not match')
 
         crypto = brkt_cli.crypto.new()
-        print crypto.get_private_key_pem(passphrase)
+
+        util.write_to_file_or_stdout(
+            crypto.get_private_key_pem(passphrase),
+            path=values.out)
         if values.public_out:
             _write_file(values.public_out, crypto.public_key_pem)
 

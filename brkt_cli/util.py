@@ -285,3 +285,18 @@ def parse_endpoint(endpoint):
     if groups[1] is not None:
         ret['port'] = int(groups[1][1:])
     return ret
+
+
+def write_to_file_or_stdout(content, path=None):
+    """ Write a content to either the given path, or stdout if path is None.
+    :raise ValidationError if the file can't be written
+    """
+    if not path:
+        print content
+        return
+
+    try:
+        with open(path, 'w') as f:
+            f.write(content)
+    except IOError as e:
+        raise ValidationError('Unable to write to %s: %s' % (path, e))
