@@ -14,10 +14,9 @@
 
 import inspect
 import os
-import StringIO
 import unittest
 
-from brkt_cli.make_user_data import MakeUserDataSubcommand
+from brkt_cli import make_user_data
 from brkt_cli.instance_config_args import instance_config_args_to_values
 
 
@@ -33,10 +32,7 @@ class TestMakeUserData(unittest.TestCase):
         self.maxDiff = None # show full diff with knowngood multi-line strings
 
     def run_cmd(self, values):
-        muds = MakeUserDataSubcommand()
-        outstream = StringIO.StringIO()
-        muds.run(values, out=outstream)
-        output = outstream.getvalue()
+        output = make_user_data.make(values)
 
         knowngood_file = os.path.join(self.testdata_dir,
                                       self.test_name + ".out")
