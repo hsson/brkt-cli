@@ -25,6 +25,7 @@ import iso8601
 import jwt
 
 import brkt_cli
+from brkt_cli import argutil
 from brkt_cli import util
 from brkt_cli.brkt_jwt import jwk
 from brkt_cli.subcommand import Subcommand
@@ -88,7 +89,7 @@ class MakeTokenSubcommand(Subcommand):
         log.debug(jwt_string)
         log.debug('Header: %s', json.dumps(get_header(jwt_string)))
         log.debug('Payload: %s', json.dumps(get_payload(jwt_string)))
-        print(jwt_string)
+        util.write_to_file_or_stdout(jwt_string, path=values.out)
 
         return 0
 
@@ -269,6 +270,7 @@ def setup_make_jwt_args(subparsers):
         metavar='TIMESTAMP',
         help='Token is not valid before this time'
     )
+    argutil.add_out(parser)
     parser.add_argument(
         '-v',
         '--verbose',

@@ -14,6 +14,7 @@
 import logging
 
 import brkt_cli.crypto
+from brkt_cli import argutil
 from brkt_cli import util
 from brkt_cli.subcommand import Subcommand
 
@@ -39,6 +40,7 @@ class GetPublicKeySubcommand(Subcommand):
             help='Print the public part of a private key',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
+        argutil.add_out(parser)
         parser.add_argument(
             'private_key_path',
             metavar='PATH',
@@ -60,7 +62,7 @@ class GetPublicKeySubcommand(Subcommand):
 
     def run(self, values):
         crypto = util.read_private_key(values.private_key_path)
-        print crypto.public_key_pem
+        util.write_to_file_or_stdout(crypto.public_key_pem, values.out)
         return 0
 
 

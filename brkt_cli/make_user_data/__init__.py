@@ -17,6 +17,8 @@ import os
 import re
 
 import brkt_cli
+from brkt_cli import argutil
+from brkt_cli import util
 from brkt_cli.instance_config import GuestFile
 from brkt_cli.instance_config import INSTANCE_METAVISOR_MODE
 from brkt_cli.instance_config_args import (
@@ -133,12 +135,14 @@ class MakeUserDataSubcommand(Subcommand):
             dest='make_user_data_guest_fqdn',
             help=argparse.SUPPRESS
         )
+        argutil.add_out(parser)
 
     def verbose(self, values):
         return values.make_user_data_verbose
 
     def run(self, values):
-        print make(values)
+        mime = make(values)
+        util.write_to_file_or_stdout(mime, values.out)
         return 0
 
 
