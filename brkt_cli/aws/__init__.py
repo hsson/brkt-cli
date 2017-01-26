@@ -203,10 +203,9 @@ def run_encrypt(values, config, verbose=False):
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
 
-    brkt_env = (
-        brkt_cli.brkt_env_from_values(values) or
-        brkt_cli.get_prod_brkt_env()
-    )
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if not brkt_env:
+        _, brkt_env = config.get_current_env()
 
     if values.validate:
         # Validate the region before connecting.
@@ -297,10 +296,9 @@ def run_update(values, config, verbose=False):
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
 
-    brkt_env = (
-        brkt_cli.brkt_env_from_values(values) or
-        brkt_cli.get_prod_brkt_env()
-    )
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if not brkt_env:
+        _, brkt_env = config.get_current_env()
 
     if values.validate:
         # Validate the region before connecting.
