@@ -19,19 +19,99 @@ optional arguments:
   -h, --help            show this help message and exit
 ```
 
-# Encrypting images in AWS
+## Encrypting images in AWS
 
 The `aws encrypt` subcommand performs the following steps to create an
 encrypted image:
 
+1. Get the latest Metavisor AMI ID from `hvm_amis.json`, stored in S3.
 1. Launch an instance based on an unencrypted AMI.  We call this
 the guest instance.
 1. Snapshot the root volume of the guest instance.
 1. Launch a Bracket Encryptor instance.
-1. Attach the unencrypted guest root volume to the Bracket encryptor instance.
+1. Attach the unencrypted guest root volume to the Bracket Encryptor instance.
 1. Copy the unencrypted root volume to a new, encrypted volume.
 1. Create a new AMI based on the encrypted root volume and other volumes
 required by the Metavisor at runtime.
+1. Print the new AMI ID.
+
+## Networking requirements
+
+The following network connections are established during image encryption:
+
+* **brkt-cli** downloads `https://solo-brkt-prod-net.s3.amazonaws.com/hvm_amis.json`.
+* **brkt-cli** gets encryption status from the Encryptor instance on port 80.
+The port number can be overridden with the --status-port flag.
+* The Encryptor talks to the Bracket service at `yetiapi.mgmt.brkt.com`.  In
+order to do this, port 443 must be accessible on the following hosts:
+  * 52.32.38.106
+  * 52.35.101.76
+  * 52.88.55.6
+* **brkt-cli** talks to `api.mgmt.brkt.com` on port 443.
+
+## Encrypting an AMI
+
+Run **brkt aws encrypt** to create a new encrypted AMI based on an existing
+image:
+
+```
+$ brkt aws encrypt --region us-east-1 --token <token> ami-76e27e1e
+15:28:37 Starting encryptor session caabe51a
+15:28:38 Launching instance i-703f4c99 to snapshot root disk for ami-76e27e1e
+...
+15:57:11 Created encrypted AMI ami-07c2a262 based on ami-76e27e1e
+15:57:11 Terminating encryptor instance i-753e4d9c
+15:57:12 Deleting snapshot copy of original root volume snap-847da3e1
+15:57:12 Done.
+ami-07c2a262
+```
+
+When the process completes, the new AMI id is written to stdout.  Log
+messages are written to stderr.
+
+## Updating an encrypted AMI
+
+Run **brkt aws update** to update an encrypted AMI based on an existing
+encrypted image:
+
+```
+$ brkt aws update --region us-east-1 --token <token> ami-72094e18
+13:38:14 Using zone us-east-1a
+13:38:15 Updating ami-72094e18
+13:38:15 Creating guest volume snapshot
+...
+13:39:25 Encrypted root drive created.
+...
+13:39:28 waiting for snapshot ready
+13:39:48 metavisor updater snapshots ready
+...
+13:39:54 Created encrypted AMI ami-63733e09 based on ami-72094e18
+13:39:54 Done.
+ami-63733e09
+```
+
+When the process completes, the new AMI id is written to stdout.  Log
+messages are written to stderr.
+
+## Configuration
+
+Before running the **brkt** command, make sure that you've set your AWS
+environment variables:
+
+```
+$ export AWS_ACCESS_KEY_ID=<access key>
+$ export AWS_SECRET_ACCESS_KEY=<secret key>
+```
+
+You'll also need to make sure that your AWS account has the required
+permissions, such as running an instance, describing an image, and
+creating snapshots.  See [brkt-cli-iam-permissions.json](https://github.com/brkt/brkt-cli/blob/master/reference_templates/brkt-cli-iam-permissions.json)
+for the complete list of required permissions.
+
+When launching the Encryptor or Updater instance, **brkt-cli** creates
+a temporary security group that allows inbound access on port 80.
+Alternately, you can use the `--security-group` option to specify one
+or more existing security groups.
 
 ## Usage
 ```
@@ -143,67 +223,3 @@ optional arguments:
   -v, --verbose         Print status information to the console (default:
                         False)
 ```
-
-## Configuration
-
-Before running the **brkt** command, make sure that you've set your AWS
-environment variables:
-
-```
-$ export AWS_ACCESS_KEY_ID=<access key>
-$ export AWS_SECRET_ACCESS_KEY=<secret key>
-```
-
-You'll also need to make sure that your AWS account has the required
-permissions, such as running an instance, describing an image, and
-creating snapshots.  See [brkt-cli-iam-permissions.json](https://github.com/brkt/brkt-cli/blob/master/reference_templates/brkt-cli-iam-permissions.json)
-for the complete list of required permissions.
-
-When launching the Encryptor or Updater instance, **brkt-cli** creates
-a temporary security group that allows inbound access on port 80.
-Alternately, you can use the `--security-group` option to specify one
-or more existing security groups.
-
-## Encrypting an AMI
-
-Run **brkt aws encrypt** to create a new encrypted AMI based on an existing
-image:
-
-```
-$ brkt aws encrypt --region us-east-1 --token <token> ami-76e27e1e
-15:28:37 Starting encryptor session caabe51a
-15:28:38 Launching instance i-703f4c99 to snapshot root disk for ami-76e27e1e
-...
-15:57:11 Created encrypted AMI ami-07c2a262 based on ami-76e27e1e
-15:57:11 Terminating encryptor instance i-753e4d9c
-15:57:12 Deleting snapshot copy of original root volume snap-847da3e1
-15:57:12 Done.
-ami-07c2a262
-```
-
-When the process completes, the new AMI id is written to stdout.  Log
-messages are written to stderr.
-
-## Updating an encrypted AMI
-
-Run **brkt aws update** to update an encrypted AMI based on an existing
-encrypted image:
-
-```
-$ brkt aws update --region us-east-1 --token <token> ami-72094e18
-13:38:14 Using zone us-east-1a
-13:38:15 Updating ami-72094e18
-13:38:15 Creating guest volume snapshot
-...
-13:39:25 Encrypted root drive created.
-...
-13:39:28 waiting for snapshot ready
-13:39:48 metavisor updater snapshots ready
-...
-13:39:54 Created encrypted AMI ami-63733e09 based on ami-72094e18
-13:39:54 Done.
-ami-63733e09
-```
-
-When the process completes, the new AMI id is written to stdout.  Log
-messages are written to stderr.

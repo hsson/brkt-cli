@@ -1,10 +1,15 @@
 **brkt-cli** is a command-line interface to the
 [Bracket Computing](http://www.brkt.com) service. It produces an
-encrypted version of an operating system image in [Amazon Web Services]
-(https://aws.amazon.com/)
-(AWS) or [Google Compute Engine](https://cloud.google.com/compute/)
-(GCE). The resulting encrypted image can then be launched in the same
-manner as the original.
+encrypted version of an operating system image that runs on
+[Amazon Web Services](aws.md) (AWS), [Google Compute Engine](gce.md)
+(GCE), or [VMware ESX](vmw.md). The resulting encrypted image can then
+be launched in the same manner as the original.  Please see the
+links above for cloud-provider specific details and an overview of
+the encryption process.
+
+**brkt-cli** also has commands for managing private/public key pairs
+and generating a JSON Web Token (JWT) that is used to authenticate with
+The Bracket Computing service.
 
 The latest release of **brkt-cli** is [1.0.6]
 (https://github.com/brkt/brkt-cli/releases/tag/brkt-cli-1.0.6).
@@ -71,20 +76,6 @@ $ pip install git+https://github.com/brkt/brkt-cli.git
 ```
 
 The master branch has the latest features and bug fixes, but is not as thoroughly tested as the official release.
-
-## Networking requirements
-
-The following network connections are established during image encryption:
-
-* **brkt-cli** talks to the Encryptor instance on port 80 by default. This can
-be overridden using the --status-port flag which support any port other than port 81.
-* The Encryptor talks to the Bracket service at `yetiapi.mgmt.brkt.com`.  In
-order to do this, port 443 must be accessible on the following hosts:
-  * 52.32.38.106
-  * 52.35.101.76
-  * 52.88.55.6
-* **brkt-cli** talks to `api.mgmt.brkt.com` on port 443.
-* Both **brkt-cli** and the Encryptor also need to access Amazon S3.
 
 ## Authentication
 
