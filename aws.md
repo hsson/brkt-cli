@@ -108,10 +108,17 @@ permissions, such as running an instance, describing an image, and
 creating snapshots.  See [brkt-cli-iam-permissions.json](https://github.com/brkt/brkt-cli/blob/master/reference_templates/brkt-cli-iam-permissions.json)
 for the complete list of required permissions.
 
+You can use the `--subnet` option to launch the Encryptor in a specific
+VPC and subnet.  Without this option, the encryptor is launched in
+your default VPC and subnet.
+
 When launching the Encryptor or Updater instance, **brkt-cli** creates
 a temporary security group that allows inbound access on port 80.
 Alternately, you can use the `--security-group` option to specify one
 or more existing security groups.
+
+If both `--subnet` and `--security-group` are specified, they must
+be in the same VPC.
 
 ## Usage
 ```
