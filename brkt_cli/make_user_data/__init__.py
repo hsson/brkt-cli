@@ -81,6 +81,9 @@ def make(values):
         vpn_config = 'fqdn: %s\n' % (values.make_user_data_guest_fqdn,)
         instance_cfg.add_brkt_file('vpn.yaml', vpn_config)
 
+    if values.unencrypted_guest:
+        instance_cfg.brkt_config['allow_unencrypted_guest'] = 'true'
+
     return instance_cfg.make_userdata()
 
 
@@ -109,6 +112,12 @@ class MakeUserDataSubcommand(Subcommand):
             dest='make_user_data_verbose',
             action='store_true',
             help='Print status information to the console'
+        )
+        parser.add_argument(
+            '--unencrypted-guest',
+            dest='unencrypted_guest',
+            action='store_true',
+            help=argparse.SUPPRESS
         )
         parser.add_argument(
             '--brkt-file',
