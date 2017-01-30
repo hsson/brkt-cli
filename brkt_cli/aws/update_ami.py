@@ -31,7 +31,10 @@ from brkt_cli.encryptor_service import (
     wait_for_encryptor_up,
     wait_for_encryption,
 )
-from brkt_cli.instance_config import InstanceConfig
+from brkt_cli.instance_config import (
+    InstanceConfig,
+    INSTANCE_UPDATER_MODE,
+)
 from brkt_cli.user_data import gzip_user_data
 from brkt_cli.util import Deadline
 from encrypt_ami import (
@@ -63,7 +66,7 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
     mv_root_id = None
     temp_sg_id = None
     if instance_config is None:
-        instance_config = InstanceConfig()
+        instance_config = InstanceConfig(mode=INSTANCE_UPDATER_MODE)
 
     try:
         guest_image = aws_svc.get_image(encrypted_ami)
@@ -75,7 +78,6 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
         # information embedded in the guest AMI
         log.info("Launching encrypted guest/updater")
 
-        instance_config.brkt_config['solo_mode'] = 'updater'
         instance_config.brkt_config['status_port'] = status_port
 
         encrypted_guest = aws_svc.run_instance(
