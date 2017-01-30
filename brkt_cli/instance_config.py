@@ -35,9 +35,9 @@ GUEST_FILES_CONTENT_TYPE = 'text/brkt-guest-files'
 
 # Some instance config args are only supported when the Metavisor instance
 # is running in 'creator' mode.
-INSTANCE_METAVISOR_MODE = 1
-INSTANCE_CREATOR_MODE   = 2
-INSTANCE_UPDATER_MODE   = 3
+INSTANCE_METAVISOR_MODE = 'metavisor'
+INSTANCE_CREATOR_MODE   = 'creator'
+INSTANCE_UPDATER_MODE   = 'updater'
 
 log = logging.getLogger(__name__)
 
@@ -78,24 +78,31 @@ class InstanceConfig(object):
     def add_guest_file(self, guest_file):
         self._guest_files.append(guest_file)
 
+    def ensure_solo_mode_in_config(self):
+        if 'solo_mode' not in self.brkt_config:
+            self.brkt_config['solo_mode'] = self._mode
+
     def set_mode(self, mode=INSTANCE_CREATOR_MODE):
         self._mode = mode
         if mode is INSTANCE_METAVISOR_MODE:
             self._brkt_files_dest_dir = BRKT_FILE_INSTANCE_CONFIG
         else:
             self._brkt_files_dest_dir = BRKT_FILE_AMI_CONFIG
+        self.ensure_solo_mode_in_config()
 
     def get_brkt_config(self):
         return self.brkt_config
 
     def set_brkt_config(self, brkt_config):
         self.brkt_config = brkt_config
+        self.ensure_solo_mode_in_config()
 
     def make_brkt_config_json(self):
         brkt_config_dict = {'brkt': self.brkt_config}
         return json.dumps(brkt_config_dict, sort_keys=True)
 
     def make_userdata(self):
+        self.ensure_solo_mode_in_config()
         udc = UserDataContainer()
 
         udc.add_part(BRKT_CONFIG_CONTENT_TYPE, self.make_brkt_config_json())

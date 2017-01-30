@@ -162,7 +162,6 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         if instance_config:
             brkt_config = instance_config.get_brkt_config()
         if update is True:
-            brkt_config['solo_mode'] = 'updater'
             instance_config.set_mode(INSTANCE_UPDATER_MODE)
         if ssh_key_file:
             with open(ssh_key_file, 'r') as f:

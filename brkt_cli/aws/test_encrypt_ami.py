@@ -29,7 +29,10 @@ from brkt_cli import ValidationError, encryptor_service
 from brkt_cli.aws import aws_service, encrypt_ami, update_ami
 from brkt_cli.aws import test_aws_service
 from brkt_cli.aws.test_aws_service import build_aws_service
-from brkt_cli.instance_config import BRKT_CONFIG_CONTENT_TYPE
+from brkt_cli.instance_config import (
+    BRKT_CONFIG_CONTENT_TYPE,
+    INSTANCE_UPDATER_MODE,
+)
 from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.instance_config_args import (
     instance_config_args_to_values,
@@ -561,7 +564,7 @@ class TestBrktEnv(unittest.TestCase):
         cli_args = '--brkt-env %s,%s,%s' % (api_host_port, hsmproxy_host_port,
                                          network_host_port)
         values = instance_config_args_to_values(cli_args)
-        ic = instance_config_from_values(values)
+        ic = instance_config_from_values(values, mode=INSTANCE_UPDATER_MODE)
 
         def run_instance_callback(args):
             if args.image_id == encryptor_image.id:

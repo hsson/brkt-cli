@@ -62,7 +62,6 @@ def update_gce_image(gce_svc, enc_svc_cls, image_id, encryptor_image,
         snap_created = True
 
         log.info("Launching encrypted updater")
-        instance_config.brkt_config['solo_mode'] = 'updater'
         user_data = gce_metadata_from_userdata(instance_config.make_userdata())
         gce_svc.run_instance(zone,
                              updater,
