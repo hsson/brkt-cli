@@ -20,8 +20,42 @@ optional arguments:
 
 # Encrypting images in GCE
 
-The `gce encrypt` subcommand creates an encrypted version of a
-GCE image.
+The `gce encrypt` subcommand performs the following steps to create an
+encrypted image:
+
+1. Get the latest Metavisor image named `latest.image.tar.gz` from 
+Google Cloud Storage
+1. Create an encryptor image locally from the latest Metavisor image
+1. Launch an instance based on the unencrypted image. We call this the
+guest instance.
+1. Snapshot the root volume of the guest instance.
+1. Launch a Bracket Encryptor instance based on the locally created
+encryptor image
+1. Attach the unencrypted guest root volume to the Bracket Encryptor instance
+1. Copy the unencrypted root volume to a new, encrypted volume
+1. Create a new image based on the encryptor image
+1. Create a snapshot of the encrypted guest root volume with the corresponding
+name
+1. Print the new encrypted image name
+
+# Networking requirements
+
+The following connections are established during image encryption:
+
+* **brkt-cli** downloads `http://storage.googleapis.com/brkt-prod-images/latest.image.tar.gz`
+* **brkt-cli** gets encryption status from the Encryptor instance on port 80. 
+The port number can be overridden with the --status-port flag.
+* The Encryptor talks to the Bracket service at `yetiapi.mgmt.brkt.com`. In 
+order to do this, port 443 must be accessible on the following hosts:
+  * 52.32.38.106
+  * 52.35.101.76
+  * 52.88.55.6
+* brkt-cli talks to `api.mgmt.brkt.com` on port 443.
+
+# Encrypting a GCE image
+
+Run **gce encrypt** to create an encrypted image based on an existing
+image.
 
 ```
 $ brkt gce encrypt --help
@@ -164,13 +198,21 @@ optional arguments:
 
 ## Configuration
 
-Before running the GCE commands in **brkt-cli**, you'll need to install
-[gcloud](https://cloud.google.com/sdk/gcloud/) and configure it
-to work with your Google account and GCP project.
+Before running the GCE commands in **brkt-cli**, you will  need to install
+[gcloud](https://cloud.google.com/sdk/gcloud/) and configure it to work 
+with your Google account and GCP project. Make sure that your Google 
+account has `Editor` permissions within the selected Google project.
 
-You'll also need to add a Firewall rule that allows inbound access
+You can use the `--network` option to launch the encryptor instance in
+a specific GCE network. Additionally if you created this network using
+custom subnetworks, then you **must** specify the corresponding subnetwork
+using the `--subnetwork` option. In the absence of the `--network` option,
+the encryptor is launched in the `default` GCE network.
+
+You will also need to add a firewall rule that allows inbound access
 to the Encryptor or Updater instance on port **80**, or the port that
-you specify with the **--status-port** option.
+you specify with the **--status-port** option in the default network
+(or in the network where you launch the encryptor instance).
 
 ## Encrypting an image
 
