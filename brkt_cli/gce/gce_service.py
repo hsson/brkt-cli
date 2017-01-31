@@ -209,7 +209,7 @@ class GCEService(BaseGCEService):
         self.storage = discovery.build(
             'storage', 'v1', credentials=self.credentials)
 
-    # if bucket exists do we have permission?
+    # Check if bucket exists and user doesn't have permission
     def check_bucket_name(self, bucket):
         try:
             bucket = self.storage.buckets().get(
@@ -221,6 +221,13 @@ class GCEService(BaseGCEService):
                 return True
             else:
                 return False
+
+    # Check if the bucket name uses valid syntax
+    #def validate_bucket_name(self,bucket):
+
+
+    # Check if the file name uses valid syntax
+    #def validate_file_name(self,):
 
 
     def check_bucket_file(self, bucket, file):
@@ -235,7 +242,7 @@ class GCEService(BaseGCEService):
         return False
 
     def wait_bucket_file(self, bucket, file):
-        for i in range(60):
+        for i in range(18):
             try:
                 self.storage.objects().get(
                    bucket=bucket,
@@ -244,6 +251,24 @@ class GCEService(BaseGCEService):
             except:
                 time.sleep(10)
         return False
+
+    def get_public_image(self):
+        try:
+            # guest_os is a family
+            self.log.info("Trying to get from family...")
+            request = self.compute.images().getFromFamily(
+                project='ubuntu-os-cloud',
+                family='ubuntu-1404-lts')
+            public_image = request.execute(num_retries=5)
+        except:
+            # guest_os is an image already
+            self.log.info("Trying to get specific image...")
+            request = self.compute.images().get(
+                project='ubuntu-os-cloud',
+                image='ubuntu-1404-lts')
+            public_image = request.execute(num_retries=5)
+            logger.info("Public image: %s", public_image['name'])
+        return public_image['name']
 
     def cleanup(self, zone, encryptor_image, keep_encryptor=False):
         try:

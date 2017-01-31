@@ -161,18 +161,17 @@ def share_logs(values, gce_svc):
 
     try:
         image_project = 'ubuntu-os-cloud'
-        ubuntu_image = 'ubuntu-1404-trusty-v20160222'
 
+        # Retrieve latest image from family
+        ubuntu_image = gce_svc.get_public_image()
         # Check to see if the bucket-name is valid
         if gce_svc.check_bucket_name(values.bucket):
-            log.info('Bucket-name is not valid')
-            return 1
+        	raise ValidationError('Bucket-name is not valid')
 
         # Check to see if the tar file is already in the bucket
         if gce_svc.check_bucket_file(values.bucket, values.file):
-            log.info('File already exists: Delete diags file and run again')
-            return 1
-
+        	raise ValidationError('File already exists: Delete diags file and run again')
+		
         # Create snapshot from root disk
         gce_svc.create_snapshot(
             values.zone, values.instance, snapshot_name)
@@ -222,15 +221,15 @@ def share_logs(values, gce_svc):
 
         # Wait for tar file to upload to bucket
         if gce_svc.wait_bucket_file(values.bucket, values.file):
-            # Add account to access control list
+            # Add email account to access control list
             if gce_svc.storage.objectAccessControls().insert(
                 bucket=values.bucket,
                 object=values.file,
-                body={'entity': 'user-%s' % (values.account),
+                body={'entity': 'user-%s' % (values.email),
                       'role': 'READER'}).execute():
                 log.info('Updated bucket permissions')
             else:
-                log.info('Error: Invalid or non-google account')
+                log.info('Error: Invalid or non-google email')
                 return 1
         else:
             log.info("Can't upload log files")
@@ -241,7 +240,7 @@ def share_logs(values, gce_svc):
             % (values.bucket, values.file))
 
     except Exception as e:
-        log.info('share_logs error: %s ' % e)
+        log.exception('share_logs error: %s ' % e)
 
     # Delete the instance, disks, and snapshot
     finally:
@@ -251,6 +250,7 @@ def share_logs(values, gce_svc):
         # Delete the instance and disks that were created
         gce_svc.cleanup(values.zone, None)
     return 0
+
 
 class GCESubcommand(Subcommand):
 
@@ -472,7 +472,7 @@ class LaunchGCEImageSubcommand(Subcommand):
 class ShareLogsGCESubcommand(Subcommand):
 
     def name(self):
-        return 'share-logs-gce'
+        return 'share-logs'
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
@@ -486,10 +486,6 @@ class ShareLogsGCESubcommand(Subcommand):
         setup_instance_config_args(share_logs_parser, parsed_config)
 
     def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use brkt gce '
-            'share-logs instead'
-        )
         return run_launch(values, self.config)
 
 

@@ -16,7 +16,7 @@
 def setup_share_logs_gce_args(parser):
     parser.add_argument(
         '--instance',
-        metavar='ID',
+        metavar='NAME',
         dest='instance',
         help='The instance with Bracket system logs to be shared',
         required=True
@@ -24,28 +24,28 @@ def setup_share_logs_gce_args(parser):
     parser.add_argument(
         '--zone',
         metavar='NAME',
-        help='GCE zone (e.g. us-west-2)',
+        help='GCE zone (e.g. us-central1-a)',
         dest='zone',
         required=True
     )
     parser.add_argument(
-        '--account',
-        metavar='NAME',
-        help='account to share logs with (e.g. email address)',
-        dest='account',
+        '--email',
+        metavar='ADDRESS',
+        help='Gmail address to share logs with',
+        dest='email',
         required=True
     )
     parser.add_argument(
         '--bucket',
         metavar='NAME',
-        help='bucket/file name to store logs',
+        help='Bucket/file name to store logs',
         dest='bucket',
         required=True
     )
     parser.add_argument(
         '--file',
         metavar='NAME',
-        help='file name to store logs',
+        help='File name to store logs',
         dest='file',
         default='diags.tar.gz'
     )
