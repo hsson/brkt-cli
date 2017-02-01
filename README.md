@@ -39,7 +39,7 @@ supports Python Wheels, which include the binary portion of the
 to the latest version, run
 
 ```
-$ pip install -U pip
+$ pip install --upgrade pip
 ```
 
 #### Linux
@@ -72,7 +72,7 @@ $ pip install brkt-cli
 To install the most recent **brkt-cli** code from the tip of the master branch, run
 
 ```
-$ pip install git+https://github.com/brkt/brkt-cli.git
+$ pip install --upgrade git+https://github.com/brkt/brkt-cli.git
 ```
 
 The master branch has the latest features and bug fixes, but is not as thoroughly tested as the official release.

@@ -613,6 +613,7 @@ def main():
         if debug_handler:
             logging.root.removeHandler(debug_handler)
             debug_handler.close()
+            debug_log_file.close()
 
             if result != 0 and allow_debug_log:
                 log.info('Debug log is available at %s', debug_log_file.name)
