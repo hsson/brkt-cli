@@ -39,10 +39,11 @@ usage: brkt vmware encrypt-with-vcenter [-h] --vcenter-host DNS_NAME
                                         [--vcenter-datacenter NAME]
                                         [--vcenter-datastore NAME]
                                         [--vcenter-cluster NAME]
+                                        [--vcenter-network-name NAME]
                                         [--cpu-count N] [--memory GB]
                                         [--encrypted-image-name NAME]
                                         [--template-vm-name NAME]
-                                        [--no-validate] [--create-ovf]
+                                        [--no-verify-cert] [--create-ovf]
                                         [--create-ova]
                                         [--encrypted-image-directory NAME]
                                         [--ovftool-path PATH]
@@ -77,8 +78,7 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
-  --no-validate         Don't validate VMDKs and vCenter credentials (default:
-                        True)
+  --no-verify-cert      Don't validate vCenter certificate
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
@@ -107,6 +107,8 @@ optional arguments:
   --vcenter-host DNS_NAME
                         IP address/DNS Name of the vCenter host (default:
                         None)
+  --vcenter-network-name NAME
+                        vCenter network name to use (default: VM Network)
   --vcenter-port N      Port Number of the vCenter Server (default: 443)
   -h, --help            show this help message and exit
 ```
@@ -121,13 +123,14 @@ usage: brkt vmware update-with-vcenter [-h] --vcenter-host DNS_NAME
                                        [--vcenter-datacenter NAME]
                                        [--vcenter-datastore NAME]
                                        [--vcenter-cluster NAME]
+                                       [--vcenter-network-name NAME]
                                        [--cpu-count N] [--memory GB]
                                        [--template-vm-name NAME]
                                        [--encrypted-image-directory NAME]
                                        [--ovftool-path PATH]
                                        [--encrypted-image-name NAME]
                                        [--update-ovf] [--update-ova]
-                                       [--no-validate]
+                                       [--no-verify-cert]
                                        [--ovf-source-directory PATH]
                                        [--metavisor-ovf-image-name NAME]
                                        [--use-esx-host]
@@ -148,8 +151,7 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
-  --no-validate         Don't validate VMDKs and vCenter credentials (default:
-                        True)
+  --no-verify-cert      Don't validate vCenter certificate
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
@@ -184,6 +186,8 @@ optional arguments:
   --vcenter-host DNS_NAME
                         IP address/DNS Name of the vCenter host (default:
                         None)
+  --vcenter-network-name NAME
+                        vCenter network name to use (default: VM Network)
   --vcenter-port N      Port Number of the vCenter Server (default: 443)
   -h, --help            show this help message and exit
 ```
@@ -271,11 +275,11 @@ The `vmware encrypt-with-esx-host` subcommand creates an encrypted VMDK from a b
 $ brkt vmware encrypt-with-esx-host --help
 usage: brkt vmware encrypt-with-esx-host [-h] --esx-host DNS_NAME
                                          [--esx-port N] [--esx-datastore NAME]
+                                         [--esx-network-name NAME]
                                          [--cpu-count N] [--memory GB]
                                          [--encrypted-image-name NAME]
                                          [--template-vm-name NAME]
-                                         [--no-validate] [--create-ovf]
-                                         [--create-ova]
+                                         [--create-ovf] [--create-ova]
                                          [--encrypted-image-directory NAME]
                                          [--ovftool-path PATH]
                                          [--ovf-source-directory PATH]
@@ -308,12 +312,12 @@ optional arguments:
                         None)
   --esx-datastore NAME  ESX datastore to use (default: None)
   --esx-host DNS_NAME   IP address/DNS Name of the ESX host (default: None)
+  --esx-network-name NAME
+                        ESX network name to use (default: VM Network)
   --esx-port N          Port Number of the ESX Server (default: 443)
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
-  --no-validate         Don't validate VMDKs and vCenter credentials (default:
-                        True)
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
@@ -342,11 +346,11 @@ The `vmware update-with-esx-host` subcommand updates an encrypted VMDK with the 
 $ brkt vmware update-with-esx-host --help
 usage: brkt vmware update-with-esx-host [-h] --esx-host DNS_NAME
                                         [--esx-port N] [--esx-datastore NAME]
+                                        [--esx-network-name NAME]
                                         [--cpu-count N] [--memory GB]
                                         [--encrypted-image-name NAME]
                                         [--template-vm-name NAME]
-                                        [--no-validate] [--create-ovf]
-                                        [--create-ova]
+                                        [--create-ovf] [--create-ova]
                                         [--encrypted-image-directory NAME]
                                         [--ovftool-path PATH]
                                         [--ovf-source-directory PATH]
@@ -379,12 +383,12 @@ optional arguments:
                         None)
   --esx-datastore NAME  ESX datastore to use (default: None)
   --esx-host DNS_NAME   IP address/DNS Name of the ESX host (default: None)
+  --esx-network-name NAME
+                        ESX network name to use (default: VM Network)
   --esx-port N          Port Number of the ESX Server (default: 443)
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
-  --no-validate         Don't validate VMDKs and vCenter credentials (default:
-                        True)
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
