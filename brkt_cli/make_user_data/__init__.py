@@ -82,7 +82,7 @@ def make(values):
         instance_cfg.add_brkt_file('vpn.yaml', vpn_config)
 
     if values.unencrypted_guest:
-        instance_cfg.brkt_config['allow_unencrypted_guest'] = 'true'
+        instance_cfg.brkt_config['allow_unencrypted_guest'] = True
 
     return instance_cfg.make_userdata()
 
