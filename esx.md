@@ -26,6 +26,39 @@ optional arguments:
   -h, --help            show this help message and exit
 ```
 
+# Networking requirements
+
+The following network connections are established during image encryption:
+
+* **brkt-cli** downloads the latest Metavisor OVF image from `https://s3-us-west-2.amazonaws.com/solo-brkt-prod-ovf-image`
+* **brkt-cli** establishes a HTTPS session with the vCenter (or ESX) server
+over port 443. The port number can be overriden with the `--vcenter-port`
+(or `--esx-port`) flag.
+* **brkt-cli** gets encryption status from the Encryptor instance on port 80.
+The port number can be overridden with the `--status-port` flag
+* The Encryptor talks to the Bracket service at `yetiapi.mgmt.brkt.com`. In
+order to do this, port 443 must be accessible on the following hosts:
+  * 52.32.38.106
+  * 52.35.101.76
+  * 52.88.55.6
+* **brkt-cli** talks to `api.mgmt.brkt.com` on port 443
+
+# Encrypting images using vCenter
+
+The `vmware encrypt-with-vcenter` subcommand performs the following steps to create
+an encrypted VM template:
+
+1. Get the latest Metavisor OVF release image stored in S3.
+1. Connect to the vCenter host.
+1. Launch an encryptor instance using the downloaded Metavisor OVF.
+1. Attach the unencrypted guest root volume to the encryptor instance.
+1. Copy the unencrypted root volume to a new, encrypted volume.
+1. Detach the unencrypted guest root volume from the encryptor instance.
+1. Clone the running encryptor instance to a new VM template, or export
+to an OVA or OVF (depending on the selected options)
+1. Terminate the encryptor instance
+1. Print the encrypted VM template name
+
 # Encrypting images with vCenter
 
 The `vmware encrypt-with-vcenter` creates an encrypted VMDK from a base (unencrypted) 
@@ -33,7 +66,7 @@ VMDK using a vCenter server.
 
 ## Usage
 ```
-$ brkt vmware encrypt --help
+$ brkt vmware encrypt-with-vcenter --help
 usage: brkt vmware encrypt-with-vcenter [-h] --vcenter-host DNS_NAME
                                         [--vcenter-port N]
                                         [--vcenter-datacenter NAME]
@@ -261,6 +294,21 @@ encrypt-vmdk-test
 
 When the process completes, the VMDK specified in the `--template-vm-name` argument
 is updated with the latest Metavisor.
+
+# Encrypting images using an ESX host
+
+The `vmware encrypt-with-esx-host` subcommand performs the following steps to create
+an encrypted VMDK:
+
+1. Get the latest Metavisor OVF release image stored in S3.
+1. Connect to the ESX host.
+1. Lanch an encryptor instance on the ESX host using the downloaded Metavisor OVF.
+1. Attach the unencrypted root volume to a new, encrypted volume.
+1. Copy the unencrypted root volume to a new, encrypted volume.
+1. Detach the unencrypted guest root volume from the encryptor instance.
+1. Depending on the options selected, either exports the encryptor instance to an
+OVA/OVF and terminates the encryptor instance or simply stops the encrypted instance.
+1. Print the encrypted VM instance name (if the OVA/OVF option is not selected).
 
 # Encrypting images on an ESX host
 
