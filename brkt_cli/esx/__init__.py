@@ -418,7 +418,7 @@ def run_rescue_metavisor(values, parsed_config, log):
         return 1
 
 
-class VMWareSubcommand(Subcommand):
+class VMwareSubcommand(Subcommand):
 
     def name(self):
         return 'vmware'
@@ -427,8 +427,8 @@ class VMWareSubcommand(Subcommand):
         self.config = parsed_config
         vmware_parser = subparsers.add_parser(
             self.name(),
-            description='VMWare Operations',
-            help='VMWare Operations',
+            description='VMware operations',
+            help='VMware operations',
         )
 
         vmware_subparsers = vmware_parser.add_subparsers(
@@ -591,7 +591,7 @@ class RescueMetavisorSubcommand(Subcommand):
 
 
 def get_subcommands():
-    return [VMWareSubcommand(),
+    return [VMwareSubcommand(),
             EncryptVMDKSubcommand(),
             UpdateVMDKSubcommand(),
             RescueMetavisorSubcommand()]

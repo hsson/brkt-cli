@@ -1,4 +1,4 @@
-# AWS Operations
+# AWS operations
 
 The `aws` subcommand provides all AWS related operations for encrypting and updating images.
 
