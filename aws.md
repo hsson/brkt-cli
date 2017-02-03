@@ -162,8 +162,8 @@ optional arguments:
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
   --subnet ID           Launch instances in this subnet (default: None)
-  --tag KEY=VALUE       Custom tag for resources created during encryption.
-                        May be specified multiple times. (default: None)
+  --tag KEY=VALUE       Set an AWS tag on resources created during encryption.
+                        May be specified multiple times.
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
                         token subcommand to generate a token. (default: None)
@@ -218,8 +218,8 @@ optional arguments:
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
   --subnet ID           Launch instances in this subnet (default: None)
-  --tag KEY=VALUE       Custom tag for resources created during encryption.
-                        May be specified multiple times. (default: None)
+  --tag KEY=VALUE       Set an AWS tag on resources created during update. May
+                        be specified multiple times.
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
                         token subcommand to generate a token. (default: None)

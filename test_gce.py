@@ -173,7 +173,8 @@ class DummyGCEService(gce_service.BaseGCEService):
                      delete_boot=False,
                      block_project_ssh_keys=False,
                      instance_type='n1-standard-4',
-                     image_project=None):
+                     image_project=None,
+                     tags=None):
         self.instances.append(name)
         if not delete_boot:
             self.disks.append(name)
@@ -185,6 +186,12 @@ class DummyGCEService(gce_service.BaseGCEService):
             'autoDelete': False,
             'source': self.gce_res_uri + source_disk,
         }
+
+    def set_tags(self, zone, instance, tags):
+        return
+
+    def get_tags_fingerprint(self, instance, zone):
+        return 'fingerprint'
 
 
 class TestEncryptedImageName(unittest.TestCase):

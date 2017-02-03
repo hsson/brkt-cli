@@ -60,11 +60,11 @@ image.
 ```
 $ brkt gce encrypt --help
 usage: brkt gce encrypt [-h] [--encrypted-image-name NAME] --zone ZONE
-                        [--encryptor-image-bucket BUCKET] [--no-validate]
-                        --project PROJECT [--image-project NAME]
+                        [--no-validate] --project PROJECT
+                        [--image-project NAME]
                         [--encryptor-image ENCRYPTOR_IMAGE]
                         [--network NETWORK] [--subnetwork SUBNETWORK]
-                        [--ntp-server DNS_NAME]
+                        [--gce-tag VALUE] [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
                         [--status-port PORT] [--token TOKEN]
                         ID
@@ -79,11 +79,10 @@ optional arguments:
                         Specify the name of the generated encrypted image
                         (default: None)
   --encryptor-image ENCRYPTOR_IMAGE
-  --encryptor-image-bucket BUCKET
-                        Bucket to retrieve encryptor image from (prod, stage,
-                        shared, <custom>) (default: prod)
+  --gce-tag             Set a GCE tag on the encryptor instance. May be
+                        specified multiple times.
   --image-project NAME  GCE project name which owns the image (e.g. centos-
-                        cloud) (default: None
+                        cloud) (default: None)
   --network NETWORK
   --no-validate         Don't validate images or token (default: True)
   --ntp-server DNS_NAME
@@ -112,9 +111,9 @@ image with the latest version of the Metavisor code.
 ```
 $ brkt gce update --help
 usage: brkt gce update [-h] [--encrypted-image-name NAME] --zone ZONE
-                       [--encryptor-image-bucket BUCKET] --project PROJECT
-                       [--no-validate] [--encryptor-image ENCRYPTOR_IMAGE]
-                       [--network NETWORK] [--subnetwork SUBNETWORK]
+                       --project PROJECT [--no-validate]
+                       [--encryptor-image ENCRYPTOR_IMAGE] [--network NETWORK]
+                       [--subnetwork SUBNETWORK] [--gce-tag VALUE]
                        [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
                        [--status-port PORT] [--token TOKEN]
@@ -130,9 +129,8 @@ optional arguments:
                         Specify the name of the generated encrypted Image
                         (default: None)
   --encryptor-image ENCRYPTOR_IMAGE
-  --encryptor-image-bucket BUCKET
-                        Bucket to retrieve encryptor image from (prod, stage,
-                        shared, <custom>) (default: prod)
+  --gce-tag             Set a GCE tag on the updater instance. May be
+                        specified multiple times.
   --network NETWORK
   --no-validate         Don't validate images or token (default: True)
   --ntp-server DNS Name
@@ -161,8 +159,10 @@ The `gce launch` subcommand launches an encrypted GCE image.
 $ brkt gce launch --help
 usage: brkt gce launch [-h] [--instance-name NAME]
                        [--instance-type INSTANCE_TYPE] [--zone ZONE]
-                       [--delete-boot] --project PROJECT [--network NETWORK]
-                       [--subnetwork NAME] [--ntp-server DNS_NAME]
+                       [--no-delete-boot] --project PROJECT
+                       [--network NETWORK] [--gce-tag VALUE]
+                       [--subnetwork NAME] [--ssd-scracth-disks N]
+                       [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
                        [--token TOKEN]
                        ID
@@ -173,12 +173,14 @@ positional arguments:
   ID                    The image that will be launched
 
 optional arguments:
-  --delete-boot         Delete boot disk when instance is deleted (default:
-                        False)
-  --instance-name NAME  Name of the instance (default: None)
+  --gce-tag             Set a GCE tag on the encrypted instance being
+                        launched. May be specified multiple times.
+  --instance-name NAME  Name of the instance
   --instance-type INSTANCE_TYPE
                         Instance type (default: n1-standard-1)
   --network NETWORK
+  --no-delete-boot      Delete boot disk when instance is deleted (default:
+                        False)
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
@@ -188,6 +190,9 @@ optional arguments:
   --proxy-config-file PATH
                         Path to proxy.yaml file that will be used during
                         encryption (default: None)
+  --ssd-scratch-disks N
+                        Number of SSD scratch disks to be attached (max. 8)
+                        (default: 0)
   --subnetwork NAME     Launch instance in this subnetwork (default: None)
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
