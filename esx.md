@@ -1,6 +1,6 @@
-# VMWare Operations
+# VMware operations
 
-The `vmware` subcommand provides all VMWare related operations for encrypting and updating images, with a vCenter or directly on an ESX host.
+The `vmware` subcommand provides all VMware related operations for encrypting and updating images, with a vCenter or directly on an ESX host.
 
 ```
 $ brkt vmware --help
@@ -8,7 +8,7 @@ usage: brkt vmware [-h]
                    {encrypt-with-vcenter,encrypt-with-esx-host,update-with-vcenter,update-with-esx-host,rescue-metavisor}
                    ...
 
-VMWare Operations
+VMware operations
 
 positional arguments:
   {encrypt-with-vcenter,encrypt-with-esx-host,update-with-vcenter,update-with-esx-host,rescue-metavisor}

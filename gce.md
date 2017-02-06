@@ -1,4 +1,4 @@
-# GCE Operations
+# GCE operations
 
 The `gce` subcommand provides all GCE related operations for encrypting, updating and launching images.
 
@@ -6,7 +6,7 @@ The `gce` subcommand provides all GCE related operations for encrypting, updatin
 $ brkt gce --help
 usage: brkt gce [-h] {encrypt,update,launch} ...
 
-GCE Operations
+GCE operations
 
 positional arguments:
   {encrypt,update,launch}

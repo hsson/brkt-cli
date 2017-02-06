@@ -174,8 +174,8 @@ class GCESubcommand(Subcommand):
 
         gce_parser = subparsers.add_parser(
             self.name(),
-            description='GCE Operations',
-            help='GCE Operations'
+            description='GCE operations',
+            help='GCE operations'
         )
 
         gce_subparsers = gce_parser.add_subparsers(
