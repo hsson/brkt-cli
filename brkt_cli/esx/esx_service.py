@@ -957,6 +957,9 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
         raise Exception("Invalid bucket-name")
     ovf_name = None
     download_file_list = []
+    # Normalize image_name for S3 downloads
+    if image_name and image_name.endswith('.ovf'):
+        image_name = image_name[:image_name.find('.ovf')]
     try:
         anon = not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ))
         if proxy:
