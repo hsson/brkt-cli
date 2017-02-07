@@ -72,9 +72,9 @@ def setup_encrypt_ami_args(parser):
         help='Launch instances in this subnet'
     )
     parser.add_argument(
-        '--tag',
+        '--aws-tag',
         metavar='KEY=VALUE',
-        dest='tags',
+        dest='aws_tags',
         action='append',
         help=(
             'Set an AWS tag on resources created during encryption. '
@@ -87,6 +87,14 @@ def setup_encrypt_ami_args(parser):
         dest='aws_verbose',
         action='store_true',
         help='Print status information to the console'
+    )
+    # Hide deprecated --tag argument
+    parser.add_argument(
+        '--tag',
+        metavar='KEY=VALUE',
+        dest='tags',
+        action='append',
+        help=argparse.SUPPRESS
     )
     # Optional AMI ID that's used to launch the encryptor instance.  This
     # argument is hidden because it's only used for development.
