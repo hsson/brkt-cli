@@ -54,6 +54,16 @@ def setup_update_gce_image_args(parser, parsed_config):
         default=parsed_config.get_option('gce.subnetwork', None),
         required=False
     )
+    parser.add_argument(
+        '--gce-tag',
+        dest='gce_tags',
+        action='append',
+        metavar='VALUE',
+        help=(
+              'Set a GCE tag on the updater instance. May be specified '
+              'multiple times.'
+        )
+    )
     # Optional arg <image name>.image.tar.gz for specifying metavisor
     # image file if you don't want to use the latest image
     parser.add_argument(

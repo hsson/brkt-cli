@@ -41,6 +41,8 @@ def run_encrypt(values, config):
                                     values.encryptor_image,
                                     values.image,
                                     values.image_project)
+        if values.gce_tags:
+            validate_tags(values.gce_tags)
 
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
@@ -64,7 +66,8 @@ def run_encrypt(values, config):
         network=values.network,
         subnetwork=values.subnetwork,
         status_port=values.status_port,
-        cleanup=values.cleanup
+        cleanup=values.cleanup,
+        gce_tags=values.gce_tags
     )
     # Print the image name to stdout, in case the caller wants to process
     # the output.  Log messages go to stderr.
@@ -85,6 +88,8 @@ def run_update(values, config):
                                     encrypted_image_name,
                                     values.encryptor_image,
                                     values.image)
+        if values.gce_tags:
+            validate_tags(values.gce_tags)
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
@@ -106,7 +111,8 @@ def run_update(values, config):
         network=values.network,
         subnetwork=values.subnetwork,
         status_port=values.status_port,
-        cleanup=values.cleanup
+        cleanup=values.cleanup,
+        gce_tags=values.gce_tags
     )
 
     print(updated_image_id)
@@ -135,6 +141,9 @@ def run_launch(values, config):
     if values.instance_name:
         gce_service.validate_image_name(values.instance_name)
 
+    if values.gce_tags:
+        validate_tags(values.gce_tags)
+
     encrypted_instance_id = launch_gce_image.launch(log,
                             gce_svc,
                             values.image,
@@ -145,7 +154,8 @@ def run_launch(values, config):
                             values.network,
                             values.subnetwork,
                             metadata,
-                            values.ssd_scratch_disks)
+                            values.ssd_scratch_disks,
+                            values.gce_tags)
     print(encrypted_instance_id)
     return 0
 
@@ -379,3 +389,7 @@ def check_args(values, gce_svc, cli_config):
         if brkt_env is None:
             _, brkt_env = cli_config.get_current_env()
         brkt_cli.check_jwt_auth(brkt_env, values.token)
+
+def validate_tags(tags):
+    for tag in tags:
+        gce_service.validate_image_name(tag)

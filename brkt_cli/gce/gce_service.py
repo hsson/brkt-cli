@@ -168,6 +168,14 @@ class BaseGCEService(object):
         pass
 
     @abc.abstractmethod
+    def set_tags(self, zone, instance, tags):
+        pass
+
+    @abc.abstractmethod
+    def get_tags_fingerprint(self, name, zone):
+        pass
+
+    @abc.abstractmethod
     def get_latest_encryptor_image(self,
                                    zone,
                                    image_name,
@@ -187,7 +195,8 @@ class BaseGCEService(object):
                      block_project_ssh_keys,
                      instance_type,
                      image_project,
-                     subnet=None):
+                     subnet=None,
+                     tags=None):
         pass
 
     @abc.abstractmethod
@@ -544,7 +553,8 @@ class GCEService(BaseGCEService):
                      block_project_ssh_keys=False,
                      instance_type='n1-standard-4',
                      image_project=None,
-                     subnet=None):
+                     subnet=None,
+                     tags=None):
 
         if block_project_ssh_keys:
             if 'items' not in metadata:
@@ -610,6 +620,9 @@ class GCEService(BaseGCEService):
             zone=zone,
             body=config)
         retry(execute_gce_api_call)(instance_req)
+        if tags:
+            self.log.info("Setting instance tags %s", tags)
+            self.set_tags(zone, name, tags)
         self.wait_instance(name, zone)
         self.get_disk_size(zone, name)
         self.instances.append(name)
@@ -623,6 +636,31 @@ class GCEService(BaseGCEService):
             'source': self.gce_res_uri + source_disk,
         }
 
+    def set_tags(self, zone, instance, tags):
+        """
+        Takes a list of tags (strings) as input, will override existing
+        tags on the instance
+        """
+        fingerprint = self.get_tags_fingerprint(instance, zone)
+        body = {"items": tags, "fingerprint": fingerprint}
+        request = self.compute.instances().setTags(project=self.project,
+                                                   zone=zone,
+                                                   instance=instance,
+                                                   body=body)
+        retry(execute_gce_api_call)(request)
+        return
+
+    def get_tags_fingerprint(self, name, zone):
+        """
+        Returns the fingerprint of the instance, this is used for all
+        requests which modify or update metadata on the instance
+        """
+        request = self.compute.instances().get(project=self.project,
+                                                instance=name,
+                                                zone=zone)
+        instance = execute_gce_api_call(request)
+        if instance['tags']['fingerprint']:
+            return instance['tags']['fingerprint']
 
 def gce_metadata_from_userdata(brkt_data, extra_items=None):
     """ brkt_data is a JSON blob containing the brkt-config """

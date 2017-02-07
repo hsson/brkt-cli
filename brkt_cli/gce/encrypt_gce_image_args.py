@@ -72,6 +72,16 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
         default=parsed_config.get_option('gce.subnetwork', None),
         required=False
     )
+    parser.add_argument(
+        '--gce-tag',
+        metavar='VALUE',
+        dest='gce_tags',
+        action='append',
+        help=(
+              'Set a GCE tag on the encryptor instance. May be specified'
+              ' multiple times.'
+        )
+    )
     # Optional Image Name that's used to launch the encryptor instance. This
     # argument is hidden because it's only used for development.
     parser.add_argument(

@@ -65,7 +65,8 @@ def do_encryption(gce_svc,
                   crypto_policy,
                   network,
                   subnetwork,
-                  status_port=ENCRYPTOR_STATUS_PORT):
+                  status_port=ENCRYPTOR_STATUS_PORT,
+                  gce_tags=None):
     instance_config.brkt_config['crypto_policy_type'] = crypto_policy
     metadata = gce_metadata_from_userdata(instance_config.make_userdata())
     log.info('Launching encryptor instance')
@@ -79,7 +80,8 @@ def do_encryption(gce_svc,
                                 gce_svc.get_disk(zone, encrypted_image_disk),
                                 gce_svc.get_disk(zone, dummy_name)],
                          delete_boot=False,
-                         metadata=metadata)
+                         metadata=metadata,
+                         tags=gce_tags)
 
     try:
         ip = gce_svc.get_instance_ip(encryptor, zone)
@@ -123,7 +125,7 @@ def encrypt(gce_svc, enc_svc_cls, image_id, encryptor_image,
             encrypted_image_name, zone, instance_config, crypto_policy,
             image_project=None, keep_encryptor=False, image_file=None,
             image_bucket=None, network=None, subnetwork=None,
-            status_port=ENCRYPTOR_STATUS_PORT, cleanup=True):
+            status_port=ENCRYPTOR_STATUS_PORT, cleanup=True, gce_tags=None):
     try:
         # create metavisor image from file in GCS bucket
         log.info('Retrieving encryptor image from GCS bucket')
@@ -156,7 +158,8 @@ def encrypt(gce_svc, enc_svc_cls, image_id, encryptor_image,
         # customer image and blank disk
         do_encryption(gce_svc, enc_svc_cls, zone, encryptor, encryptor_image,
                       instance_name, instance_config, encrypted_image_disk,
-                      crypto_policy, network, subnetwork, status_port=status_port)
+                      crypto_policy, network, subnetwork, status_port=status_port,
+                      gce_tags=gce_tags)
 
         # create image
         create_image(gce_svc, zone, encrypted_image_disk, encrypted_image_name, encryptor)

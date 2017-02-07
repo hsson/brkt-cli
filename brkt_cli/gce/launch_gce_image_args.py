@@ -46,6 +46,16 @@ def setup_launch_gce_image_args(parser):
         default='default',
         required=False
     )
+    parser.add_argument(
+        '--gce-tag',
+        dest='gce_tags',
+        action='append',
+        metavar='VALUE',
+        help=(
+              'Set a GCE tag on the encrypted instance being launched. May be '
+              'specified multiple times.'
+        )
+    )
 
     # Optional startup script. Hidden because it is only used for development
     # and testing. It should be passed as a string containing a multi-line
