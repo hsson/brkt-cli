@@ -126,7 +126,7 @@ $ brkt aws encrypt --help
 usage: brkt aws encrypt [-h] [--encrypted-ami-name NAME]
                         [--guest-instance-type TYPE] [--pv] [--no-validate]
                         --region NAME [--security-group ID] [--subnet ID]
-                        [--tag KEY=VALUE] [-v] [--ntp-server DNS_NAME]
+                        [--aws-tag KEY=VALUE] [-v] [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
                         [--status-port PORT] [--token TOKEN]
                         ID
@@ -162,7 +162,7 @@ optional arguments:
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
   --subnet ID           Launch instances in this subnet (default: None)
-  --tag KEY=VALUE       Set an AWS tag on resources created during encryption.
+  --aws-tag KEY=VALUE   Set an AWS tag on resources created during encryption.
                         May be specified multiple times.
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
@@ -181,7 +181,7 @@ usage: brkt aws update [-h] [--encrypted-ami-name NAME]
                        [--guest-instance-type TYPE]
                        [--updater-instance-type TYPE] [--pv] [--no-validate]
                        --region REGION [--security-group ID] [--subnet ID]
-                       [--tag KEY=VALUE] [-v] [--ntp-server DNS_NAME]
+                       [--aws-tag KEY=VALUE] [-v] [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
                        [--status-port PORT] [--token TOKEN]
                        ID
@@ -218,7 +218,7 @@ optional arguments:
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
   --subnet ID           Launch instances in this subnet (default: None)
-  --tag KEY=VALUE       Set an AWS tag on resources created during update. May
+  --aws-tag KEY=VALUE   Set an AWS tag on resources created during update. May
                         be specified multiple times.
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-

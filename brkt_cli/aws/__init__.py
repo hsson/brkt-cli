@@ -130,7 +130,8 @@ def run_diag(values):
 
     aws_svc.connect(values.region, key_name=values.key_name)
     default_tags = {}
-    default_tags.update(brkt_cli.parse_tags(values.tags))
+    tags = merge_aws_tags(values.tags, values.aws_tags)
+    default_tags.update(brkt_cli.parse_tags(tags))
     aws_svc.default_tags = default_tags
 
     if values.validate:
@@ -223,7 +224,8 @@ def run_encrypt(values, config, verbose=False):
 
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
     default_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
-    default_tags.update(brkt_cli.parse_tags(values.tags))
+    tags = merge_aws_tags(values.tags, values.aws_tags)
+    default_tags.update(brkt_cli.parse_tags(tags))
     aws_svc.default_tags = default_tags
 
     if values.validate:
@@ -311,7 +313,8 @@ def run_update(values, config, verbose=False):
     encrypted_image = _validate_ami(aws_svc, values.ami)
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
     default_tags = encrypt_ami.get_default_tags(nonce, encryptor_ami)
-    default_tags.update(brkt_cli.parse_tags(values.tags))
+    tags = merge_aws_tags(values.tags, values.aws_tags)
+    default_tags.update(brkt_cli.parse_tags(tags))
     aws_svc.default_tags = default_tags
 
     if values.validate:
@@ -840,3 +843,24 @@ def _get_updated_image_name(image_name, session_id):
         encrypted_ami_name = util.append_suffix(
             image_name, suffix, max_length=128)
     return encrypted_ami_name
+
+
+def merge_aws_tags(old_tags, new_tags):
+    """ Merge the attribute values for the old and new tag arguments to a
+    single attribute list.
+
+    : return the merged attribute list or None
+    """
+    if old_tags:
+        log.warn(
+                 'The "--tag" argument has been deprecated. Please use '
+                 '"--aws-tag" instead.'
+        )
+        if new_tags:
+            return set(old_tags + new_tags)
+        else:
+            return old_tags
+    elif new_tags:
+        return new_tags
+    else:
+        return None
