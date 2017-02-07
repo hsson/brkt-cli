@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
 )
+from brkt_cli.util import CRYPTO_GCM
 
 
 class TestRunUpdate(unittest.TestCase):
@@ -43,7 +44,8 @@ class TestRunUpdate(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
         self.call_count = 0
@@ -75,7 +77,8 @@ class TestRunUpdate(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
         def run_instance_callback(args):
@@ -102,7 +105,8 @@ class TestRunUpdate(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
         self.call_count = 0
@@ -135,7 +139,8 @@ class TestRunUpdate(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
         # Create callbacks that make sure that we stop the updater

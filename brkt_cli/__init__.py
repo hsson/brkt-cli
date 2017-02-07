@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ from brkt_cli.proxy import Proxy, generate_proxy_config, validate_proxy_config
 from brkt_cli.util import validate_dns_name_ip_address
 from brkt_cli.validation import ValidationError
 
-VERSION = '1.0.6pre1'
+VERSION = '1.0.7pre1'
 
 # The list of modules that may be loaded.  Modules contain subcommands of
 # the brkt command and CSP-specific code.
@@ -132,6 +132,7 @@ def parse_brkt_env(brkt_env_string):
                 # service-domain makes. Hopefully we'll remove brkt-env
                 # soon and we can get rid of it
                 be.public_api_host = be.api_host.replace('yetiapi', 'api')
+                be.public_api_port = be.api_port
         except ValueError:
             raise ValidationError(error_msg)
 
@@ -280,9 +281,9 @@ def _check_version():
         # If we can't get the list of versions from PyPI, print the error
         # and return true.  We don't want the version check to block people
         # from getting their work done.
-        if log.isEnabledFor(logging.DEBUG):
-            log.exception('')
-        log.info('Unable to load brkt-cli versions from PyPI: %s', e)
+        log.debug('', exc_info=1)
+        msg = e.message or type(e).__name__
+        log.info('Unable to load brkt-cli versions from PyPI: %s', msg)
         return True
 
     if not _is_version_supported(VERSION, supported_versions):
@@ -364,7 +365,10 @@ def check_jwt_auth(brkt_env, jwt):
         log.debug('Server returned %d', response.getcode())
     except urllib2.HTTPError as e:
         if e.code == 401:
-            raise ValidationError('Unauthorized token.')
+            raise ValidationError(
+                'Token is not authorized to access %s' %
+                brkt_env.public_api_host
+            )
         elif e.code == 400:
             payload = e.read()
             if payload:
@@ -379,8 +383,7 @@ def check_jwt_auth(brkt_env, jwt):
                 'Use --no-validate to disable validation.' % e.code
             )
     except IOError:
-        if log.isEnabledFor(logging.DEBUG):
-            log.exception('')
+        log.debug('', exc_info=1)
         log.warn(
             'Unable to validate token against %s.  Use --no-validate to '
             'disable validation.',
@@ -406,11 +409,39 @@ def add_brkt_env_to_brkt_config(brkt_env, brkt_config):
         brkt_config['network_host'] = network_host_port
 
 
-class SortingHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
+class SortingHelpFormatter(argparse.HelpFormatter):
     def add_arguments(self, actions):
         actions = sorted(actions, key=attrgetter('option_strings'))
         super(SortingHelpFormatter, self).add_arguments(actions)
 
+    def _get_help_string(self, action):
+        """ Append the default value to the argument description.  This code
+        is inspired by argparse.ArgumentDefaultsHelpFormatter, with the
+        following differences:
+
+        1. Don't print "default: None".  The behavior for options that don't
+        have defaults is already clear from the usage output.
+
+        2. Don't print the default for boolean options.  Behavior for boolean
+        options is also already clear.  Printing a default for 'store_false'
+        results in confusing usage output for options with negative names,
+        like --no-validate.
+        """
+        help = action.help
+
+        if action.default is None or type(action.default) == bool:
+            return help
+
+        if '%(default)' not in action.help:
+            if action.default is not argparse.SUPPRESS:
+                defaulting_nargs = [argparse.OPTIONAL, argparse.ZERO_OR_MORE]
+                if action.option_strings or action.nargs in defaulting_nargs:
+                    help += ' (default: %(default)s)'
+        return help
+
+
+def is_verbose(values, subcommand):
+    return values.verbose or subcommand.verbose(values)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -515,9 +546,7 @@ def main():
     # the top-level "brkt" command or one of the subcommands.  We support
     # both because users got confused when "brkt encrypt-ami -v" didn't work.
     log_level = logging.INFO
-    verbose = values.verbose
-    if subcommand.verbose(values):
-        verbose = True
+    verbose = is_verbose(values, subcommand)
     subcommand.init_logging(verbose)
     if verbose:
         log_level = logging.DEBUG
@@ -563,6 +592,7 @@ def main():
     result = 1
 
     # Run the subcommand.
+    allow_debug_log = True
     try:
         result = subcommand.run(values)
         if not isinstance(result, (int, long)):
@@ -570,25 +600,25 @@ def main():
                 '%s did not return an integer result' % subcommand.name())
         log.debug('%s returned %d', subcommand.name(), result)
     except ValidationError as e:
+        allow_debug_log = False
         print(e, file=sys.stderr)
     except util.BracketError as e:
-        if values.verbose:
-            log.exception(e.message)
-        else:
-            log.error(e.message)
+        log.debug('', exc_info=1)
+        log.error(e.message)
     except KeyboardInterrupt:
-        if values.verbose:
-            log.exception('Interrupted by user')
-        else:
-            log.error('Interrupted by user')
+        allow_debug_log = False
+        log.debug('', exc_info=1)
+        log.error('Interrupted by user')
     finally:
         if debug_handler:
-            if result == 0:
-                os.remove(debug_log_file.name)
-            else:
-                debug_handler.close()
-                logging.root.removeHandler(debug_handler)
+            logging.root.removeHandler(debug_handler)
+            debug_handler.close()
+            debug_log_file.close()
+
+            if result != 0 and allow_debug_log:
                 log.info('Debug log is available at %s', debug_log_file.name)
+            else:
+                os.remove(debug_log_file.name)
     return result
 
 

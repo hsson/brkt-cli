@@ -10,6 +10,7 @@ from brkt_cli.gce import gce_service
 from brkt_cli.gce import update_gce_image
 from brkt_cli.gce import share_logs
 from brkt_cli.instance_config import InstanceConfig
+from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
@@ -209,7 +210,8 @@ class DummyGCEService(gce_service.BaseGCEService):
                      delete_boot=False,
                      block_project_ssh_keys=False,
                      instance_type='n1-standard-4',
-                     image_project=None):
+                     image_project=None,
+                     tags=None):
         self.instances.append(name)
         if not delete_boot:
             self.disks.append(name)
@@ -221,6 +223,12 @@ class DummyGCEService(gce_service.BaseGCEService):
             'autoDelete': False,
             'source': self.gce_res_uri + source_disk,
         }
+
+    def set_tags(self, zone, instance, tags):
+        return
+
+    def get_tags_fingerprint(self, instance, zone):
+        return 'fingerprint'
 
 
 class TestEncryptedImageName(unittest.TestCase):
@@ -277,6 +285,7 @@ class TestRunEncryption(unittest.TestCase):
             encryptor_image='encryptor-image',
             encrypted_image_name='ubuntu-encrypted',
             zone='us-central1-a',
+            crypto_policy=CRYPTO_GCM,
             instance_config=InstanceConfig({'identity_token': TOKEN})
         )
         self.assertIsNotNone(encrypted_image)
@@ -292,6 +301,7 @@ class TestRunEncryption(unittest.TestCase):
             encryptor_image='encryptor-image',
             encrypted_image_name='ubuntu-encrypted',
             zone='us-central1-a',
+            crypto_policy=CRYPTO_GCM,
             instance_config=InstanceConfig({'identity_token': TOKEN})
         )
         self.assertEqual(len(gce_svc.disks), 0)

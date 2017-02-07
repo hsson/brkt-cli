@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ from brkt_cli.aws import (
 )
 from brkt_cli.aws.test_aws_service import build_aws_service, new_id
 from brkt_cli.validation import ValidationError
+from brkt_cli.util import CRYPTO_GCM
 
 
 class DummyValues(object):
@@ -42,7 +43,7 @@ class DummyValues(object):
         self.proxies = []
         self.proxy_config_file = None
         self.status_port = None
-        self.pv = None
+        self.crypto = CRYPTO_GCM
 
 
 class TestValidation(unittest.TestCase):
@@ -124,7 +125,7 @@ class TestValidation(unittest.TestCase):
         bdm = BlockDeviceMapping()
         bdm['/dev/sda1'] = BlockDeviceType()
         id = aws_svc.register_image(
-            kernel_id=None, name='Guest image', block_device_map=bdm)
+            name='Guest image', block_device_map=bdm)
         guest_image = aws_svc.get_image(id)
 
         # Make the guest image look like it was already encrypted and
@@ -260,29 +261,6 @@ class TestValidation(unittest.TestCase):
             brkt_cli.aws._validate_region(aws_svc, 'foobar')
 
 
-class TestVirtualizationType(unittest.TestCase):
-
-    def test_use_pv_metavisor(self):
-        values = DummyValues()
-
-        guest_image = Image()
-
-        values.pv = None
-        guest_image.virtualization_type = 'paravirtual'
-        self.assertTrue(brkt_cli.aws._use_pv_metavisor(values, guest_image))
-
-        values.pv = True
-        self.assertTrue(brkt_cli.aws._use_pv_metavisor(values, guest_image))
-
-        values.pv = None
-        guest_image.virtualization_type = 'hvm'
-        self.assertFalse(brkt_cli.aws._use_pv_metavisor(values, guest_image))
-
-        values.pv = True
-        guest_image.virtualizaiton_type = 'hvm'
-        self.assertTrue(brkt_cli.aws._use_pv_metavisor(values, guest_image))
-
-
 class TestEncryptAMIBackwardsCompatibility(unittest.TestCase):
 
     def test_attributes(self):
@@ -290,9 +268,7 @@ class TestEncryptAMIBackwardsCompatibility(unittest.TestCase):
             'AMI_NAME_MAX_LENGTH',
             'DESCRIPTION_SNAPSHOT',
             'NAME_ENCRYPTOR',
-            'NAME_METAVISOR_ROOT_VOLUME',
-            'NAME_METAVISOR_GRUB_VOLUME',
-            'NAME_METAVISOR_LOG_VOLUME'
+            'NAME_METAVISOR_ROOT_VOLUME'
         )
         for attr in required_attributes:
             self.assertTrue(

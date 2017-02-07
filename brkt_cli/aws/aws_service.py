@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -13,14 +13,13 @@
 # limitations under the License.
 
 import abc
+import logging
 import re
 import ssl
-import tempfile
 
 import boto
 import boto.sts
 import boto.vpc
-import logging
 from boto.exception import EC2ResponseError, BotoServerError
 
 from brkt_cli import util
@@ -111,14 +110,6 @@ class BaseAWSService(object):
         pass
 
     @abc.abstractmethod
-    def register_image(self,
-                       kernel_id,
-                       block_device_map,
-                       name=None,
-                       description=None):
-        pass
-
-    @abc.abstractmethod
     def get_image(self, image_id, retry=False):
         pass
 
@@ -180,6 +171,11 @@ class BaseAWSService(object):
 
     @abc.abstractmethod
     def get_instance_attribute(self, instance_id, attribute, dry_run=False):
+        pass
+
+    @abc.abstractmethod
+    def modify_instance_attribute(self, instance_id, attribute,
+                               value, dry_run=False):
         pass
 
     @abc.abstractmethod
@@ -300,13 +296,6 @@ class AWSService(BaseAWSService):
             'type=%s',
             image_id, security_group_ids, subnet_id, instance_type
         )
-        if user_data and log.isEnabledFor(logging.DEBUG):
-            with tempfile.NamedTemporaryFile(
-                prefix='user-data-',
-                delete=False
-            ) as f:
-                log.debug('Writing instance user data to %s', f.name)
-                f.write(user_data)
 
         try:
             run_instances = self.retry(self.conn.run_instances)
@@ -410,22 +399,6 @@ class AWSService(BaseAWSService):
             if e.error_code != 'InvalidVolume.NotFound':
                 raise
         return True
-
-    def register_image(self,
-                       kernel_id,
-                       block_device_map,
-                       name=None,
-                       description=None):
-        log.debug('Registering image.')
-        register_image = self.retry(self.conn.register_image)
-        return register_image(
-            name=name,
-            description=description,
-            architecture='x86_64',
-            kernel=kernel_id,
-            root_device_name='/dev/sda1',
-            virtualization_type='paravirtual'
-        )
 
     def get_images(self, filters=None, owners=None):
         get_all_images = self.retry(self.conn.get_all_images)
@@ -532,6 +505,16 @@ class AWSService(BaseAWSService):
         return get_instance_attribute(
             instance_id,
             attribute,
+            dry_run=dry_run
+        )
+
+    def modify_instance_attribute(self, instance_id, attribute,
+                                  value, dry_run=False):
+        modify_instance_attribute = self.retry(self.conn.modify_instance_attribute)
+        return modify_instance_attribute(
+            instance_id,
+            attribute,
+            value,
             dry_run=dry_run
         )
 

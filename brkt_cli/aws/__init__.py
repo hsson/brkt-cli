@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 import json
 import logging
 import re
+import tempfile
 import urllib2
 
 import boto
@@ -38,21 +39,25 @@ from brkt_cli.aws.encrypt_ami import (
 from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
-    INSTANCE_UPDATER_MODE
+    INSTANCE_UPDATER_MODE,
 )
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
 from brkt_cli.subcommand import Subcommand
-from brkt_cli.util import BracketError
+from brkt_cli.util import (
+    BracketError,
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 from brkt_cli.validation import ValidationError
 
 log = logging.getLogger(__name__)
 
 
-PV_ENCRYPTOR_AMIS_URL = "https://solo-brkt-prod-net.s3.amazonaws.com/amis.json"
-ENCRYPTOR_AMIS_URL = "https://solo-brkt-prod-net.s3.amazonaws.com/hvm_amis.json"
+ENCRYPTOR_AMIS_URL = \
+    "https://solo-brkt-prod-net.s3.amazonaws.com/hvm_amis.json"
 
 
 def _handle_aws_errors(func):
@@ -67,35 +72,27 @@ def _handle_aws_errors(func):
                 'Unable to connect to AWS.  Are your AWS_ACCESS_KEY_ID and '
                 'AWS_SECRET_ACCESS_KEY environment variables set?'
             )
-            if log.isEnabledFor(logging.DEBUG):
-                log.exception(msg)
-            else:
-                log.error(msg)
+            log.debug('', exc_info=1)
+            log.error(msg)
         except EC2ResponseError as e:
             if e.error_code == 'AuthFailure':
                 msg = 'Check your AWS login credentials and permissions'
-                if log.isEnabledFor(logging.DEBUG):
-                    log.exception(msg)
-                else:
-                    log.error(msg + ': ' + e.error_message)
+                log.debug('', exc_info=1)
+                log.error(msg + ': ' + e.error_message)
             elif e.error_code in (
                     'InvalidKeyPair.NotFound',
                     'InvalidSubnetID.NotFound',
                     'InvalidGroup.NotFound'
             ):
-                if log.isEnabledFor(logging.DEBUG):
-                    log.exception(e.error_message)
-                else:
-                    log.error(e.error_message)
+                log.debug('', exc_info=1)
+                log.error(e.error_message)
             elif e.error_code == 'UnauthorizedOperation':
-                if log.isEnabledFor(logging.DEBUG):
-                    log.exception(e.error_message)
-                else:
-                    log.error(e.error_message)
-                    log.error(
-                        'Unauthorized operation.  Check the IAM policy for your '
-                        'AWS account.'
-                    )
+                log.debug('', exc_info=1)
+                log.error(e.error_message)
+                log.error(
+                    'Unauthorized operation.  Check the IAM policy for your '
+                    'AWS account.'
+                )
             else:
                 raise
         return 1
@@ -133,7 +130,8 @@ def run_diag(values):
 
     aws_svc.connect(values.region, key_name=values.key_name)
     default_tags = {}
-    default_tags.update(brkt_cli.parse_tags(values.tags))
+    tags = merge_aws_tags(values.tags, values.aws_tags)
+    default_tags.update(brkt_cli.parse_tags(tags))
     aws_svc.default_tags = default_tags
 
     if values.validate:
@@ -194,7 +192,7 @@ def run_share_logs(values):
 
 
 @_handle_aws_errors
-def run_encrypt(values, config):
+def run_encrypt(values, config, verbose=False):
     session_id = util.make_nonce()
 
     aws_svc = aws_service.AWSService(
@@ -206,10 +204,9 @@ def run_encrypt(values, config):
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
 
-    brkt_env = (
-        brkt_cli.brkt_env_from_values(values) or
-        brkt_cli.get_prod_brkt_env()
-    )
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if not brkt_env:
+        _, brkt_env = config.get_current_env()
 
     if values.validate:
         # Validate the region before connecting.
@@ -225,19 +222,46 @@ def run_encrypt(values, config):
     else:
         guest_image = aws_svc.get_image(values.ami)
 
-    pv = _use_pv_metavisor(values, guest_image)
-    encryptor_ami = (
-        values.encryptor_ami or
-        _get_encryptor_ami(values.region, pv=pv)
-    )
-
+    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
     default_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
-    default_tags.update(brkt_cli.parse_tags(values.tags))
+    tags = merge_aws_tags(values.tags, values.aws_tags)
+    default_tags.update(brkt_cli.parse_tags(tags))
     aws_svc.default_tags = default_tags
 
     if values.validate:
         _validate(aws_svc, values, encryptor_ami)
         brkt_cli.validate_ntp_servers(values.ntp_servers)
+
+    mv_image = aws_svc.get_image(encryptor_ami)
+    if values.crypto is None:
+        if mv_image.name.startswith('brkt-avatar-freebsd'):
+            crypto_policy = CRYPTO_XTS
+        elif mv_image.name.startswith('brkt-avatar'):
+            crypto_policy = CRYPTO_GCM
+        else:
+            log.warn(
+                "Unable to determine encryptor type for image %s. "
+                "Default boot volume crypto policy to %s",
+                mv_image.name, CRYPTO_XTS
+            )
+            crypto_policy = CRYPTO_XTS
+    else:
+        crypto_policy = values.crypto
+        if crypto_policy == CRYPTO_XTS and not mv_image.name.startswith('brkt-avatar-freebsd'):
+            raise ValidationError(
+                'Unsupported crypto policy %s for encryptor %s' %
+                crypto_policy, mv_image.name
+            )
+
+    instance_config = instance_config_from_values(
+        values, mode=INSTANCE_CREATOR_MODE, cli_config=config)
+    if verbose:
+        with tempfile.NamedTemporaryFile(
+            prefix='user-data-',
+            delete=False
+        ) as f:
+            log.debug('Writing instance user data to %s', f.name)
+            f.write(instance_config.make_userdata())
 
     encrypted_image_id = encrypt_ami.encrypt(
         aws_svc=aws_svc,
@@ -245,11 +269,11 @@ def run_encrypt(values, config):
         image_id=guest_image.id,
         encryptor_ami=encryptor_ami,
         encrypted_ami_name=values.encrypted_ami_name,
+        crypto_policy=crypto_policy,
         subnet_id=values.subnet_id,
         security_group_ids=values.security_group_ids,
         guest_instance_type=values.guest_instance_type,
-        instance_config=instance_config_from_values(
-            values, mode=INSTANCE_CREATOR_MODE, cli_config=config),
+        instance_config=instance_config,
         status_port=values.status_port,
         save_encryptor_logs=values.save_encryptor_logs,
         terminate_encryptor_on_failure=(
@@ -262,7 +286,7 @@ def run_encrypt(values, config):
 
 
 @_handle_aws_errors
-def run_update(values, config):
+def run_update(values, config, verbose=False):
     nonce = util.make_nonce()
 
     aws_svc = aws_service.AWSService(
@@ -274,10 +298,9 @@ def run_update(values, config):
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
 
-    brkt_env = (
-        brkt_cli.brkt_env_from_values(values) or
-        brkt_cli.get_prod_brkt_env()
-    )
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if not brkt_env:
+        _, brkt_env = config.get_current_env()
 
     if values.validate:
         # Validate the region before connecting.
@@ -288,14 +311,10 @@ def run_update(values, config):
 
     aws_svc.connect(values.region, key_name=values.key_name)
     encrypted_image = _validate_ami(aws_svc, values.ami)
-    pv = _use_pv_metavisor(values, encrypted_image)
-    encryptor_ami = (
-        values.encryptor_ami or
-        _get_encryptor_ami(values.region, pv=pv)
-    )
-
+    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
     default_tags = encrypt_ami.get_default_tags(nonce, encryptor_ami)
-    default_tags.update(brkt_cli.parse_tags(values.tags))
+    tags = merge_aws_tags(values.tags, values.aws_tags)
+    default_tags.update(brkt_cli.parse_tags(tags))
     aws_svc.default_tags = default_tags
 
     if values.validate:
@@ -339,14 +358,23 @@ def run_update(values, config):
         encrypted_image.id, encryptor_ami
     )
 
+    instance_config = instance_config_from_values(
+        values, mode=INSTANCE_UPDATER_MODE, cli_config=config)
+    if verbose:
+        with tempfile.NamedTemporaryFile(
+            prefix='user-data-',
+            delete=False
+        ) as f:
+            log.debug('Writing instance user data to %s', f.name)
+            f.write(instance_config.make_userdata())
+
     updated_ami_id = update_ami(
         aws_svc, encrypted_image.id, encryptor_ami, encrypted_ami_name,
         subnet_id=values.subnet_id,
         security_group_ids=values.security_group_ids,
         guest_instance_type=values.guest_instance_type,
         updater_instance_type=values.updater_instance_type,
-        instance_config=instance_config_from_values(
-            values, mode=INSTANCE_UPDATER_MODE, cli_config=config),
+        instance_config=instance_config,
         status_port=values.status_port,
     )
     print(updated_ami_id)
@@ -433,9 +461,11 @@ class AWSSubcommand(Subcommand):
 
     def run(self, values):
         if values.aws_subcommand == 'encrypt':
-            return run_encrypt(values, self.config)
+            verbose = brkt_cli.is_verbose(values, self)
+            return run_encrypt(values, self.config, verbose=verbose)
         if values.aws_subcommand == 'update':
-            return run_update(values, self.config)
+            verbose = brkt_cli.is_verbose(values, self)
+            return run_update(values, self.config, verbose=verbose)
         if values.aws_subcommand == 'diag':
             return run_diag(values)
         if values.aws_subcommand == 'share-logs':
@@ -539,7 +569,8 @@ class EncryptAMISubcommand(Subcommand):
             'This command syntax has been deprecated.  Please use '
             'brkt aws encrypt instead.'
         )
-        return run_encrypt(values, self.config)
+        verbose = brkt_cli.is_verbose(values, self)
+        return run_encrypt(values, self.config, verbose=verbose)
 
     def exposed(self):
         return False
@@ -585,7 +616,8 @@ class UpdateAMISubcommand(Subcommand):
             'This command syntax has been deprecated.  Please use brkt aws '
             'update instead.'
         )
-        return run_update(values, self.config)
+        verbose = brkt_cli.is_verbose(values, self)
+        return run_update(values, self.config, verbose=verbose)
 
 
 def get_subcommands():
@@ -771,25 +803,14 @@ def _validate_region(aws_svc, region_name):
         )
 
 
-def _use_pv_metavisor(values, guest_image):
-    """ Return True if we should use the paravirtual metavisor AMI,
-    depending on whether the caller specified --pv and the virtualization
-    type of the guest image.
-    """
-    return values.pv or guest_image.virtualization_type == 'paravirtual'
-
-
-def _get_encryptor_ami(region_name, pv=False):
+def _get_encryptor_ami(region_name):
     """ Read the list of AMIs from the AMI endpoint and return the AMI ID
     for the given region.
 
     :raise ValidationError if the region is not supported
     :raise BracketError if the list of AMIs cannot be read
     """
-    if pv:
-        bucket_url = PV_ENCRYPTOR_AMIS_URL
-    else:
-        bucket_url = ENCRYPTOR_AMIS_URL
+    bucket_url = ENCRYPTOR_AMIS_URL
 
     log.debug('Getting encryptor AMI list from %s', bucket_url)
     r = urllib2.urlopen(bucket_url)
@@ -822,3 +843,24 @@ def _get_updated_image_name(image_name, session_id):
         encrypted_ami_name = util.append_suffix(
             image_name, suffix, max_length=128)
     return encrypted_ami_name
+
+
+def merge_aws_tags(old_tags, new_tags):
+    """ Merge the attribute values for the old and new tag arguments to a
+    single attribute list.
+
+    : return the merged attribute list or None
+    """
+    if old_tags:
+        log.warn(
+                 'The "--tag" argument has been deprecated. Please use '
+                 '"--aws-tag" instead.'
+        )
+        if new_tags:
+            return set(old_tags + new_tags)
+        else:
+            return old_tags
+    elif new_tags:
+        return new_tags
+    else:
+        return None

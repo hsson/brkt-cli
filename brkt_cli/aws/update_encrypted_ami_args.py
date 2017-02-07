@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -47,12 +47,6 @@ def setup_update_encrypted_ami(parser):
         default='m3.medium'
     )
     parser.add_argument(
-        '--pv',
-        action='store_true',
-        help='Use the PV encryptor',
-        dest='pv'
-    )
-    parser.add_argument(
         '--no-validate',
         dest='validate',
         action='store_false',
@@ -92,9 +86,9 @@ def setup_update_encrypted_ami(parser):
         dest='key_name'
     )
     parser.add_argument(
-        '--tag',
+        '--aws-tag',
         metavar='KEY=VALUE',
-        dest='tags',
+        dest='aws_tags',
         action='append',
         help=(
             'Set an AWS tag on resources created during update. '
@@ -107,6 +101,14 @@ def setup_update_encrypted_ami(parser):
         dest='aws_verbose',
         action='store_true',
         help='Print status information to the console'
+    )
+    # Hide deprecated --tag argument
+    parser.add_argument(
+        '--tag',
+        metavar='KEY=VALUE',
+        dest='tags',
+        action='append',
+        help=argparse.SUPPRESS
     )
     # Optional hidden argument for specifying the metavisor AMI.  This
     # argument is hidden because it's only used for development.  It can

@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 import getpass
 import logging
 
+from brkt_cli import argutil
+from brkt_cli import util
 from brkt_cli.validation import ValidationError
 
 from brkt_cli.subcommand import Subcommand
@@ -28,8 +30,7 @@ def _write_file(path, content):
         with open(path, 'w') as f:
             f.write(content)
     except IOError as e:
-        if log.isEnabledFor(logging.DEBUG):
-            log.exception('Unable to write to %s', path)
+        log.debug('Unable to write to %s', path, exc_info=1)
         raise ValidationError('Unable to write to %s: %s' % (path, e))
 
 
@@ -59,6 +60,7 @@ class MakeKeySubcommand(Subcommand):
                 "passphrase."
             )
         )
+        argutil.add_out(parser)
         parser.add_argument(
             '--public-out',
             metavar='PATH',
@@ -84,7 +86,10 @@ class MakeKeySubcommand(Subcommand):
                 raise ValidationError('Passphrases do not match')
 
         crypto = brkt_cli.crypto.new()
-        print crypto.get_private_key_pem(passphrase)
+
+        util.write_to_file_or_stdout(
+            crypto.get_private_key_pem(passphrase),
+            path=values.out)
         if values.public_out:
             _write_file(values.public_out, crypto.public_key_pem)
 

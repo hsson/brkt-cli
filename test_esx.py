@@ -11,6 +11,10 @@ from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
 )
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 
 TOKEN = 'token'
@@ -57,7 +61,8 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         self.connection = False
         super(DummyVCenterService, self).__init__(
             'testhost', 'testuser', 'testpass', 'testport', 'testdcname',
-            'testdsname', False, 'testclustername', 1, 1024, 123)
+            'testdsname', False, 'testclustername', 1, 1024, 123,
+            'VM Network', 'Port')
 
     def connect(self):
         self.connection = True
@@ -93,7 +98,7 @@ class DummyVCenterService(esx_service.BaseVCenterService):
     def get_ip_address(self, vm):
         return ("10.10.10.1")
 
-    def create_vm(self, memoryGB=1, numCPUs=1, network_name="VM Network"):
+    def create_vm(self, memoryGB=1, numCPUs=1):
         timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
         vm_name = "VM-" + timestamp
         vm = DummyVM(vm_name, numCPUs, memoryGB)
@@ -157,7 +162,6 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         if instance_config:
             brkt_config = instance_config.get_brkt_config()
         if update is True:
-            brkt_config['solo_mode'] = 'updater'
             instance_config.set_mode(INSTANCE_UPDATER_MODE)
         if ssh_key_file:
             with open(ssh_key_file, 'r') as f:
@@ -225,6 +229,7 @@ class TestRunEncryption(unittest.TestCase):
             vc_swc,
             DummyEncryptorService,
             guest_vmdk,
+            crypto_policy=CRYPTO_GCM,
             vm_name="template-encrypted",
             create_ovf=False, create_ova=False,
             target_path=mv_ovf,
@@ -240,7 +245,32 @@ class TestRunEncryption(unittest.TestCase):
         self.assertEqual(len(template_vm.disks), 2)
         self.assertEqual(template_vm.name, "template-encrypted")
         self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
+        # Verify disk size for GCM
         self.assertEqual(template_vm.disks[1].size, 33*1024*1024)
+        self.assertTrue(template_vm.template)
+
+        encrypt_vmdk.encrypt_from_s3(
+            vc_swc,
+            DummyEncryptorService,
+            guest_vmdk,
+            crypto_policy=CRYPTO_XTS,
+            vm_name="template-encrypted",
+            create_ovf=False, create_ova=False,
+            target_path=mv_ovf,
+            image_name=None,
+            ovftool_path=None,
+            ovf_name="mv-ovf",
+            download_file_list=[],
+            user_data_str=None
+        )
+        self.assertEqual(len(vc_swc.vms), 1)
+        self.assertEqual(len(vc_swc.disks), 4)
+        template_vm = (vc_swc.vms.values())[0]
+        self.assertEqual(len(template_vm.disks), 2)
+        self.assertEqual(template_vm.name, "template-encrypted")
+        self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
+        # Verify disk size for XTS
+        self.assertEqual(template_vm.disks[1].size, 17*1024*1024)
         self.assertTrue(template_vm.template)
 
     def test_cleanup_on_bad_guest_image(self):
@@ -308,6 +338,7 @@ class TestRunEncryption(unittest.TestCase):
                 vc_swc,
                 FailedEncryptionService,
                 guest_vmdk,
+                crypto_policy=CRYPTO_GCM,
                 vm_name="template-encrypted",
                 create_ovf=False, create_ova=False,
                 target_path=mv_ovf,

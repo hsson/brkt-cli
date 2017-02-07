@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -125,4 +125,4 @@ def diag(aws_svc=None, region='us-west-2',
         print "Private IP address: %s" % diag_instance.private_ip_address
     print "User: root"
     print "SSH Keypair: %s" % ssh_keypair
-    print "Log volume mountpoint: /dev/xbd2a for PV, /dev/xbd2e for HVM"
+    print "Log volume mountpoint: /dev/xbd2e"

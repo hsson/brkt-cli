@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -246,7 +246,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         image.state = 'available'
         image.name = name
         image.description = 'This is a test'
-        image.virtualization_type = 'paravirtual'
+        image.virtualization_type = 'hvm'
         image.root_device_name = '/dev/sda1'
         i = self.get_instance(instance_id)
         rdn = image.root_device_name
@@ -272,7 +272,6 @@ class DummyAWSService(aws_service.BaseAWSService):
         del(self.volumes[volume_id])
 
     def register_image(self,
-                       kernel_id,
                        block_device_map,
                        name=None,
                        description=None):
@@ -282,7 +281,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         image.state = 'available'
         image.name = name
         image.description = description
-        image.virtualization_type = 'paravirtual'
+        image.virtualization_type = 'hvm'
         image.root_device_type = 'ebs'
         image.hypervisor = 'xen'
         self.images[image.id] = image
@@ -356,6 +355,11 @@ class DummyAWSService(aws_service.BaseAWSService):
             return dict()
         return None
 
+    def modify_instance_attribute(self, instance_id, attribute, value, dry_run=False):
+        if attribute == 'sriovNetSupport':
+            return dict()
+        return None
+
     def retry(self, function, error_code_regexp=None, timeout=None):
         return aws_service.retry_boto(
             function,
@@ -368,18 +372,15 @@ def build_aws_service():
 
     # Encryptor image
     bdm = BlockDeviceMapping()
-    for n in (1, 2, 3, 5):
-        device_name = '/dev/sda%d' % n
-        bdm[device_name] = BlockDeviceType()
-    id = aws_svc.register_image(
-        kernel_id=None, name='brkt-avatar', block_device_map=bdm)
+    bdm['/dev/sda1'] = BlockDeviceType()
+    bdm['/dev/sdg'] = BlockDeviceType()
+    id = aws_svc.register_image(name='brkt-avatar', block_device_map=bdm)
     encryptor_image = aws_svc.get_image(id)
 
     # Guest image
     bdm = BlockDeviceMapping()
     bdm['/dev/sda1'] = BlockDeviceType()
-    id = aws_svc.register_image(
-        kernel_id=None, name='Guest image', block_device_map=bdm)
+    id = aws_svc.register_image(name='Guest image', block_device_map=bdm)
     guest_image = aws_svc.get_image(id)
 
     return aws_svc, encryptor_image, guest_image

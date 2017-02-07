@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 import inspect
 import json
 import os
-import sys
 import tempfile
 import unittest
 
@@ -81,8 +80,9 @@ class TestInstanceConfig(unittest.TestCase):
         ic = InstanceConfig(brkt_config_in)
         config_json = ic.make_brkt_config_json()
         expected_json = ('{"brkt": {"api_host": "%s", ' +
-            '"hsmproxy_host": "%s", "network_host": "%s"}}') % \
-            (api_host_port, hsmproxy_host_port, network_host_port)
+            '"hsmproxy_host": "%s", "network_host": "%s", ') % \
+            (api_host_port, hsmproxy_host_port, network_host_port) + \
+            '"solo_mode": "creator"}}'
         self.assertEqual(config_json, expected_json)
 
     def test_ntp_servers(self):
@@ -90,21 +90,24 @@ class TestInstanceConfig(unittest.TestCase):
         ic = InstanceConfig({'ntp_servers': [ntp_server1]})
 
         config_json = ic.make_brkt_config_json()
-        expected_json = '{"brkt": {"ntp_servers": ["%s"]}}' % ntp_server1
+        expected_json = '{"brkt": {"ntp_servers": ["%s"], ' % ntp_server1 + \
+                        '"solo_mode": "creator"}}'
         self.assertEqual(config_json, expected_json)
 
         # Now try two servers
         ic = InstanceConfig({'ntp_servers': [ntp_server1, ntp_server2]})
 
         config_json = ic.make_brkt_config_json()
-        expected_json = '{"brkt": {"ntp_servers": ["%s", "%s"]}}' % \
-                        (ntp_server1, ntp_server2)
+        expected_json = '{"brkt": {"ntp_servers": ["%s", "%s"], ' % \
+                        (ntp_server1, ntp_server2) + \
+                        '"solo_mode": "creator"}}'
         self.assertEqual(config_json, expected_json)
 
     def test_jwt(self):
         ic = InstanceConfig({'identity_token': test_jwt})
         config_json = ic.make_brkt_config_json()
-        expected_json = '{"brkt": {"identity_token": "%s"}}' % test_jwt
+        expected_json = '{"brkt": {"identity_token": "%s", ' % test_jwt + \
+                        '"solo_mode": "creator"}}'
         self.assertEqual(config_json, expected_json)
 
     def test_proxy_config(self):
@@ -266,25 +269,20 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 ic = instance_config_from_values(values)
 
-        # Now use endpoint args and a valid cert
+        # Now use endpoint args and a valid cert, with all three modes
         cli_args = endpoint_args + ' --ca-cert %s' % _get_ca_cert_filename()
-        values = instance_config_args_to_values(cli_args)
-        ic = instance_config_from_values(values)
-        ud = ic.make_userdata()
-        brkt_files = get_mime_part_payload(ud, BRKT_FILES_CONTENT_TYPE)
-        self.assertTrue(brkt_files.startswith(
-                        "/var/brkt/ami_config/ca_cert.pem.dummy.foo.com: " +
-                        "{contents: '-----BEGIN CERTIFICATE-----"))
-
-        # Make sure the --ca-cert arg is only recognized in 'creator' mode
-        # prevent stderr message from parse_args
-        sys.stderr = open(os.devnull, 'w')
-        try:
-            values = instance_config_args_to_values(cli_args,
-                                                    mode=INSTANCE_METAVISOR_MODE)
-        except SystemExit:
-            pass
-        else:
-            self.assertTrue(False, 'Did not get expected exception')
-        sys.stderr.close()
-        sys.stderr = sys.__stderr__
+        all_modes = [INSTANCE_METAVISOR_MODE, INSTANCE_UPDATER_MODE,
+                     INSTANCE_CREATOR_MODE]
+        for mode in all_modes:
+            values = instance_config_args_to_values(cli_args)
+            ic = instance_config_from_values(values, mode=mode)
+            ud = ic.make_userdata()
+            brkt_files = get_mime_part_payload(ud, BRKT_FILES_CONTENT_TYPE)
+            if mode is INSTANCE_METAVISOR_MODE:
+                self.assertTrue(brkt_files.startswith(
+                    "/var/brkt/instance_config/ca_cert.pem.dummy.foo.com: " +
+                    "{contents: '-----BEGIN CERTIFICATE-----"))
+            else:
+                self.assertTrue(brkt_files.startswith(
+                    "/var/brkt/ami_config/ca_cert.pem.dummy.foo.com: " +
+                    "{contents: '-----BEGIN CERTIFICATE-----"))

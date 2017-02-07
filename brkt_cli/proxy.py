@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ def validate_proxy_config(proxy_yaml):
     try:
         d = yaml.safe_load(proxy_yaml)
     except yaml.YAMLError as e:
-        raise ValidationError('Unable to parse proxy config: %s', e.message)
+        raise ValidationError('Unable to parse proxy config: %s' % e)
 
     if 'proxies' not in d:
         raise ValidationError('Could not find "proxies" section')

@@ -1,4 +1,4 @@
-# Copyright 2016 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -12,6 +12,10 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 
 
 def setup_encrypt_with_esx_host_args(parser):
@@ -41,6 +45,13 @@ def setup_encrypt_with_esx_host_args(parser):
         default=None,
         required=False)
     parser.add_argument(
+        "--esx-network-name",
+        help="ESX network name to use",
+        dest="network_name",
+        metavar='NAME',
+        default="VM Network",
+        required=False)
+    parser.add_argument(
         "--cpu-count",
         help="Number of CPUs to assign to Encryptor VM",
         metavar='N',
@@ -67,13 +78,6 @@ def setup_encrypt_with_esx_host_args(parser):
         dest='template_vm_name',
         help='Specify the name of the template VM',
         required=False
-    )
-    parser.add_argument(
-        '--no-validate',
-        dest='validate',
-        action='store_false',
-        default=True,
-        help="Don't validate VMDKs and vCenter credentials"
     )
     parser.add_argument(
         '--create-ovf',
@@ -175,4 +179,32 @@ def setup_encrypt_with_esx_host_args(parser):
         dest='bucket_name',
         help=argparse.SUPPRESS,
         default="solo-brkt-prod-ovf-image"
+    )
+    # Optional nic-type to be used with VDS
+    # Values can be Port, VirtualPort or VirtualPortGroup
+    parser.add_argument(
+        '--nic-type',
+        metavar='NAME',
+        dest='nic_type',
+        help=argparse.SUPPRESS,
+        default="Port"
+    )
+    # Optional HTTP Proxy argument which can be used in proxied environments
+    # Specifies the HTTP Proxy to use for S3/AWS connections
+    parser.add_argument(
+        '--http-s3-proxy',
+        dest='http_proxy',
+        metavar='HOST:PORT',
+        default=None,
+        help=argparse.SUPPRESS
+    )
+    # Optional argument for root disk crypto policy. The supported values
+    # currently are "gcm" and "xts" with "xts" being the default
+    parser.add_argument(
+        '--crypto-policy',
+        dest='crypto',
+        metavar='NAME',
+        choices=[CRYPTO_GCM, CRYPTO_XTS],
+        help=argparse.SUPPRESS,
+        default=None
     )

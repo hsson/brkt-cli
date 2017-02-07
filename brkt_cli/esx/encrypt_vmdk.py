@@ -1,4 +1,4 @@
-# Copyright 2016 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -38,13 +38,14 @@ from brkt_cli.esx.esx_service import (
     launch_mv_vm_from_s3,
     validate_local_mv_ovf
 )
+from brkt_cli.util import CRYPTO_XTS
 
 
 log = logging.getLogger(__name__)
 
 
 def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
-                                vm_name=None, create_ovf=False,
+                                crypto_policy, vm_name=None, create_ovf=False,
                                 create_ova=False, target_path=None,
                                 image_name=None, ovftool_path=None,
                                 user_data_str=None, serial_port_file_name=None,
@@ -60,9 +61,14 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         guest_vmdk_path = vc_swc.get_datastore_path(guest_vmdk)
         # Attach guest vmdk
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=2)
+        if crypto_policy is None:
+            crypto_policy = CRYPTO_XTS
         # Attach empty disk
         size = vc_swc.get_disk_size(vm, 2)
-        encrypted_guest_size = (2 * size) + (1024*1024)
+        if crypto_policy == CRYPTO_XTS:
+            encrypted_guest_size = size + (1024*1024)
+        else:
+            encrypted_guest_size = (2 * size) + (1024*1024)
         vc_swc.add_disk(vm, disk_size=encrypted_guest_size, unit_number=1)
         # Power on the VM and wait for encryption
         vc_swc.power_on(vm)
@@ -150,9 +156,9 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         log.info("Done")
 
 
-def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, vm_name=None,
-                    create_ovf=False, create_ova=False, target_path=None,
-                    image_name=None, ovftool_path=None,
+def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
+                    vm_name=None, create_ovf=False, create_ova=False,
+                    target_path=None, image_name=None, ovftool_path=None,
                     ovf_name=None, download_file_list=None,
                     user_data_str=None, serial_port_file_name=None,
                     status_port=ENCRYPTOR_STATUS_PORT):
@@ -172,15 +178,15 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, vm_name=None,
             vc_swc.destroy_vm(vm)
         raise
     create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm,
-                                guest_vmdk, vm_name,
+                                guest_vmdk, crypto_policy, vm_name,
                                 create_ovf, create_ova, target_path,
                                 image_name, ovftool_path, user_data_str,
                                 serial_port_file_name, status_port)
 
 
-def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, vm_name=None,
-                           create_ovf=False, create_ova=False, target_path=None,
-                           image_name=None, ovftool_path=None,
+def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
+                           vm_name=None, create_ovf=False, create_ova=False,
+                            target_path=None, image_name=None, ovftool_path=None,
                            source_image_path=None, ovf_image_name=None,
                            user_data_str=None, serial_port_file_name=None,
                            status_port=ENCRYPTOR_STATUS_PORT):
@@ -201,17 +207,18 @@ def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, vm_name=None,
             vc_swc.destroy_vm(vm)
         raise
     create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm,
-                                guest_vmdk, vm_name,
+                                guest_vmdk, crypto_policy, vm_name,
                                 create_ovf, create_ova, target_path,
                                 image_name, ovftool_path,
                                 user_data_str, serial_port_file_name,
                                 status_port)
 
 
-def encrypt_from_vmdk(vc_swc, enc_svc_cls, guest_vmdk, vm_name=None,
-                      create_ovf=False, create_ova=False, target_path=None,
-                      image_name=None, ovftool_path=None, metavisor_vmdk=None,
-                      user_data_str=None, serial_port_file_name=None,
+def encrypt_from_vmdk(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
+                      vm_name=None, create_ovf=False, create_ova=False,
+                      target_path=None, image_name=None, ovftool_path=None,
+                      metavisor_vmdk=None, user_data_str=None,
+                      serial_port_file_name=None,
                       status_port=ENCRYPTOR_STATUS_PORT):
     try:
         vm = None
@@ -230,7 +237,7 @@ def encrypt_from_vmdk(vc_swc, enc_svc_cls, guest_vmdk, vm_name=None,
             vc_swc.destroy_vm(vm)
         raise
     create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm,
-                                guest_vmdk, vm_name,
+                                guest_vmdk, crypto_policy, vm_name,
                                 create_ovf, create_ova, target_path,
                                 image_name, ovftool_path,
                                 user_data_str, serial_port_file_name,

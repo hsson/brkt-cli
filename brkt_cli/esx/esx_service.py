@@ -1,4 +1,4 @@
-# Copyright 2016 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -76,7 +76,8 @@ class BaseVCenterService(object):
 
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
-                 cluster_name, no_of_cpus, memoryGB, session_id):
+                 cluster_name, no_of_cpus, memoryGB, session_id,
+                 network_name, nic_type, verify=True):
         self.host = host
         self.user = user
         self.password = password
@@ -93,6 +94,9 @@ class BaseVCenterService(object):
         self.si = None
         self.thindisk = True
         self.eagerscrub = False
+        self.network_name = network_name
+        self.nic_type = nic_type
+        self.verify = verify
 
     def is_esx_host(self):
         return self.esx_host
@@ -138,8 +142,7 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def create_vm(self, memoryGB=1, numCPUs=1,
-                  network_name="VM Network"):
+    def create_vm(self, memoryGB=1, numCPUs=1):
         pass
 
     @abc.abstractmethod
@@ -248,10 +251,12 @@ class VmodlExceptionChecker(RetryExceptionChecker):
 class VCenterService(BaseVCenterService):
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
-                 cluster_name, no_of_cpus, memoryGB, session_id):
+                 cluster_name, no_of_cpus, memoryGB, session_id,
+                 network_name, nic_type, verify):
         super(VCenterService, self).__init__(
             host, user, password, port, datacenter_name, datastore_name,
-            esx_host, cluster_name, no_of_cpus, memoryGB, session_id)
+            esx_host, cluster_name, no_of_cpus, memoryGB, session_id,
+            network_name, nic_type, verify)
 
     @timeout(30)
     def _s_connect(self):
@@ -260,6 +265,8 @@ class VCenterService(BaseVCenterService):
             # Check if python version has SSLContext
             context = ssl.SSLContext
         except:
+            context = None
+        if self.verify:
             context = None
         if context:
             # Change ssl context due to bug in pyvmomi
@@ -407,8 +414,7 @@ class VCenterService(BaseVCenterService):
             retry = retry + 1
         return (vm.guest.ipAddress)
 
-    def create_vm(self, memoryGB=1, numCPUs=1,
-                  network_name="VM Network"):
+    def create_vm(self, memoryGB=1, numCPUs=1):
         content = self.si.RetrieveContent()
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
@@ -441,7 +447,7 @@ class VCenterService(BaseVCenterService):
         n_intf = vim.vm.device.VirtualVmxnet3()
         n_intf.key = -1
         n_intf.backing = vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
-        n_intf.backing.deviceName = network_name
+        n_intf.backing.deviceName = self.network_name
         disk_spec_2 = vim.vm.device.VirtualDeviceSpec()
         disk_spec_2.operation = vim.vm.device.VirtualDeviceSpec.Operation.add
         disk_spec_2.device = n_intf
@@ -660,7 +666,6 @@ class VCenterService(BaseVCenterService):
             if instance_config:
                 brkt_config = instance_config.get_brkt_config()
             if update is True:
-                brkt_config['solo_mode'] = 'updater'
                 instance_config.set_mode(INSTANCE_UPDATER_MODE)
             if ssh_key_file:
                 with open(ssh_key_file, 'r') as f:
@@ -769,6 +774,12 @@ class VCenterService(BaseVCenterService):
         ova_path = "".join(ova_list)
         ovftool_cmd = ovftool_path + " " + ovf_path + " " + ova_path
         os.system(ovftool_cmd)
+        try:
+            os.remove(ovf_path)
+        except Exception as e:
+            log.warn("Cannot delete OVF file %s (error %s). "
+                     "Please delete it manually."
+                     % (ovf_path, e))
         return ova_path
 
     def convert_ova_to_ovf(self, ovftool_path, ova_path):
@@ -796,7 +807,10 @@ class VCenterService(BaseVCenterService):
         if validate_mf:
             # Load checksums for each file
             mf_checksum = None
-            mf_file_name = ovf_name[:ovf_name.find(".ovf")] + ".mf"
+            if ovf_name.endswith('.ovf'):
+                mf_file_name = ovf_name[:ovf_name.find(".ovf")] + ".mf"
+            else:
+                mf_file_name = ovf_name + '.mf'
             mf_path = os.path.join(target_path, mf_file_name)
             with open(mf_path, 'r') as mf_file:
                 mf_checksum = json.load(mf_file)
@@ -827,6 +841,34 @@ class VCenterService(BaseVCenterService):
         if vm_name is None:
             vm_name = "Encryptor-VM-" + timestamp
         import_spec.importSpec.configSpec.name = vm_name
+        if (self.nic_type == "VirtualPort"):
+            pg_obj = self.__get_obj(content,
+                                    [vim.dvs.DistributedVirtualPort],
+                                    self.network_name)
+            port_connection = vim.dvs.PortConnection()
+            port_connection.portKey = pg_obj.key
+            port_connection.switchUuid = pg_obj.dvsUuid
+            for device in import_spec.importSpec.configSpec.deviceChange:
+                if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
+                    device.device.backing = \
+                        vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+                    device.device.backing.port = port_connection
+        elif (self.nic_type == "VirtualPortGroup"):
+            pg_obj = self.__get_obj(content,
+                                    [vim.dvs.DistributedVirtualPortgroup],
+                                    self.network_name)
+            port_connection = vim.dvs.PortConnection()
+            port_connection.portgroupKey = pg_obj.key
+            port_connection.switchUuid = pg_obj.config.distributedVirtualSwitch.uuid
+            for device in import_spec.importSpec.configSpec.deviceChange:
+                if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
+                    device.device.backing = \
+                        vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+                    device.device.backing.port = port_connection
+        else:
+            for device in import_spec.importSpec.configSpec.deviceChange:
+                if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
+                    device.device.backing.deviceName = self.network_name
         lease = resource_pool.ImportVApp(import_spec.importSpec, destfolder)
         while (True):
             hls = lease.state
@@ -897,15 +939,17 @@ class VCenterService(BaseVCenterService):
 
 def initialize_vcenter(host, user, password, port,
                        datacenter_name, datastore_name, esx_host,
-                       cluster_name, no_of_cpus, memory_gb, session_id):
+                       cluster_name, no_of_cpus, memory_gb, session_id,
+                       network_name, nic_type, verify=True):
     vc_swc = VCenterService(host, user, password, port,
                             datacenter_name, datastore_name, esx_host,
-                            cluster_name, no_of_cpus, memory_gb, session_id)
+                            cluster_name, no_of_cpus, memory_gb, session_id,
+                            network_name, nic_type, verify)
     vc_swc.connect()
     return vc_swc
 
 
-def download_ovf_from_s3(bucket_name, image_name=None):
+def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
     logging.getLogger('boto').setLevel(logging.FATAL)
     log.info("Fetching Metavisor OVF from S3")
     if bucket_name is None:
@@ -913,9 +957,17 @@ def download_ovf_from_s3(bucket_name, image_name=None):
         raise Exception("Invalid bucket-name")
     ovf_name = None
     download_file_list = []
+    # Normalize image_name for S3 downloads
+    if image_name and image_name.endswith('.ovf'):
+        image_name = image_name[:image_name.find('.ovf')]
     try:
         anon = not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ))
-        conn = boto.connect_s3(None, None, anon=anon, host="s3.amazonaws.com")
+        if proxy:
+            conn = boto.connect_s3(None, None, anon=anon,
+                                   host="s3.amazonaws.com",
+                                   proxy=proxy.host, proxy_port=proxy.port)
+        else:
+            conn = boto.connect_s3(None, None, anon=anon, host="s3.amazonaws.com")
         bucket = boto.s3.bucket.Bucket(connection=conn, name=bucket_name)
         if (image_name is None):
             # Get the last one

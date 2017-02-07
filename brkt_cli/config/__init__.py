@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import errno
 import logging
 import os
 import os.path
+import shutil
 import sys
 import tempfile
 import yaml
@@ -310,7 +311,7 @@ class CLIConfig(object):
         yaml.dump(self._config, f)
         f.close()
         try:
-            os.rename(f.name, CONFIG_PATH)
+            shutil.move(f.name, CONFIG_PATH)
         except:
             _unlink_noraise(f.name)
             raise
@@ -505,7 +506,7 @@ The leading `*' indicates that the `stage' environment is currently active.
             _unlink_noraise(f.name)
             raise
         try:
-            os.rename(f.name, CONFIG_PATH)
+            shutil.move(f.name, CONFIG_PATH)
         except:
             _unlink_noraise(f.name)
             raise

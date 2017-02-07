@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -106,6 +106,17 @@ class TestGenerateJWT(unittest.TestCase):
         jwt = pyjwt.encode({}, _crypto.private_key, algorithm='ES384')
         with self.assertRaises(ValidationError):
             brkt_cli.validate_jwt(jwt)
+
+    def test_validate_name_value(self):
+        brkt_jwt.validate_name_value('abc123_-', 'abc123_-')
+        with self.assertRaises(ValidationError):
+            brkt_jwt.validate_name_value('valid', 'invalid!')
+        with self.assertRaises(ValidationError):
+            brkt_jwt.validate_name_value('invalid!', 'valid')
+        with self.assertRaises(ValidationError):
+            brkt_jwt.validate_name_value('any', 'valid')
+        with self.assertRaises(ValidationError):
+            brkt_jwt.validate_name_value('valid', 'any')
 
 
 class TestJWK(unittest.TestCase):

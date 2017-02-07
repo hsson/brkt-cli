@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -67,9 +67,9 @@ def setup_diag_args(parser):
         help='Launch instances in this subnet'
     )
     parser.add_argument(
-        '--tag',
+        '--aws-tag',
         metavar='KEY=VALUE',
-        dest='tags',
+        dest='aws_tags',
         action='append',
         help=(
             'Custom tag for resources created during encryption. '
@@ -89,6 +89,14 @@ def setup_diag_args(parser):
         help='ssh keypair name to be used to connect to diag instance.',
         required=True,
         dest='key_name'
+    )
+    # Hide deprecated --tags argument
+    parser.add_argument(
+        '--tag',
+        metavar='KEY=VALUE',
+        dest='tags',
+        action='append',
+        help=argparse.SUPPRESS
     )
     # Optional arguments for changing the behavior of our retry logic.  We
     # use these options internally, to avoid intermittent AWS service failures

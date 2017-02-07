@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ from brkt_cli.validation import ValidationError
 
 SLEEP_ENABLED = True
 MAX_BACKOFF_SECS = 10
+
+# Supported crypto options for the disks
+CRYPTO_GCM = 'gcm'
+CRYPTO_XTS = 'xts'
 
 
 log = logging.getLogger(__name__)
@@ -208,8 +212,7 @@ def read_private_key(pem_path):
             password = getpass.getpass('Encrypted private key password: ')
         crypto = brkt_cli.crypto.from_private_key_pem(pem, password=password)
     except (ValueError, IOError) as e:
-        if log.isEnabledFor(logging.DEBUG):
-            log.exception('Unable to load signing key from %s', pem_path)
+        log.debug('Unable to load signing key from %s', pem_path, exc_info=1)
         raise ValidationError(
             'Unable to load signing key: %s' % e)
 
@@ -282,3 +285,18 @@ def parse_endpoint(endpoint):
     if groups[1] is not None:
         ret['port'] = int(groups[1][1:])
     return ret
+
+
+def write_to_file_or_stdout(content, path=None):
+    """ Write a content to either the given path, or stdout if path is None.
+    :raise ValidationError if the file can't be written
+    """
+    if not path:
+        print content
+        return
+
+    try:
+        with open(path, 'w') as f:
+            f.write(content)
+    except IOError as e:
+        raise ValidationError('Unable to write to %s: %s' % (path, e))

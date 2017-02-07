@@ -7,7 +7,7 @@ def setup_launch_gce_image_args(parser):
     parser.add_argument(
         'image',
         metavar='ID',
-        help='The image that will be encrypted',
+        help='The image that will be launched',
     )
     parser.add_argument(
         '--instance-name',
@@ -28,10 +28,11 @@ def setup_launch_gce_image_args(parser):
         default='us-central1-a'
     )
     parser.add_argument(
-        '--delete-boot',
-        help='Delete boot disk when instance is deleted',
+        '--no-delete-boot',
+        help='Do not delete boot disk when instance is deleted',
         dest='delete_boot',
-        action='store_true'
+        default=True,
+        action='store_false'
     )
     parser.add_argument(
         '--project',
@@ -44,6 +45,16 @@ def setup_launch_gce_image_args(parser):
         dest='network',
         default='default',
         required=False
+    )
+    parser.add_argument(
+        '--gce-tag',
+        dest='gce_tags',
+        action='append',
+        metavar='VALUE',
+        help=(
+              'Set a GCE tag on the encrypted instance being launched. May be '
+              'specified multiple times.'
+        )
     )
 
     # Optional startup script. Hidden because it is only used for development
@@ -67,4 +78,14 @@ def setup_launch_gce_image_args(parser):
         metavar='FQDN',
         dest='guest_fqdn',
         help=argparse.SUPPRESS
+    )
+    # Optional (number of) SSD scratch disks because these can only be attached
+    # at instance launch time, compared to the other (persistent) disks
+    parser.add_argument(
+        '--ssd-scratch-disks',
+        metavar='N',
+        type=int,
+        default=0,
+        dest='ssd_scratch_disks',
+        help='Number of SSD scratch disks to be attached (max. 8)'
     )

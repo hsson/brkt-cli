@@ -7,7 +7,7 @@ from brkt_cli.util import (
 
 log = logging.getLogger(__name__)
 
-def launch(log, gce_svc, image_id, instance_name, zone, delete_boot, instance_type, network, subnetwork, metadata={}):
+def launch(log, gce_svc, image_id, instance_name, zone, delete_boot, instance_type, network, subnetwork, metadata={}, ssd_disks=0, gce_tags=None):
     if not instance_name:
         instance_name = 'brkt' + '-' + str(uuid.uuid4().hex)
 
@@ -18,15 +18,20 @@ def launch(log, gce_svc, image_id, instance_name, zone, delete_boot, instance_ty
     log.info("Starting instance")
     guest_disk = gce_svc.get_disk(zone, snap_name)
     guest_disk['autoDelete'] = True
+    disks = [guest_disk]
+    for x in range(ssd_disks):
+        ssd_disk = gce_svc.create_ssd_disk(zone)
+        disks.append(ssd_disk)
     gce_svc.run_instance(zone=zone,
                          name=instance_name,
                          image=image_id,
-                         disks=[guest_disk],
+                         disks=disks,
                          metadata=metadata,
                          delete_boot=delete_boot,
                          network=network,
                          subnet=subnetwork,
-                         instance_type=instance_type)
+                         instance_type=instance_type,
+                         tags=gce_tags)
     gce_svc.wait_instance(instance_name, zone)
     log.info("Instance %s (%s) launched successfully" % (instance_name,
              gce_svc.get_instance_ip(instance_name, zone)))

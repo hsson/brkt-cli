@@ -1,4 +1,4 @@
-# Copyright 2016 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -47,6 +47,13 @@ def setup_update_vmdk_args(parser):
         metavar='NAME',
         required=False,
         default=None)
+    parser.add_argument(
+        "--vcenter-network-name",
+        help="vCenter network name to use",
+        dest="network_name",
+        metavar='NAME',
+        default="VM Network",
+        required=False)
     parser.add_argument(
         "--cpu-count",
         help="Number of CPUs to assign to Encryptor VM",
@@ -106,11 +113,11 @@ def setup_update_vmdk_args(parser):
         help="Update OVA package"
     )
     parser.add_argument(
-        '--no-validate',
+        '--no-verify-cert',
         dest='validate',
         action='store_false',
         default=True,
-        help="Don't validate VMDKs and vCenter credentials"
+        help="Don't validate vCenter certificate"
     )
     parser.add_argument(
         '--ovf-source-directory',
@@ -128,12 +135,23 @@ def setup_update_vmdk_args(parser):
         default=None,
         required=False
     )
+    # Hide this argument as this is no longer required with the new command
+    # syntax. Leaving it around for backwards compatibility.
     parser.add_argument(
         '--use-esx-host',
         dest='esx_host',
         action='store_true',
         default=False,
-        help="Use single ESX host for encrytion instead of vCenter"
+        help=argparse.SUPPRESS
+    )
+    # Optional HTTP Proxy argument which can be used in proxied environments
+    # Specifies the HTTP Proxy to use for S3/AWS connections
+    parser.add_argument(
+        '--http-s3-proxy',
+        dest='http_proxy',
+        metavar='DNS_NAME',
+        default=None,
+        help=argparse.SUPPRESS
     )
     # Optional MV VMDK that's used to launch the updator instance.  This
     # argument is hidden because it's only used for development.
@@ -160,4 +178,13 @@ def setup_update_vmdk_args(parser):
         dest='bucket_name',
         help=argparse.SUPPRESS,
         default="solo-brkt-prod-ovf-image"
+    )
+    # Optional nic-type to be used with VDS
+    # Values can be Port, VirtualPort or VirtualPortGroup
+    parser.add_argument(
+        '--nic-type',
+        metavar='NAME',
+        dest='nic_type',
+        help=argparse.SUPPRESS,
+        default="Port"
     )

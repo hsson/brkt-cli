@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ def update_gce_image(gce_svc, enc_svc_cls, image_id, encryptor_image,
                      keep_encryptor=False, image_file=None,
                      image_bucket=None, network=None,
                      subnetwork=None, status_port=ENCRYPTOR_STATUS_PORT,
-                     cleanup=True):
+                     cleanup=True, gce_tags=None):
     snap_created = None
     instance_name = 'brkt-updater-' + gce_svc.get_session_id()
     updater = instance_name + '-metavisor'
@@ -62,7 +62,6 @@ def update_gce_image(gce_svc, enc_svc_cls, image_id, encryptor_image,
         snap_created = True
 
         log.info("Launching encrypted updater")
-        instance_config.brkt_config['solo_mode'] = 'updater'
         user_data = gce_metadata_from_userdata(instance_config.make_userdata())
         gce_svc.run_instance(zone,
                              updater,
@@ -70,7 +69,9 @@ def update_gce_image(gce_svc, enc_svc_cls, image_id, encryptor_image,
                              network=network,
                              subnet=subnetwork,
                              disks=[],
-                             metadata=user_data)
+                             delete_boot=False,
+                             metadata=user_data,
+                             tags=gce_tags)
         ip = gce_svc.get_instance_ip(updater, zone)
         updater_launched = True
         enc_svc = enc_svc_cls([ip], port=status_port)
@@ -89,6 +90,7 @@ def update_gce_image(gce_svc, enc_svc_cls, image_id, encryptor_image,
         # delete updater instance
         log.info('Deleting updater instance')
         gce_svc.delete_instance(zone, updater)
+        updater_launched = False
 
         # wait for updater root disk
         gce_svc.wait_for_detach(zone, updater)

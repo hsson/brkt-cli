@@ -1,4 +1,8 @@
 import argparse
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 
 
 def setup_encrypt_gce_image_args(parser, parsed_config):
@@ -17,7 +21,7 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
     zone_kwargs = {
         'help': 'GCE zone to operate in',
         'dest': 'zone',
-        'default': parsed_config.get_option('encrypt-gce-image.zone'),
+        'default': parsed_config.get_option('gce.zone'),
         'required': False,
     }
     if zone_kwargs['default'] is None:
@@ -25,13 +29,6 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
     parser.add_argument(
         '--zone',
         **zone_kwargs
-    )
-    parser.add_argument(
-        '--encryptor-image-bucket',
-        help='Bucket to retrieve encryptor image from (prod, stage, shared, <custom>)',
-        dest='bucket',
-        default='prod',
-        required=False
     )
     parser.add_argument(
         '--no-validate',
@@ -43,7 +40,7 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
     proj_kwargs = {
         'help': 'GCE project name',
         'dest': 'project',
-        'default': parsed_config.get_option('encrypt-gce-image.project'),
+        'default': parsed_config.get_option('gce.project'),
         'required': False,
     }
     if proj_kwargs['default'] is None:
@@ -66,14 +63,24 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
     parser.add_argument(
         '--network',
         dest='network',
-        default=parsed_config.get_option('encrypt-gce-image.network', 'default'),
+        default=parsed_config.get_option('gce.network', 'default'),
         required=False
     )
     parser.add_argument(
         '--subnetwork',
         dest='subnetwork',
-        default=parsed_config.get_option('encrypt-gce-image.subnetwork', None),
+        default=parsed_config.get_option('gce.subnetwork', None),
         required=False
+    )
+    parser.add_argument(
+        '--gce-tag',
+        metavar='VALUE',
+        dest='gce_tags',
+        action='append',
+        help=(
+              'Set a GCE tag on the encryptor instance. May be specified'
+              ' multiple times.'
+        )
     )
     # Optional Image Name that's used to launch the encryptor instance. This
     # argument is hidden because it's only used for development.
@@ -82,6 +89,15 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
         dest='image_file',
         required=False,
         help=argparse.SUPPRESS
+    )
+    # Optional bucket name to retrieve the encryptor image from
+    # (prod, stage, shared, <custom>) 
+    parser.add_argument(
+        '--encryptor-image-bucket',
+        help=argparse.SUPPRESS,
+        dest='bucket',
+        default='prod',
+        required=False
     )
     parser.add_argument(
         '--no-cleanup',
@@ -96,4 +112,14 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
         dest='keep_encryptor',
         action='store_true',
         help=argparse.SUPPRESS
+    )
+    # Optional argument for root disk crypto policy. The supported values
+    # currently are "gcm" and "xts" with "gcm" being the default
+    parser.add_argument(
+        '--crypto-policy',
+        dest='crypto',
+        metavar='NAME',
+        choices=[CRYPTO_GCM, CRYPTO_XTS],
+        help=argparse.SUPPRESS,
+        default=None
     )

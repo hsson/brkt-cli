@@ -1,4 +1,4 @@
-# Copyright 2016 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ import os
 import subprocess
 import getpass
 
+from brkt_cli import _parse_proxies
+
 from brkt_cli.subcommand import Subcommand
 
 from brkt_cli import (
@@ -31,6 +33,7 @@ from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
+from brkt_cli.util import CRYPTO_XTS
 
 from brkt_cli.esx import (
     encrypt_vmdk,
@@ -41,6 +44,7 @@ from brkt_cli.esx import (
     update_vmdk,
     update_encrypted_vmdk_args,
     encrypt_with_esx_host_args,
+    update_with_esx_host_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -101,6 +105,11 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         _, brkt_env = parsed_config.get_current_env()
     if not values.token:
         raise ValidationError('Must provide a token')
+
+    proxy = None
+    if values.http_proxy:
+        proxy = _parse_proxies(values.http_proxy)[0]
+
     # Download images from S3
     try:
         if (values.encryptor_vmdk is None and
@@ -108,7 +117,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             (ovf, file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
-                    image_name=values.image_name
+                    image_name=values.image_name,
+                    proxy=proxy
                 )
             if ovf is None:
                 raise ValidationError("Did not find MV OVF images")
@@ -128,6 +138,9 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             no_of_cpus=values.no_of_cpus,
             memory_gb=values.memory_gb,
             session_id=session_id,
+            network_name=values.network_name,
+            nic_type=values.nic_type,
+            verify=False if use_esx else values.validate,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
@@ -157,13 +170,18 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
     try:
         instance_config = instance_config_from_values(
             values, mode=INSTANCE_CREATOR_MODE, cli_config=parsed_config)
+        crypto_policy = values.crypto
+        if crypto_policy is None:
+            crypto_policy = CRYPTO_XTS
+        instance_config.brkt_config['crypto_policy_type'] = crypto_policy
         user_data_str = vc_swc.create_userdata_str(instance_config,
             update=False, ssh_key_file=values.ssh_public_key_file)
         if (values.encryptor_vmdk is not None):
             # Create from MV VMDK
             encrypt_vmdk.encrypt_from_vmdk(
                 vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, vm_name=values.template_vm_name,
+                values.vmdk, crypto_policy,
+                vm_name=values.template_vm_name,
                 create_ovf=values.create_ovf,
                 create_ova=values.create_ova,
                 target_path=values.target_path,
@@ -178,7 +196,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             # Create from MV OVF in local directory
             encrypt_vmdk.encrypt_from_local_ovf(
                 vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, vm_name=values.template_vm_name,
+                values.vmdk, crypto_policy,
+                vm_name=values.template_vm_name,
                 create_ovf=values.create_ovf,
                 create_ova=values.create_ova,
                 target_path=values.target_path,
@@ -194,7 +213,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             # Create from MV OVF in S3
             encrypt_vmdk.encrypt_from_s3(
                 vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, vm_name=values.template_vm_name,
+                values.vmdk, crypto_policy,
+                vm_name=values.template_vm_name,
                 create_ovf=values.create_ovf,
                 create_ova=values.create_ova,
                 target_path=values.target_path,
@@ -265,6 +285,9 @@ def run_update(values, parsed_config, log, use_esx=False):
     if not values.token:
         raise ValidationError('Must provide a token')
 
+    proxy = None
+    if values.http_proxy:
+        proxy = _parse_proxies(values.http_proxy)[0]
     # Download images from S3
     try:
         if (values.encryptor_vmdk is None and
@@ -272,7 +295,8 @@ def run_update(values, parsed_config, log, use_esx=False):
             (ovf_name, download_file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
-                    image_name=values.image_name
+                    image_name=values.image_name,
+                    proxy=proxy
                 )
             if ovf_name is None:
                 raise ValidationError("Did not find MV OVF images")
@@ -292,6 +316,9 @@ def run_update(values, parsed_config, log, use_esx=False):
             no_of_cpus=values.no_of_cpus,
             memory_gb=values.memory_gb,
             session_id=session_id,
+            network_name=values.network_name,
+            nic_type=values.nic_type,
+            verify=False if use_esx else values.validate,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
@@ -357,7 +384,7 @@ def run_rescue_metavisor(values, parsed_config, log):
         raise ValidationError("Unsupported rescue protocol %s",
                               values.protocol)
     _check_env_vars_set('VCENTER_USER_NAME')
-    vcenter_password = _get_vcenter_password()
+    vcenter_password = _get_vcenter_password(False)
     # Connect to vCenter
     try:
         vc_swc = esx_service.initialize_vcenter(
@@ -372,6 +399,9 @@ def run_rescue_metavisor(values, parsed_config, log):
             no_of_cpus=None,
             memory_gb=None,
             session_id=session_id,
+            network_name=None,
+            nic_type=None,
+            verify=values.validate,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter ", e)
@@ -388,7 +418,7 @@ def run_rescue_metavisor(values, parsed_config, log):
         return 1
 
 
-class VMWareSubcommand(Subcommand):
+class VMwareSubcommand(Subcommand):
 
     def name(self):
         return 'vmware'
@@ -397,8 +427,8 @@ class VMWareSubcommand(Subcommand):
         self.config = parsed_config
         vmware_parser = subparsers.add_parser(
             self.name(),
-            description='VMWare Operations',
-            help='VMWare Operations',
+            description='VMware operations',
+            help='VMware operations',
         )
 
         vmware_subparsers = vmware_parser.add_subparsers(
@@ -449,7 +479,7 @@ class VMWareSubcommand(Subcommand):
             help='Update an encrypted VMDK on an ESX host',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        encrypt_with_esx_host_args.setup_encrypt_with_esx_host_args(
+        update_with_esx_host_args.setup_update_with_esx_host_args(
             update_with_esx_parser)
         setup_instance_config_args(update_with_esx_parser, parsed_config)
 
@@ -458,7 +488,7 @@ class VMWareSubcommand(Subcommand):
             description=(
                 'Upload a Metavisor VM cores and diagnostics to a URL'
             ),
-            help='Upload Metavisor VM and cores to URL',
+            help='Upload Metavisor VM cores to URL',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         rescue_metavisor_args.setup_rescue_metavisor_args(
@@ -561,7 +591,7 @@ class RescueMetavisorSubcommand(Subcommand):
 
 
 def get_subcommands():
-    return [VMWareSubcommand(),
+    return [VMwareSubcommand(),
             EncryptVMDKSubcommand(),
             UpdateVMDKSubcommand(),
             RescueMetavisorSubcommand()]

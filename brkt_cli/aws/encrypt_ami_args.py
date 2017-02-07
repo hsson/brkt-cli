@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import argparse
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 
 
 def setup_encrypt_ami_args(parser):
@@ -36,12 +40,6 @@ def setup_encrypt_ami_args(parser):
             'The instance type to use when running the unencrypted guest '
             'instance'),
         default='m3.medium'
-    )
-    parser.add_argument(
-        '--pv',
-        action='store_true',
-        help='Use the PV encryptor',
-        dest='pv'
     )
     parser.add_argument(
         '--no-validate',
@@ -74,9 +72,9 @@ def setup_encrypt_ami_args(parser):
         help='Launch instances in this subnet'
     )
     parser.add_argument(
-        '--tag',
+        '--aws-tag',
         metavar='KEY=VALUE',
-        dest='tags',
+        dest='aws_tags',
         action='append',
         help=(
             'Set an AWS tag on resources created during encryption. '
@@ -89,6 +87,14 @@ def setup_encrypt_ami_args(parser):
         dest='aws_verbose',
         action='store_true',
         help='Print status information to the console'
+    )
+    # Hide deprecated --tag argument
+    parser.add_argument(
+        '--tag',
+        metavar='KEY=VALUE',
+        dest='tags',
+        action='append',
+        help=argparse.SUPPRESS
     )
     # Optional AMI ID that's used to launch the encryptor instance.  This
     # argument is hidden because it's only used for development.
@@ -141,4 +147,14 @@ def setup_encrypt_ami_args(parser):
         action='store_false',
         default=True,
         help=argparse.SUPPRESS
+    )
+    # Optional argument for root disk crypto policy. The supported values
+    # currently are "gcm" and "xts" with "gcm" being the default
+    parser.add_argument(
+        '--crypto-policy',
+        dest='crypto',
+        metavar='NAME',
+        choices=[CRYPTO_GCM, CRYPTO_XTS],
+        help=argparse.SUPPRESS,
+        default=None
     )

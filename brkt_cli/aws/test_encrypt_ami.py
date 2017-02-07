@@ -1,4 +1,4 @@
-# Copyright 2015 Bracket Computing, Inc. All Rights Reserved.
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -29,7 +29,11 @@ from brkt_cli import ValidationError, encryptor_service
 from brkt_cli.aws import aws_service, encrypt_ami, update_ami
 from brkt_cli.aws import test_aws_service
 from brkt_cli.aws.test_aws_service import build_aws_service
-from brkt_cli.instance_config import BRKT_CONFIG_CONTENT_TYPE
+from brkt_cli.instance_config import (
+    BRKT_CONFIG_CONTENT_TYPE,
+    INSTANCE_UPDATER_MODE,
+)
+from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.instance_config_args import (
     instance_config_args_to_values,
     instance_config_from_values
@@ -38,6 +42,7 @@ from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
 )
+
 
 
 class TestSnapshotProgress(unittest.TestCase):
@@ -103,7 +108,8 @@ class TestRunEncryption(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
         self.assertIsNotNone(encrypted_ami_id)
 
@@ -136,7 +142,8 @@ class TestRunEncryption(unittest.TestCase):
                 aws_svc=aws_svc,
                 enc_svc_cls=FailedEncryptionService,
                 image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id
+                encryptor_ami=encryptor_image.id,
+                crypto_policy=CRYPTO_GCM
             )
             self.fail('Encryption should have failed')
         except encryptor_service.EncryptionError as e:
@@ -159,7 +166,8 @@ class TestRunEncryption(unittest.TestCase):
                 aws_svc=aws_svc,
                 enc_svc_cls=FailedEncryptionService,
                 image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id
+                encryptor_ami=encryptor_image.id,
+                crypto_policy=CRYPTO_GCM
             )
             self.fail('Encryption should have failed')
         except encryptor_service.EncryptionError as e:
@@ -188,7 +196,8 @@ class TestRunEncryption(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
         # Verify that the volume was deleted.
@@ -205,7 +214,8 @@ class TestRunEncryption(unittest.TestCase):
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
             encryptor_ami=encryptor_image.id,
-            encrypted_ami_name=name
+            encrypted_ami_name=name,
+            crypto_policy=CRYPTO_GCM
         )
         ami = aws_svc.get_image(image_id)
         self.assertEqual(name, ami.name)
@@ -235,6 +245,7 @@ class TestRunEncryption(unittest.TestCase):
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
             encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM,
             subnet_id='subnet-1',
             security_group_ids=['sg-1', 'sg-2']
         )
@@ -263,6 +274,7 @@ class TestRunEncryption(unittest.TestCase):
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
             encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM,
             subnet_id='subnet-1'
         )
         self.assertTrue(self.security_group_was_created)
@@ -288,7 +300,8 @@ class TestRunEncryption(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
     def test_guest_instance_type(self):
@@ -307,6 +320,7 @@ class TestRunEncryption(unittest.TestCase):
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
             encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM,
             guest_instance_type='t2.micro'
         )
 
@@ -334,7 +348,8 @@ class TestRunEncryption(unittest.TestCase):
                 aws_svc=aws_svc,
                 enc_svc_cls=DummyEncryptorService,
                 image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id
+                encryptor_ami=encryptor_image.id,
+                crypto_policy=CRYPTO_GCM
             )
         except TestException:
             pass
@@ -435,6 +450,7 @@ class TestRunEncryption(unittest.TestCase):
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
             encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM,
             terminate_encryptor_on_failure=False
         )
 
@@ -458,6 +474,7 @@ class TestRunEncryption(unittest.TestCase):
                 enc_svc_cls=FailedEncryptionService,
                 image_id=guest_image.id,
                 encryptor_ami=encryptor_image.id,
+                crypto_policy=CRYPTO_GCM,
                 terminate_encryptor_on_failure=False
             )
         self.assertIsNotNone(self.encryptor_instance_id)
@@ -489,6 +506,7 @@ class TestBrktEnv(unittest.TestCase):
         api_host_port = 'api.example.com:777'
         hsmproxy_host_port = 'hsmproxy.example.com:888'
         network_host_port = 'network.example.com:999'
+        crypto = CRYPTO_GCM
         aws_svc, encryptor_image, guest_image = build_aws_service()
 
         def run_instance_callback(args):
@@ -507,10 +525,15 @@ class TestBrktEnv(unittest.TestCase):
                     network_host_port,
                     d['brkt']['network_host']
                 )
+                self.assertEquals(
+                    crypto,
+                    d['brkt']['crypto_policy_type']
+                )
 
         cli_args = '--brkt-env %s,%s,%s' % (api_host_port, hsmproxy_host_port,
                                          network_host_port)
         values = instance_config_args_to_values(cli_args)
+        values.crypto = crypto
         ic = instance_config_from_values(values)
         aws_svc.run_instance_callback = run_instance_callback
         encrypt_ami.encrypt(
@@ -518,7 +541,8 @@ class TestBrktEnv(unittest.TestCase):
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
             encryptor_ami=encryptor_image.id,
-            instance_config=ic
+            instance_config=ic,
+            crypto_policy=CRYPTO_GCM
         )
 
     def test_brkt_env_update(self):
@@ -530,7 +554,8 @@ class TestBrktEnv(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
         api_host_port = 'api.example.com:777'
@@ -539,7 +564,7 @@ class TestBrktEnv(unittest.TestCase):
         cli_args = '--brkt-env %s,%s,%s' % (api_host_port, hsmproxy_host_port,
                                          network_host_port)
         values = instance_config_args_to_values(cli_args)
-        ic = instance_config_from_values(values)
+        ic = instance_config_from_values(values, mode=INSTANCE_UPDATER_MODE)
 
         def run_instance_callback(args):
             if args.image_id == encryptor_image.id:
@@ -594,7 +619,8 @@ class TestBrktEnv(unittest.TestCase):
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
         )
 
         self.assertEquals(3, self.call_count)
@@ -629,7 +655,8 @@ class TestBrktEnv(unittest.TestCase):
                 aws_svc=aws_svc,
                 enc_svc_cls=DummyEncryptorService,
                 image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id
+                encryptor_ami=encryptor_image.id,
+                crypto_policy=CRYPTO_GCM
             )
 
         self.assertTrue(self.guest_terminated)
@@ -664,7 +691,8 @@ class TestBrktEnv(unittest.TestCase):
                 aws_svc=aws_svc,
                 enc_svc_cls=DummyEncryptorService,
                 image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id
+                encryptor_ami=encryptor_image.id,
+                crypto_policy=CRYPTO_GCM
             )
 
         self.assertTrue(self.encryptor_terminated)
