@@ -214,20 +214,54 @@ class GCEService(BaseGCEService):
         try:
             bucket = self.storage.buckets().get(
                 bucket=bucket).execute()
+            # bucket exists and we can access it
             return False
         except errors.HttpError as e:
             code = json.loads(e.content)['error']['code']
-            if code == 403:
-                return True
+            if code == 404:
+                # bucket doesn't exist. Check syntax
+                return self.validate_bucket_name(bucket)
+            elif code == 403:
+                # bucket does exist. Permisions not valid
+                raise ValidationError("Bucket exists: Permission denied."
+                    " Update bucket permissions or create new bucket")
             else:
-                return False
+                # unexpected Http error
+                raise ValidationError(e)
 
     # Check if the bucket name uses valid syntax
-    #def validate_bucket_name(self,bucket):
+    def validate_bucket_name(self,bucket):
+        for s in bucket:
+            if s.isupper():
+                return True
+            if (s.isdigit() == False and s.isalpha() == False and s != '-'):
+                print 'invalid symbol'
+                return True
+
+        if '.' in bucket:
+            return True
+
+        if (3 > len(bucket) or len(bucket) > 63):
+            return True
+
+        if 'google' in bucket:
+            return True
+
+        if bucket.startswith('-') or bucket.endswith('-'):
+            return True
+        # Bucket name is valid
+        return False
 
 
     # Check if the file name uses valid syntax
-    #def validate_file_name(self,):
+    def validate_file_name(self, file):
+        if "[" in file or "]" in file or "*" in file or "?" in file:
+            raise ValidationError('File name is invalid')
+
+        if '#' in file:
+            raise ValidationError('File name is invalid')
+
+        return False
 
 
     def check_bucket_file(self, bucket, file):
@@ -238,36 +272,33 @@ class GCEService(BaseGCEService):
             if existing_file:
                 return True
         except:
-            return False
-        return False
+            pass
+        return self.validate_file_name(file)
 
     def wait_bucket_file(self, bucket, file):
-        for i in range(18):
+        for i in range(48):
             try:
                 self.storage.objects().get(
                    bucket=bucket,
                    object=file).execute()
                 return True
-            except:
-                time.sleep(10)
+            except errors.HttpError as e:
+                self.log.debug(e)
+                code = json.loads(e.content)['error']['code']
+                if code == 404:
+                    time.sleep(5)
+                else:
+                    self.log.debug("Failed uploading tar file: %s", e)
+                    return False
         return False
 
     def get_public_image(self):
-        try:
-            # guest_os is a family
-            self.log.info("Trying to get from family...")
-            request = self.compute.images().getFromFamily(
-                project='ubuntu-os-cloud',
-                family='ubuntu-1404-lts')
-            public_image = request.execute(num_retries=5)
-        except:
-            # guest_os is an image already
-            self.log.info("Trying to get specific image...")
-            request = self.compute.images().get(
-                project='ubuntu-os-cloud',
-                image='ubuntu-1404-lts')
-            public_image = request.execute(num_retries=5)
-            logger.info("Public image: %s", public_image['name'])
+        # guest_os is a family
+        self.log.info("Trying to get from family...")
+        request = self.compute.images().getFromFamily(
+            project='ubuntu-os-cloud',
+            family='ubuntu-1404-lts')
+        public_image = request.execute(num_retries=5)
         return public_image['name']
 
     def cleanup(self, zone, encryptor_image, keep_encryptor=False):

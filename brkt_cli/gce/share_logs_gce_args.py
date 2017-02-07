@@ -38,15 +38,15 @@ def setup_share_logs_gce_args(parser):
     parser.add_argument(
         '--bucket',
         metavar='NAME',
-        help='Bucket/file name to store logs',
+        help='Bucket name to store logs',
         dest='bucket',
         required=True
     )
     parser.add_argument(
-        '--file',
+        '--path',
         metavar='NAME',
-        help='File name to store logs',
-        dest='file',
+        help='Path in bucket to store file (e.g. dir/filename)',
+        dest='path',
         default='diags.tar.gz'
     )
     parser.add_argument(
