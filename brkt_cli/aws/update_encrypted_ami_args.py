@@ -100,7 +100,7 @@ def setup_update_encrypted_ami(parser):
         '--verbose',
         dest='aws_verbose',
         action='store_true',
-        help='Print status information to the console'
+        help=argparse.SUPPRESS
     )
     # Hide deprecated --tag argument
     parser.add_argument(
