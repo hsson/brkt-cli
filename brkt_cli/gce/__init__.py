@@ -265,7 +265,7 @@ def share_logs(values, gce_svc):
 				gce_svc.delete_snapshot(snapshot_name)
 			gce_svc.cleanup(values.zone, None)
 		except Exception as e:
-			raise util.BracketError("Failed during cleanup: %s", e)
+			log.error("Failed during cleanup: %s", e)
 	return 0
 
 

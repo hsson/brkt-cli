@@ -233,8 +233,7 @@ class GCEService(BaseGCEService):
                 return self.validate_bucket_name(bucket)
             elif code == 403:
                 # bucket does exist. Permisions not valid
-                raise ValidationError("Bucket exists: Permission denied."
-                    " Update bucket permissions or create new bucket")
+                raise ValidationError("Permission denied for bucket %s", (bucket))
             else:
                 # unexpected Http error
                 raise ValidationError(e)
@@ -281,9 +280,12 @@ class GCEService(BaseGCEService):
                     object=file).execute()
             if existing_file:
                 return True
-        except:
-            pass
-        return self.validate_file_name(file)
+        except errors.HttpError as e:
+            code = json.loads(e.content)['error']['code']
+            if code == 404:
+                return self.validate_file_name(file)
+            else:
+                raise ValidationError(e)
 
     def wait_bucket_file(self, bucket, file):
         for i in range(48):
