@@ -31,6 +31,14 @@ with open('brkt_cli/__init__.py', 'r') as fd:
 if not version:
     raise RuntimeError('Cannot find version information')
 
+# Enforce pyvmomi version based on python version
+# pyvmomi version 6.0 and higher is not compatible with python version
+# 2.7.8 or older
+if sys.version_info <= (2,7,8):
+    pyvmomi_version = '5.5.0'
+else:
+    pyvmomi_version = '6.0.0'
+
 setup(
     name='brkt-cli',
     version=version,
@@ -58,7 +66,7 @@ setup(
         'oauthlib>=1.1.0',
         'pyasn1>=0.1.9',
         'pyjwt>=1.4.0',
-        'pyvmomi>=5.5.50,<=6.0.0',
+        'pyvmomi==' + pyvmomi_version,
         'PyYaml>=3.11',
         'requests>=2.7.0',
     ],
