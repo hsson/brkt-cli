@@ -12,9 +12,7 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 import json
-import os
 import tempfile
 import unittest
 
@@ -44,6 +42,18 @@ test_jwt = (
     'mYzYwIiwgImtpZCI6ICJhYmMifQ.U2lnbmVkLCBzZWFsZWQsIGRlbGl2ZXJlZA'
 )
 
+test_ca_cert = """-----BEGIN CERTIFICATE-----
+MIIBeTCCAR6gAwIBAgIQQg73wXID1mYCOCE1JW5Y4DAKBggqhkjOPQQDAjAcMRow
+GAYDVQQKExFCcmFja2V0IENvbXB1dGluZzAeFw0xNTA2MDUwNDEwMDRaFw0xNjA2
+MDQwNDEwMDRaMBwxGjAYBgNVBAoTEUJyYWNrZXQgQ29tcHV0aW5nMFkwEwYHKoZI
+zj0CAQYIKoZIzj0DAQcDQgAEjPs/ziaJhGEAmrqG70to+ezekjIRIDIYK6rvqi2S
+xaFGjuyHpnyzl/O6o/dhTXBrT3SOPEJDNHC4ZdL7gt7EM6NCMEAwDgYDVR0PAQH/
+BAQDAgCsMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAPBgNVHRMBAf8E
+BTADAQH/MAoGCCqGSM49BAMCA0kAMEYCIQC8N+zLHBgPXNckbK6VGACHC1M4rPSe
+gcHhlcow44jARAIhAN+LFgLbZxzJ6Qmez2UXKcRK0wNkBrAoPrnWIF584d0O
+-----END CERTIFICATE-----
+"""
+
 # Some test constants
 api_host_port = 'api.example.com:777'
 hsmproxy_host_port = 'hsmproxy.example.com:888'
@@ -53,12 +63,6 @@ ntp_server2 = '199.55.32.1'
 proxy_host = '10.22.33.44'
 proxy_port = 3128
 proxy_host_port = '%s:%d' % (proxy_host, proxy_port)
-
-
-def _get_ca_cert_filename():
-    # Find the "ca_cert.pem" file in brkt_cli/assets
-    my_dir = os.path.dirname(inspect.getfile(inspect.currentframe()))
-    return os.path.join(my_dir, 'assets', 'ca_cert.pem')
 
 
 def _verify_proxy_config_in_userdata(ut, userdata):
@@ -270,19 +274,23 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
                 ic = instance_config_from_values(values)
 
         # Now use endpoint args and a valid cert, with all three modes
-        cli_args = endpoint_args + ' --ca-cert %s' % _get_ca_cert_filename()
-        all_modes = [INSTANCE_METAVISOR_MODE, INSTANCE_UPDATER_MODE,
-                     INSTANCE_CREATOR_MODE]
-        for mode in all_modes:
-            values = instance_config_args_to_values(cli_args)
-            ic = instance_config_from_values(values, mode=mode)
-            ud = ic.make_userdata()
-            brkt_files = get_mime_part_payload(ud, BRKT_FILES_CONTENT_TYPE)
-            if mode is INSTANCE_METAVISOR_MODE:
-                self.assertTrue(brkt_files.startswith(
-                    "/var/brkt/instance_config/ca_cert.pem.dummy.foo.com: " +
-                    "{contents: '-----BEGIN CERTIFICATE-----"))
-            else:
-                self.assertTrue(brkt_files.startswith(
-                    "/var/brkt/ami_config/ca_cert.pem.dummy.foo.com: " +
-                    "{contents: '-----BEGIN CERTIFICATE-----"))
+        with tempfile.NamedTemporaryFile() as f:
+            f.write(test_ca_cert)
+            f.flush()
+            cli_args = endpoint_args + ' --ca-cert %s' % f.name
+
+            all_modes = [INSTANCE_METAVISOR_MODE, INSTANCE_UPDATER_MODE,
+                         INSTANCE_CREATOR_MODE]
+            for mode in all_modes:
+                values = instance_config_args_to_values(cli_args)
+                ic = instance_config_from_values(values, mode=mode)
+                ud = ic.make_userdata()
+                brkt_files = get_mime_part_payload(ud, BRKT_FILES_CONTENT_TYPE)
+                if mode is INSTANCE_METAVISOR_MODE:
+                    self.assertTrue(brkt_files.startswith(
+                        "/var/brkt/instance_config/ca_cert.pem.dummy.foo.com: " +
+                        "{contents: '-----BEGIN CERTIFICATE-----"))
+                else:
+                    self.assertTrue(brkt_files.startswith(
+                        "/var/brkt/ami_config/ca_cert.pem.dummy.foo.com: " +
+                        "{contents: '-----BEGIN CERTIFICATE-----"))
