@@ -124,9 +124,9 @@ be in the same VPC.
 ```
 $ brkt aws encrypt --help
 usage: brkt aws encrypt [-h] [--encrypted-ami-name NAME]
-                        [--guest-instance-type TYPE] [--pv] [--no-validate]
-                        --region NAME [--security-group ID] [--subnet ID]
-                        [--aws-tag KEY=VALUE] [-v] [--ntp-server DNS_NAME]
+                        [--guest-instance-type TYPE] [--no-validate] --region
+                        NAME [--security-group ID] [--subnet ID]
+                        [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
                         [--status-port PORT] [--token TOKEN]
                         ID
@@ -137,51 +137,44 @@ positional arguments:
   ID                    The guest AMI that will be encrypted
 
 optional arguments:
+  --aws-tag KEY=VALUE   Set an AWS tag on resources created during encryption.
+                        May be specified multiple times.
   --encrypted-ami-name NAME
                         Specify the name of the generated encrypted AMI
-                        (default: None)
   --guest-instance-type TYPE
                         The instance type to use when running the unencrypted
                         guest instance (default: m3.medium)
   --no-validate         Don't validate AMIs, subnet, and security groups
-                        (default: True)
-  --ntp-server DNS Name
-                        Optional NTP server to sync Metavisor clock. May be
-                        specified multiple times. (default: None)
-  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
-                        specified multiple times. (default: None)
+  --ntp-server DNS_NAME
+                        NTP server to sync Metavisor clock. May be specified
+                        multiple times.
+  --proxy HOST:PORT     Proxy that Metavisor uses to talk to the Bracket
+                        service
   --proxy-config-file PATH
-                        Path to proxy.yaml file that will be used during
-                        encryption (default: None)
-  --pv                  Use the PV encryptor (default: False)
-  --region NAME         AWS region (e.g. us-west-2) (default: None)
+                        proxy.yaml file that defines the proxy configuration
+                        that metavisor uses to talk to the Bracket service
+  --region NAME         AWS region (e.g. us-west-2)
   --security-group ID   Use this security group when running the encryptor
-                        instance. May be specified multiple times. (default:
-                        None)
+                        instance. May be specified multiple times.
   --status-port PORT    Specify the port to receive http status of encryptor.
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
-  --subnet ID           Launch instances in this subnet (default: None)
-  --aws-tag KEY=VALUE   Set an AWS tag on resources created during encryption.
-                        May be specified multiple times.
-  --token TOKEN         Token that the encrypted instance will use to
-                        authenticate with the Bracket service. Use the make-
-                        token subcommand to generate a token. (default: None)
+  --subnet ID           Launch instances in this subnet
+  --token TOKEN         Token (JWT) that Metavisor uses to authenticate with
+                        the Bracket service. Use the make-token subcommand to
+                        generate a token.
   -h, --help            show this help message and exit
-  -v, --verbose         Print status information to the console (default:
-                        False)
 ```
 
 The `aws update` subcommand updates an encrypted AMI with the latest
 version of the Metavisor code.
 
 ```
-$ brkt aws update --help
 usage: brkt aws update [-h] [--encrypted-ami-name NAME]
                        [--guest-instance-type TYPE]
-                       [--updater-instance-type TYPE] [--pv] [--no-validate]
-                       --region REGION [--security-group ID] [--subnet ID]
-                       [--aws-tag KEY=VALUE] [-v] [--ntp-server DNS_NAME]
+                       [--updater-instance-type TYPE] [--no-validate] --region
+                       REGION [--security-group ID] [--subnet ID]
+                       [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
                        [--status-port PORT] [--token TOKEN]
                        ID
@@ -192,41 +185,35 @@ positional arguments:
   ID                    The encrypted AMI that will be updated
 
 optional arguments:
+  --aws-tag KEY=VALUE   Set an AWS tag on resources created during update. May
+                        be specified multiple times.
   --encrypted-ami-name NAME
                         Specify the name of the generated encrypted AMI
-                        (default: None)
   --guest-instance-type TYPE
                         The instance type to use when running the encrypted
                         guest instance. Default: m3.medium (default:
                         m3.medium)
   --no-validate         Don't validate AMIs, subnet, and security groups
-                        (default: True)
-  --ntp-server DNS Name
-                        Optional NTP server to sync Metavisor clock. May be
-                        specified multiple times. (default: None)
-  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
-                        specified multiple times. (default: None)
+  --ntp-server DNS_NAME
+                        NTP server to sync Metavisor clock. May be specified
+                        multiple times.
+  --proxy HOST:PORT     Proxy that Metavisor uses to talk to the Bracket
+                        service
   --proxy-config-file PATH
-                        Path to proxy.yaml file that will be used during
-                        encryption (default: None)
-  --pv                  Use the PV encryptor (default: False)
-  --region REGION       AWS region (e.g. us-west-2) (default: us-west-2)
+                        proxy.yaml file that defines the proxy configuration
+                        that metavisor uses to talk to the Bracket service
+  --region REGION       AWS region (e.g. us-west-2)
   --security-group ID   Use this security group when running the encryptor
-                        instance. May be specified multiple times. (default:
-                        None)
+                        instance. May be specified multiple times.
   --status-port PORT    Specify the port to receive http status of encryptor.
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
-  --subnet ID           Launch instances in this subnet (default: None)
-  --aws-tag KEY=VALUE   Set an AWS tag on resources created during update. May
-                        be specified multiple times.
-  --token TOKEN         Token that the encrypted instance will use to
-                        authenticate with the Bracket service. Use the make-
-                        token subcommand to generate a token. (default: None)
+  --subnet ID           Launch instances in this subnet
+  --token TOKEN         Token (JWT) that Metavisor uses to authenticate with
+                        the Bracket service. Use the make-token subcommand to
+                        generate a token.
   --updater-instance-type TYPE
                         The instance type to use when running the updater
                         instance. Default: m3.medium (default: m3.medium)
   -h, --help            show this help message and exit
-  -v, --verbose         Print status information to the console (default:
-                        False)
 ```

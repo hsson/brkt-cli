@@ -11,6 +11,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import getpass
 import logging
 
@@ -71,7 +72,7 @@ class MakeKeySubcommand(Subcommand):
             '--verbose',
             dest='make_private_key_verbose',
             action='store_true',
-            help='Print status information to the console'
+            help=argparse.SUPPRESS
         )
 
     def verbose(self, values):
