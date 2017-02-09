@@ -3,7 +3,7 @@ import argparse
 
 # VERY EXPERIMENTAL FEATURE
 # It will not work for you
-def setup_launch_gce_image_args(parser):
+def setup_launch_gce_image_args(parser, parsed_config):
     parser.add_argument(
         'image',
         metavar='ID',
@@ -21,11 +21,17 @@ def setup_launch_gce_image_args(parser):
         dest='instance_type',
         default='n1-standard-1'
     )
+    zone_kwargs = {
+        'help': 'GCE zone to operate in',
+        'dest': 'zone',
+        'default': parsed_config.get_option('gce.zone'),
+        'required': False,
+    }
+    if zone_kwargs['default'] is None:
+        zone_kwargs['required'] = True
     parser.add_argument(
         '--zone',
-        help='GCE zone to operate in',
-        dest='zone',
-        default='us-central1-a'
+        **zone_kwargs
     )
     parser.add_argument(
         '--no-delete-boot',
@@ -34,16 +40,22 @@ def setup_launch_gce_image_args(parser):
         default=True,
         action='store_false'
     )
+    proj_kwargs = {
+        'help': 'GCE project name',
+        'dest': 'project',
+        'default': parsed_config.get_option('gce.project'),
+        'required': False,
+    }
+    if proj_kwargs['default'] is None:
+        proj_kwargs['required'] = True
     parser.add_argument(
         '--project',
-        help='GCE project name',
-        dest='project',
-        required=True
+        **proj_kwargs
     )
     parser.add_argument(
         '--network',
         dest='network',
-        default='default',
+        default=parsed_config.get_option('gce.network', 'default'),
         required=False
     )
     parser.add_argument(
@@ -71,6 +83,7 @@ def setup_launch_gce_image_args(parser):
         metavar='NAME',
         help='Launch instance in this subnetwork',
         dest='subnetwork',
+        default=parsed_config.get_option('gce.subnetwork', None),
         required=False
     )
     parser.add_argument(

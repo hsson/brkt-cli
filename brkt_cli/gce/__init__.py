@@ -221,7 +221,7 @@ class GCESubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         launch_gce_image_args.setup_launch_gce_image_args(
-            launch_gce_image_parser)
+            launch_gce_image_parser, parsed_config)
         setup_instance_config_args(launch_gce_image_parser, parsed_config,
                                    mode=INSTANCE_METAVISOR_MODE)
 
@@ -351,7 +351,7 @@ class LaunchGCEImageSubcommand(Subcommand):
             description='Launch a GCE image',
         )
         launch_gce_image_args.setup_launch_gce_image_args(
-            launch_gce_image_parser)
+            launch_gce_image_parser, parsed_config)
         setup_instance_config_args(launch_gce_image_parser, parsed_config,
                                    mode=INSTANCE_METAVISOR_MODE)
 
