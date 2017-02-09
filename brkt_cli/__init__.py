@@ -441,7 +441,13 @@ class SortingHelpFormatter(argparse.HelpFormatter):
 
 
 def is_verbose(values, subcommand):
+    if subcommand.verbose(values):
+        print(
+            '%s --verbose is deprecated. Please use brkt --verbose '
+            'instead.' % subcommand.name(), file=sys.stderr)
+
     return values.verbose or subcommand.verbose(values)
+
 
 def main():
     parser = argparse.ArgumentParser(

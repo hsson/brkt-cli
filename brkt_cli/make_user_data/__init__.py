@@ -111,7 +111,7 @@ class MakeUserDataSubcommand(Subcommand):
             '--verbose',
             dest='make_user_data_verbose',
             action='store_true',
-            help='Print status information to the console'
+            help=argparse.SUPPRESS
         )
         parser.add_argument(
             '--unencrypted-guest',

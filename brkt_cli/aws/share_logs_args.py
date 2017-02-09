@@ -46,7 +46,7 @@ def setup_share_logs_args(parser):
         '--verbose',
         dest='aws_verbose',
         action='store_true',
-        help='Print status information to the console'
+        help=argparse.SUPPRESS
     )
     # Hidden argument to specify AWS account to share account with - used
     # for developer testing
