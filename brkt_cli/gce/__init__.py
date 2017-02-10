@@ -124,7 +124,7 @@ def run_launch(values, config):
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_METAVISOR_MODE, cli_config=config)
+        values, mode=INSTANCE_METAVISOR_MODE)
     if values.startup_script:
         extra_items = [{
             'key': 'startup-script',
