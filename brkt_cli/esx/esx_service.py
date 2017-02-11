@@ -978,7 +978,7 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
                 if "release" in dir_name:
                     dir_list.append(dir_name)
             image_name = (sorted(dir_list))[len(dir_list)-1]
-        file_list_obj = list(bucket.list(image_name))
+        file_list_obj = list(bucket.list(image_name + "/"))
         if len(file_list_obj) is 0:
             log.error("Directory %s in bucket %s is empty." % (image_name,
                      bucket_name))
