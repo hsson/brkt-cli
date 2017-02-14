@@ -33,7 +33,7 @@ from brkt_cli.util import validate_dns_name_ip_address
 from brkt_cli.validation import ValidationError
 from brkt_cli.yeti import YetiService, YetiError
 
-VERSION = '1.0.7pre1'
+VERSION = '1.0.8pre1'
 
 # The list of modules that may be loaded.  Modules contain subcommands of
 # the brkt command and CSP-specific code.
