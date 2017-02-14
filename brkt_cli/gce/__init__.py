@@ -194,7 +194,7 @@ def share_logs(values, gce_svc):
 		# Wait for the snapshot to finish
 		gce_svc.wait_snapshot(snapshot_name)
 
-		# Create snapshot
+		# Get snapshot object
 		snap = gce_svc.get_snapshot(snapshot_name)
 
 		# Create disk from snapshot and wait for it to be ready
@@ -265,7 +265,7 @@ def share_logs(values, gce_svc):
 				gce_svc.delete_snapshot(snapshot_name)
 			gce_svc.cleanup(values.zone, None)
 		except Exception as e:
-			log.error("Failed during cleanup: %s", e)
+			log.warn("Failed during cleanup: %s", e)
 	return 0
 
 

@@ -219,7 +219,7 @@ class GCEService(BaseGCEService):
         self.storage = discovery.build(
             'storage', 'v1', credentials=self.credentials)
 
-    # Check if bucket exists and user doesn't have permission
+    # Check if bucket exists and user has permission
     def check_bucket_name(self, bucket):
         try:
             bucket = self.storage.buckets().get(
@@ -227,13 +227,13 @@ class GCEService(BaseGCEService):
             # bucket exists and we can access it
             return False
         except errors.HttpError as e:
-            code = json.loads(e.content)['error']['code']
+            code = e.resp.status
             if code == 404:
                 # bucket doesn't exist. Check syntax
                 return self.validate_bucket_name(bucket)
             elif code == 403:
                 # bucket does exist. Permisions not valid
-                raise ValidationError("Permission denied for bucket %s", (bucket))
+                raise ValidationError("Permission denied for bucket %s" % bucket)
             else:
                 # unexpected Http error
                 raise ValidationError(e)
@@ -281,7 +281,7 @@ class GCEService(BaseGCEService):
             if existing_file:
                 return True
         except errors.HttpError as e:
-            code = json.loads(e.content)['error']['code']
+            code = e.resp.status
             if code == 404:
                 return self.validate_file_name(file)
             else:
@@ -296,7 +296,7 @@ class GCEService(BaseGCEService):
                 return True
             except errors.HttpError as e:
                 self.log.debug(e)
-                code = json.loads(e.content)['error']['code']
+                code = e.resp.status
                 if code == 404:
                     time.sleep(5)
                 else:
