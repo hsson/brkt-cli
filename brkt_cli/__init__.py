@@ -23,6 +23,7 @@ import re
 import sys
 import tempfile
 import urllib2
+import sshpubkeys
 from distutils.version import LooseVersion
 from operator import attrgetter
 
@@ -31,12 +32,14 @@ from brkt_cli.config import CLIConfig, CONFIG_PATH
 from brkt_cli.proxy import Proxy, generate_proxy_config, validate_proxy_config
 from brkt_cli.util import validate_dns_name_ip_address
 from brkt_cli.validation import ValidationError
+from brkt_cli.yeti import YetiService, YetiError
 
-VERSION = '1.0.7pre1'
+VERSION = '1.0.8pre1'
 
 # The list of modules that may be loaded.  Modules contain subcommands of
 # the brkt command and CSP-specific code.
 SUBCOMMAND_MODULE_PATHS = [
+    'brkt_cli.auth',
     'brkt_cli.aws',
     'brkt_cli.brkt_jwt',
     'brkt_cli.config',
@@ -350,45 +353,55 @@ def check_jwt_auth(brkt_env, jwt):
     registered with the given account
     """
     validate_jwt(jwt)
-
-    uri = 'https://%s:%d/api/v1/customer/self' % (
+    root_url = 'https://%s:%d' % (
         brkt_env.public_api_host,
         brkt_env.public_api_port
     )
-    log.debug('Validating token against %s', uri)
-    request = urllib2.Request(
-        uri,
-        headers={'Authorization': 'Bearer %s' % jwt}
-    )
+    y = YetiService(root_url, token=jwt)
     try:
-        response = urllib2.urlopen(request, timeout=10.0)
-        log.debug('Server returned %d', response.getcode())
-    except urllib2.HTTPError as e:
-        if e.code == 401:
+        y.get_customer()
+    except YetiError as e:
+        if e.http_status == 401:
             raise ValidationError(
                 'Token is not authorized to access %s' %
                 brkt_env.public_api_host
             )
-        elif e.code == 400:
-            payload = e.read()
-            if payload:
-                log.error(payload)
-            raise ValidationError('Invalid token.')
+        elif e.http_status == 400:
+            message = 'Invalid token'
+            if e.message:
+                message += ': ' % e.message
+            raise ValidationError(message)
         else:
             # Unexpected server response.  Log a warning and continue, so
             # that we don't unnecessarily interrupt the encryption process.
-            log.debug('Server response: %s', e.msg)
             log.warn(
-                'Unable to validate token.  Server returned error %d.  '
-                'Use --no-validate to disable validation.' % e.code
+                'Unable to validate token.  Server returned error %d %s.  '
+                'Use --no-validate to disable validation.',
+                e.http_status,
+                e.message
             )
     except IOError:
         log.debug('', exc_info=1)
         log.warn(
             'Unable to validate token against %s.  Use --no-validate to '
             'disable validation.',
-            uri
+            root_url
         )
+
+
+def validate_ssh_pub_key(key):
+    ssh = sshpubkeys.SSHKey(key)
+    try:
+        if ssh.bits > 0:
+            return True
+        else:
+            raise ValidationError(
+                'Invalid public key: %s' % key
+                )
+    except Exception as e:
+        raise ValidationError(
+            'Unable to validate public key: %s' % e.message
+            )
 
 
 def add_brkt_env_to_brkt_config(brkt_env, brkt_config):
@@ -586,6 +599,9 @@ def main():
         debug_handler.setFormatter(formatter)
         debug_handler.setLevel(logging.DEBUG)
         logging.root.addHandler(debug_handler)
+
+    # Turn off unnecessary logging from known libraries.
+    logging.getLogger('requests').setLevel(logging.WARNING)
 
     # Write messages that were logged before logging was initialized.
     for msg in subcommand_load_messages:

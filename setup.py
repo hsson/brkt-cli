@@ -68,6 +68,7 @@ setup(
         'pyjwt>=1.4.0',
         'pyvmomi==' + pyvmomi_version,
         'PyYaml>=3.11',
+        'sshpubkeys>=2.0',
         'requests>=2.7.0',
     ],
     zip_safe=False,
