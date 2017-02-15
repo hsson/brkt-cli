@@ -14,6 +14,7 @@
 import abc
 import base64
 import getpass
+import json
 import logging
 import re
 import time
@@ -300,3 +301,10 @@ def write_to_file_or_stdout(content, path=None):
             f.write(content)
     except IOError as e:
         raise ValidationError('Unable to write to %s: %s' % (path, e))
+
+
+def pretty_print_json(d, indent=4):
+    """ Format the given dictionary as a JSON string.
+    """
+    return json.dumps(
+        d, sort_keys=True, indent=indent, separators=(',', ': '))
