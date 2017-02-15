@@ -225,52 +225,46 @@ class GCEService(BaseGCEService):
             bucket = self.storage.buckets().get(
                 bucket=bucket).execute()
             # bucket exists and we can access it
-            return False
+            return 
         except errors.HttpError as e:
             code = e.resp.status
             if code == 404:
                 # bucket doesn't exist. Check syntax
-                return self.validate_bucket_name(bucket)
+                self.validate_bucket_name(bucket)
             elif code == 403:
                 # bucket does exist. Permisions not valid
                 raise ValidationError("Permission denied for bucket %s" % bucket)
             else:
                 # unexpected Http error
-                raise ValidationError(e)
+                raise
 
     # Check if the bucket name uses valid syntax
     def validate_bucket_name(self,bucket):
-        for s in bucket:
-            if s.isupper():
-                return True
-            if (s.isdigit() == False and s.isalpha() == False and s != '-'):
-                print 'invalid symbol'
-                return True
-
-        if '.' in bucket:
-            return True
+        m = re.match(r'[a-z0-9\-]', bucket)
+        if not m:
+            raise ValidationError(
+                "Bucket name must be lower case letters numbers and hyphens")
 
         if (3 > len(bucket) or len(bucket) > 63):
-            return True
+            raise ValidationError('Bucket name must be 3-63 characters')
 
         if 'google' in bucket:
-            return True
+            raise ValidationError('Bucket name cant contain "google" ')
 
         if bucket.startswith('-') or bucket.endswith('-'):
-            return True
+            raise ValidationError('Bucket name cant start or end with "-"')
         # Bucket name is valid
-        return False
+        return 
 
 
     # Check if the file name uses valid syntax
     def validate_file_name(self, file):
-        if "[" in file or "]" in file or "*" in file or "?" in file:
-            raise ValidationError('File name is invalid')
-
-        if '#' in file:
-            raise ValidationError('File name is invalid')
-
-        return False
+        m = re.match(r'[*?#]', file)
+        if m:
+            raise ValidationError('File name cant contain "*","?" or "#"')
+        if "[" or "]" in file:
+            raise ValidationError('File name cant contain "[" or "]"')
+        return 
 
 
     def check_bucket_file(self, bucket, file):
@@ -279,7 +273,7 @@ class GCEService(BaseGCEService):
                     bucket=bucket,
                     object=file).execute()
             if existing_file:
-                return True
+                raise ValidationError("File already exists")
         except errors.HttpError as e:
             code = e.resp.status
             if code == 404:
@@ -300,13 +294,14 @@ class GCEService(BaseGCEService):
                 if code == 404:
                     time.sleep(5)
                 else:
+                    self.log.warn("Failed uploading tar file")
                     self.log.debug("Failed uploading tar file: %s", e)
                     return False
         return False
 
     def get_public_image(self):
         # guest_os is a family
-        self.log.info("Trying to get from family...")
+        self.log.info("Trying to get from image family...")
         request = self.compute.images().getFromFamily(
             project='ubuntu-os-cloud',
             family='ubuntu-1404-lts')
