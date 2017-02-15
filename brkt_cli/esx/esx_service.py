@@ -33,6 +33,7 @@ from brkt_cli.util import (
     retry,
     RetryExceptionChecker
 )
+from brkt_cli import validate_ssh_pub_key
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 from brkt_cli.validation import ValidationError
 from boto.s3.key import Key
@@ -670,6 +671,7 @@ class VCenterService(BaseVCenterService):
             if ssh_key_file:
                 with open(ssh_key_file, 'r') as f:
                     key_value = (f.read()).strip()
+                validate_ssh_pub_key(key_value)
                 brkt_config['ssh-public-key'] = key_value
             if rescue_proto:
                 brkt_config = dict()

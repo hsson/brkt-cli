@@ -23,6 +23,7 @@ import re
 import sys
 import tempfile
 import urllib2
+import sshpubkeys
 from distutils.version import LooseVersion
 from operator import attrgetter
 
@@ -386,6 +387,21 @@ def check_jwt_auth(brkt_env, jwt):
             'disable validation.',
             root_url
         )
+
+
+def validate_ssh_pub_key(key):
+    ssh = sshpubkeys.SSHKey(key)
+    try:
+        if ssh.bits > 0:
+            return True
+        else:
+            raise ValidationError(
+                'Invalid public key: %s' % key
+                )
+    except Exception as e:
+        raise ValidationError(
+            'Unable to validate public key: %s' % e.message
+            )
 
 
 def add_brkt_env_to_brkt_config(brkt_env, brkt_config):

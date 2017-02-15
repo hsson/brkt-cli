@@ -87,6 +87,7 @@ def make(values):
     if values.ssh_public_key_file:
         with open(values.ssh_public_key_file, 'r') as f:
             key_value = (f.read()).strip()
+            brkt_cli.validate_ssh_pub_key(key_value)
             instance_cfg.brkt_config['ssh-public-key'] = key_value
 
     return instance_cfg.make_userdata()
