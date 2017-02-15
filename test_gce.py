@@ -58,7 +58,7 @@ class DummyGCEService(gce_service.BaseGCEService):
             return oac
 
     storage = Storage()
-    
+
     def list_zones(self):
         return ['us-central1-a']
 
@@ -71,20 +71,20 @@ class DummyGCEService(gce_service.BaseGCEService):
     def validate_file_name(self, path):
         return False
 
-    def validate_bucket_name(self,bucket):
+    def validate_bucket_name(self, bucket):
         return False
-    
+
     def get_public_image(self):
         return
 
     def check_bucket_name(self, bucket):
-        return 
+        return
 
     def wait_bucket_file(self, bucket, path):
         return True
 
     def check_bucket_file(self, bucket, path):
-        return 
+        return
 
     def wait_snapshot(self, snapshot):
         while True:
@@ -406,6 +406,7 @@ class ShareLogsValues():
         self.project = 'test-project'
         self.path = 'test-file'
 
+
 class GCEService1(DummyGCEService):
     def check_bucket_name(self, bucket):
         raise ValidationError("invalid permisions for bucket")
@@ -413,23 +414,25 @@ class GCEService1(DummyGCEService):
 
 class GCEService2(DummyGCEService):
     def check_bucket_file(self, bucket, path):
-        raise  ValidationError("File already exists")
+        raise ValidationError("File already exists")
 
 
 class GCEService3(DummyGCEService):
     def check_bucket_file(self, bucket, path):
         raise ValidationError()
 
+
 class GCEService4(DummyGCEService):
     def wait_bucket_file(self, bucket, path):
         return False
+
 
 class TestShareLogs(unittest.TestCase):
 
     def setUp(self):
         util.SLEEP_ENABLED = False
         self.values = ShareLogsValues()
-        
+
     # Run the program under normal conditions
     def test_normal(self):
         gce_svc = DummyGCEService()
@@ -445,55 +448,17 @@ class TestShareLogs(unittest.TestCase):
         with self.assertRaises(ValidationError):
             share_logs(self.values, gce_svc)
 
-    # uppercase in bucket name
-    def test_bucket_name_invalid1(self):
+    # Tests 6 cases of bucket name being invalid
+    def test_bucket_name_invalid(self):
         session_id = util.make_nonce()
         gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        bucket = 'Test-bucket'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_bucket_name(bucket)
+        buckets = ['Test-bucket', 'Test.bucket', 'ab',
+        '12345678912345678912345678912345678912345678912345678912345678-65',
+        'google-bucket', '-bucket-']
+        for b in buckets:
+            with self.assertRaises(ValidationError):
+                gce_svc.validate_bucket_name(b)
 
-    # "."" in bucket name
-    def test_bucket_name_invalid2(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        bucket = 'Test.bucket'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_bucket_name(bucket)
-
-    # bucket name < 3 charactors
-    def test_bucket_name_invalid3(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        bucket = 'ab'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_bucket_name(bucket) 
-
-    # bucket name > 63 charactors
-    def test_bucket_name_invalid4(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        # this name is 65 charactors
-        bucket = '12345678912345678912345678912345678912345678912345678912345678-65'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_bucket_name(bucket)
-
-    # bucket name contains "google"
-    def test_bucket_name_invalid5(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        bucket = 'google-bucket'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_bucket_name(bucket) 
-
-    # bucket name contains starts with -
-    def test_bucket_name_invalid6(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        bucket = '-bucket-'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_bucket_name(bucket)        
-    
     # This tests if a file with the same name has already
     # Been uploaded to the bucket
     def test_file_exists(self):
@@ -501,13 +466,14 @@ class TestShareLogs(unittest.TestCase):
         with self.assertRaises(ValidationError):
             share_logs(self.values, gce_svc)
 
-    # Invalid file name
+    # This tests 5 cases of object name beind invalid
     def test_file_name_invalid1(self):
         session_id = util.make_nonce()
         gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        path = 'object?'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_file_name(path)
+        paths = ['object?', '[object', 'object]', '#object', 'obj*ect']
+        for p in paths:
+            with self.assertRaises(ValidationError):
+                gce_svc.validate_file_name(p)
 
     def test_file_name_invalid2(self):
         session_id = util.make_nonce()
@@ -521,5 +487,3 @@ class TestShareLogs(unittest.TestCase):
         gce_svc = GCEService4()
         with self.assertRaises(util.BracketError):
             share_logs(self.values, gce_svc)
-
-

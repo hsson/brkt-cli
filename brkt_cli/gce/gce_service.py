@@ -249,10 +249,10 @@ class GCEService(BaseGCEService):
             raise ValidationError('Bucket name must be 3-63 characters')
 
         if 'google' in bucket:
-            raise ValidationError('Bucket name cant contain "google" ')
+            raise ValidationError("Bucket name can't contain 'google' ")
 
         if bucket.startswith('-') or bucket.endswith('-'):
-            raise ValidationError('Bucket name cant start or end with "-"')
+            raise ValidationError("Bucket name can't start or end with '-'")
         # Bucket name is valid
         return 
 
@@ -261,9 +261,9 @@ class GCEService(BaseGCEService):
     def validate_file_name(self, file):
         m = re.match(r'[*?#]', file)
         if m:
-            raise ValidationError('File name cant contain "*","?" or "#"')
+            raise ValidationError("File name can't contain '*','?'' or '#'")
         if "[" or "]" in file:
-            raise ValidationError('File name cant contain "[" or "]"')
+            raise ValidationError("File name cant contain '['' or ']'")
         return 
 
 
