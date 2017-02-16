@@ -200,7 +200,9 @@ def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
         log.info("Launching VM from local OVF")
         ovf_image_name = ovf_image_name + ".ovf"
         validate_local_mv_ovf(source_image_path, ovf_image_name)
-        vm = vc_swc.upload_ovf_to_vcenter(source_image_path, ovf_image_name)
+        vm = vc_swc.upload_ovf_to_vcenter(source_image_path,
+                                          ovf_image_name,
+                                          vm_name=vm_name)
     except Exception as e:
         log.exception("Failed to launch from metavisor OVF (%s)", e)
         if (vm is not None):
