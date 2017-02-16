@@ -30,7 +30,6 @@ import logging
 from brkt_cli.encryptor_service import (
     wait_for_encryptor_up,
     wait_for_encryption,
-    EncryptionError,
     ENCRYPTOR_STATUS_PORT
 )
 from brkt_cli.util import Deadline
@@ -55,7 +54,7 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(vm)
         # Reconfigure VM with serial port
-        if serial_port_file_name is not None:
+        if serial_port_file_name:
             vc_swc.add_serial_port_to_file(vm, serial_port_file_name)
         # Add datastore path to the guest vmdk
         guest_vmdk_path = vc_swc.get_datastore_path(guest_vmdk)
@@ -96,7 +95,7 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         vc_swc.power_off(vm)
         vc_swc.detach_disk(vm, unit_number=2)
         # detach serial port
-        if serial_port_file_name is not None:
+        if serial_port_file_name:
             vc_swc.delete_serial_port_to_file(vm, serial_port_file_name)
         if ((create_ovf is True) or (create_ova is True)):
             log.info("Creating images")
@@ -115,21 +114,20 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                 log.info("Creating the template VM")
                 template_vm = vc_swc.clone_vm(vm, vm_name=vm_name, template=True)
                 print(vc_swc.get_vm_name(template_vm))
-    except EncryptionError as e:
-        log.exception("Failed to encrypt the image with error %s", e)
+    except Exception:
+        log.exception("Failed to encrypt the image")
         try:
             vc_swc.connect()
             vm = vc_swc.find_vm(mv_vm_name)
             vc_swc.power_off(vm)
             vc_swc.detach_disk(vm, unit_number=2)
+            if serial_port_file_name:
+                vc_swc.delete_serial_port_to_file(vm, serial_port_file_name)
         except:
             log.error("Failed to detach guest vmdk after encryption failure. "
                       "Please detach guest vmdk manually before cleaning "
                       "up VM %s.", mv_vm_name)
-        vc_swc.set_teardown(True)
-        raise
-    except Exception as e:
-        log.exception("Failed to encrypt the image with error %s", e)
+            vc_swc.set_teardown(True)
         raise
     finally:
         if vc_swc.no_teardown is False:
