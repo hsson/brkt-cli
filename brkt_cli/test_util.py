@@ -47,6 +47,25 @@ class TestUtil(unittest.TestCase):
         with self.assertRaises(ValidationError):
             util.parse_name_value('abc')
 
+    def test_parse_endpoint(self):
+        self.assertEqual(
+            ('example.com', 80),
+            util.parse_endpoint('example.com:80')
+        )
+        self.assertEqual(
+            ('example.com', None),
+            util.parse_endpoint('example.com')
+        )
+        invalid = [
+            '!@#$:80',
+            'a:b',
+            'example.com:example.com:80',
+            'example.com:80:'
+        ]
+        for e in invalid:
+            with self.assertRaises(ValidationError):
+                util.parse_endpoint(e)
+
 
 class TestBase64(unittest.TestCase):
     """ Test that our encoding code follows the spec used by JWT.  The

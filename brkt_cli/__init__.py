@@ -125,11 +125,11 @@ def parse_brkt_env(brkt_env_string):
     names = ('api', 'hsmproxy', 'network')
     for name, endpoint in zip(names, endpoints):
         try:
-            parts = util.parse_endpoint(endpoint)
-            if 'port' not in parts:
+            host, port = util.parse_endpoint(endpoint)
+            if not port:
                 raise ValidationError(error_msg)
-            setattr(be, name + '_host', parts['host'])
-            setattr(be, name + '_port', parts['port'])
+            setattr(be, name + '_host', host)
+            setattr(be, name + '_port', port)
             if name == 'api':
                 # set public api host based on the same prefix assumption
                 # service-domain makes. Hopefully we'll remove brkt-env
