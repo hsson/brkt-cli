@@ -406,15 +406,18 @@ class AWSSubcommand(Subcommand):
         )
 
         aws_subparsers = aws_parser.add_subparsers(
-            dest='aws_subcommand'
+            dest='aws_subcommand',
+            # Hardcode the list, so that we don't expose internal subcommands.
+            metavar='{encrypt,update}'
         )
 
         diag_parser = aws_subparsers.add_parser(
+            # Don't specify the help field.  This is an internal command
+            # which shouldn't show up in usage output.
             'diag',
             description=(
                 'Create instance to diagnose an existing encrypted instance.'
             ),
-            help='Diagnose an encrypted instance',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         diag_args.setup_diag_args(diag_parser)
@@ -432,9 +435,10 @@ class AWSSubcommand(Subcommand):
         encrypt_ami_parser.set_defaults(aws_subcommand='encrypt')
 
         share_logs_parser = aws_subparsers.add_parser(
+            # Don't specify the help field.  This is an internal command
+            # which shouldn't show up in usage output.
             'share-logs',
             description='Share logs from an existing encrypted instance.',
-            help='Share logs',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         share_logs_args.setup_share_logs_args(share_logs_parser)
