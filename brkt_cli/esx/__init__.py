@@ -225,6 +225,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                 user_data_str=user_data_str,
                 serial_port_file_name=values.serial_port_file_name,
                 status_port=values.status_port,
+                cleanup=values.cleanup,
             )
         return 0
     except Exception as e:
@@ -371,6 +372,7 @@ def run_update(values, parsed_config, log, use_esx=False):
                 download_file_list=download_file_list,
                 user_data_str=user_data_str,
                 status_port=values.status_port,
+                cleanup=values.cleanup,
             )
         return 0
     except:

@@ -131,7 +131,7 @@ def update_from_s3(vc_swc, enc_svc_cls, template_vm_name=None,
                    target_path=None, ovf_name=None, ova_name=None,
                    ovftool_path=None, mv_ovf_name=None,
                    download_file_list=None, user_data_str=None,
-                   status_port=ENCRYPTOR_STATUS_PORT):
+                   status_port=ENCRYPTOR_STATUS_PORT, cleanup=True):
     guest_vm = None
     mv_vm = None
     try:
@@ -146,7 +146,8 @@ def update_from_s3(vc_swc, enc_svc_cls, template_vm_name=None,
         if (mv_ovf_name is None or download_file_list is None):
             log.error("Cannot get metavisor OVF from S3")
             raise Exception("Invalid MV OVF")
-        mv_vm = launch_mv_vm_from_s3(vc_swc, mv_ovf_name, download_file_list)
+        mv_vm = launch_mv_vm_from_s3(vc_swc, mv_ovf_name,
+                                     download_file_list, cleanup)
     except Exception as e:
         log.exception("Failed to launch metavisor OVF from S3 (%s)", e)
         if (mv_vm is not None):

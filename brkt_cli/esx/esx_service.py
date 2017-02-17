@@ -957,6 +957,37 @@ def initialize_vcenter(host, user, password, port,
     return vc_swc
 
 
+def need_to_download_from_s3(file_list):
+    """ Checks if the necessary files are already downloaded
+       
+        Returns: True or False to indicate whether the download
+        is required or not and an OVF image name when download
+        is not required
+    """
+    ovf_image = None
+    for item in file_list:
+        file_name = item[item.rfind('/')+1:]
+        if not os.path.exists(file_name):
+            return ovf_image, True
+        if '.mf' in file_name:
+            with open(file_name) as manifest_data:
+                manifest = json.load(manifest_data)
+        if '.vmdk' in file_name:
+            with open(file_name) as f:
+                data = f.read()
+                f.close()
+            vmdk_sha = hashlib.sha1(data).hexdigest()
+        if '.ovf' in file_name:
+            ovf_image = file_name
+            with open(file_name) as f:
+                data = f.read()
+                f.close()
+            ovf_sha = hashlib.sha1(data).hexdigest()
+    if vmdk_sha in manifest.values() and ovf_sha in manifest.values():
+        return ovf_image, False
+    return ovf_image, True
+
+
 def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
     logging.getLogger('boto').setLevel(logging.FATAL)
     log.info("Fetching Metavisor OVF from S3")
@@ -996,15 +1027,19 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
         file_list = []
         for content in file_list_obj:
             file_list.append(str(content.name))
-        for file in file_list:
-            file_name = file[file.rfind('/')+1:]
-            target_file = os.path.join("./", file_name)
-            certificate = Key(bucket)
-            certificate.key = file
-            certificate.get_contents_to_filename(target_file)
-            if (".ovf" in file_name):
-                ovf_name = target_file
-            download_file_list.append(target_file)
+        ovf_name, download_required = need_to_download_from_s3(file_list)
+        if download_required:
+            for item in file_list:
+                file_name = item[item.rfind('/')+1:]
+                target_file = os.path.join("./", file_name)
+                certificate = Key(bucket)
+                certificate.key = item
+                certificate.get_contents_to_filename(target_file)
+                if (".ovf" in file_name):
+                    ovf_name = target_file
+                download_file_list.append(target_file)
+        else:
+            log.info("Using previously downloaded OVF image")
         if ovf_name is None:
             log.error("No OVF file in directory %s in bucket "
                      "%s" % (image_name, bucket_name))
@@ -1015,13 +1050,17 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
         raise
 
 
-def launch_mv_vm_from_s3(vc_swc, ovf_name, download_file_list, vm_name=None):
+def launch_mv_vm_from_s3(vc_swc, ovf_name, download_file_list,
+                         vm_name=None, cleanup=True):
     # Launch OVF
     log.info("Launching VM from OVF %s", ovf_name)
     vm = vc_swc.upload_ovf_to_vcenter("./", ovf_name, vm_name)
     # Clean up the downloaded files
-    for file_name in download_file_list:
-        os.remove(file_name)
+    if cleanup:
+        for file_name in download_file_list:
+            os.remove(file_name)
+    else:
+        log.info("Keeping the downloaded OVF files")
     return vm
 
 
