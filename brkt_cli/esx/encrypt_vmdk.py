@@ -159,7 +159,7 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                     target_path=None, image_name=None, ovftool_path=None,
                     ovf_name=None, download_file_list=None,
                     user_data_str=None, serial_port_file_name=None,
-                    status_port=ENCRYPTOR_STATUS_PORT):
+                    status_port=ENCRYPTOR_STATUS_PORT, cleanup=True):
     vm = None
     try:
         if (ovf_name is None or download_file_list is None):
@@ -169,7 +169,8 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
         if vc_swc.is_esx_host() is True:
             mv_vm_name = vm_name
         vm = launch_mv_vm_from_s3(vc_swc, ovf_name,
-                                  download_file_list, mv_vm_name)
+                                  download_file_list, mv_vm_name,
+                                  cleanup)
     except Exception as e:
         log.exception("Failed to launch metavisor OVF from S3 (%s)", e)
         if (vm is not None):

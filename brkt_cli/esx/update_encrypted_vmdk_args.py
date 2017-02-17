@@ -188,3 +188,13 @@ def setup_update_vmdk_args(parser):
         help=argparse.SUPPRESS,
         default="Port"
     )
+    # Optional argument to keep the downloaded artifacts. Can we used in
+    # cases where the same (downloaded) OVF is used for multiple
+    # encryption/update jobs
+    parser.add_argument(
+        '--no-cleanup',
+        dest='cleanup',
+        default=True,
+        action='store_false',
+        help=argparse.SUPPRESS
+    )
