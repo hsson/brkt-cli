@@ -350,8 +350,8 @@ class TestRunEncryption(unittest.TestCase):
             )
             self.fail('Encryption should have failed')
         except Exception:
-            self.assertEqual(len(vc_swc.vms), 1)
-            self.assertEqual(len(vc_swc.disks), 4)
+            self.assertEqual(len(vc_swc.vms), 0)
+            self.assertEqual(len(vc_swc.disks), 2)
 
 
 class TestRunUpdate(unittest.TestCase):

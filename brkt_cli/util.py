@@ -265,27 +265,24 @@ def parse_endpoint(endpoint):
     """Parse a <host>[:<port>] string into its constituent parts.
 
     :param endpoint a string of the form <host>[:<port>]
-
-    :return a dictionary of the form {"hostname": <hostname>, "port": <port>}
-        The "port" key will only exist if it is parsed from endpoint.
-
-    :raises ValueError if an invalid string is supplied.
-
+    :return a tuple of (host, port).  port is None if not specified.
+    :raises ValidationError if an invalid string is supplied.
     """
 
-    host_port_pattern = r'([^:]+)(:\d+)?$'
-    m = re.match(host_port_pattern, endpoint)
-    if not m:
-        raise ValueError('Invalid endpoint: ' + endpoint)
-    elif not validate_dns_name_ip_address(m.group(1)):
-        raise ValidationError('Invalid hostname: ' + m.group(1))
-    groups = m.groups()
-    ret = {
-        'host': groups[0],
-    }
-    if groups[1] is not None:
-        ret['port'] = int(groups[1][1:])
-    return ret
+    parts = endpoint.split(':')
+    if len(parts) > 2:
+        raise ValidationError(endpoint + ' must be in the form host[:port]')
+    host = parts[0]
+    port = None
+    if len(parts) == 2:
+        try:
+            port = int(parts[1])
+        except ValueError:
+            raise ValidationError('Invalid port: %s' % parts[1])
+    if not validate_dns_name_ip_address(host):
+        raise ValidationError('Invalid hostname: ' + host)
+
+    return host, port
 
 
 def write_to_file_or_stdout(content, path=None):

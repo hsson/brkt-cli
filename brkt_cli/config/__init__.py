@@ -612,11 +612,12 @@ The leading `*' indicates that the `stage' environment is currently active.
             if endpoint is None:
                 continue
             try:
-                parts = parse_endpoint(endpoint)
+                host, port = parse_endpoint(endpoint)
             except ValueError:
                 raise ValidationError('Error: Invalid value for option --' + k + '-server')
-            setattr(env, opt_attr[k] + '_host', parts['host'])
-            setattr(env, opt_attr[k] + '_port', parts.get('port', 443))
+            port = port or 443
+            setattr(env, opt_attr[k] + '_host', host)
+            setattr(env, opt_attr[k] + '_port', port)
         if values.service_domain is not None:
             env = brkt_cli.brkt_env_from_domain(values.service_domain)
         self.parsed_config.set_env(values.env_name, env)

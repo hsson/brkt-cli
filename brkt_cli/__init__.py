@@ -23,6 +23,7 @@ import re
 import sys
 import tempfile
 import urllib2
+import sshpubkeys
 from distutils.version import LooseVersion
 from operator import attrgetter
 
@@ -33,7 +34,7 @@ from brkt_cli.util import validate_dns_name_ip_address
 from brkt_cli.validation import ValidationError
 from brkt_cli.yeti import YetiService, YetiError
 
-VERSION = '1.0.7pre1'
+VERSION = '1.0.8pre1'
 
 # The list of modules that may be loaded.  Modules contain subcommands of
 # the brkt command and CSP-specific code.
@@ -124,11 +125,11 @@ def parse_brkt_env(brkt_env_string):
     names = ('api', 'hsmproxy', 'network')
     for name, endpoint in zip(names, endpoints):
         try:
-            parts = util.parse_endpoint(endpoint)
-            if 'port' not in parts:
+            host, port = util.parse_endpoint(endpoint)
+            if not port:
                 raise ValidationError(error_msg)
-            setattr(be, name + '_host', parts['host'])
-            setattr(be, name + '_port', parts['port'])
+            setattr(be, name + '_host', host)
+            setattr(be, name + '_port', port)
             if name == 'api':
                 # set public api host based on the same prefix assumption
                 # service-domain makes. Hopefully we'll remove brkt-env
@@ -386,6 +387,21 @@ def check_jwt_auth(brkt_env, jwt):
             'disable validation.',
             root_url
         )
+
+
+def validate_ssh_pub_key(key):
+    ssh = sshpubkeys.SSHKey(key)
+    try:
+        if ssh.bits > 0:
+            return True
+        else:
+            raise ValidationError(
+                'Invalid public key: %s' % key
+                )
+    except Exception as e:
+        raise ValidationError(
+            'Unable to validate public key: %s' % e.message
+            )
 
 
 def add_brkt_env_to_brkt_config(brkt_env, brkt_config):

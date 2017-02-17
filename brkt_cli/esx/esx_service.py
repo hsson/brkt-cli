@@ -33,6 +33,7 @@ from brkt_cli.util import (
     retry,
     RetryExceptionChecker
 )
+from brkt_cli import validate_ssh_pub_key
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 from brkt_cli.validation import ValidationError
 from boto.s3.key import Key
@@ -670,6 +671,7 @@ class VCenterService(BaseVCenterService):
             if ssh_key_file:
                 with open(ssh_key_file, 'r') as f:
                     key_value = (f.read()).strip()
+                validate_ssh_pub_key(key_value)
                 brkt_config['ssh-public-key'] = key_value
             if rescue_proto:
                 brkt_config = dict()
@@ -978,7 +980,9 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
                 if "release" in dir_name:
                     dir_list.append(dir_name)
             image_name = (sorted(dir_list))[len(dir_list)-1]
-        file_list_obj = list(bucket.list(image_name))
+            file_list_obj = list(bucket.list(image_name))
+        else:
+            file_list_obj = list(bucket.list(image_name + "/"))
         if len(file_list_obj) is 0:
             log.error("Directory %s in bucket %s is empty." % (image_name,
                      bucket_name))
