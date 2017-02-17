@@ -338,7 +338,11 @@ class ConfigSubcommand(Subcommand):
         )
 
         config_subparsers = config_parser.add_subparsers(
-            dest='config_subcommand'
+            dest='config_subcommand',
+            # Hardcode the list, so that we don't expose subcommands that
+            # are still in development.
+            metavar='{list,set,get,unset,set-env,use-env,list-envs,get-env,'
+                    'unset-env}'
         )
 
         # List all options
@@ -495,7 +499,8 @@ The leading `*' indicates that the `stage' environment is currently active.
         # Log in and out.
         login_parser = config_subparsers.add_parser(
             'login',
-            help='Log into the Bracket service',
+            # Don't expose until the feature is ready.
+            # help='Log into the Bracket service',
             description=(
                 'Authenticate with the Bracket service and store the API '
                 'token in config.'
@@ -513,7 +518,8 @@ The leading `*' indicates that the `stage' environment is currently active.
 
         config_subparsers.add_parser(
             'logout',
-            help='Log out of the Bracket service',
+            # Don't expose until the feature is ready.
+            # help='Log out of the Bracket service',
             description=(
                 'Delete the API token stored in config.'
             )
@@ -521,7 +527,8 @@ The leading `*' indicates that the `stage' environment is currently active.
 
         whoami_parser = config_subparsers.add_parser(
             'whoami',
-            help='Show the current user',
+            # Don't expose until the feature is ready.
+            # help='Show the current user',
             description=(
                 'Print the email address of the user who was logged in '
                 'with the brkt config login command.'
