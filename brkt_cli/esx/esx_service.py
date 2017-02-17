@@ -235,7 +235,13 @@ class VmodlExceptionChecker(RetryExceptionChecker):
             log.info("vCenter connection timed out, trying again")
             return True
         if isinstance(exception, ssl.SSLError):
+            log.info("SSL error, trying again")
             return True
+        if isinstance(exception, requests.exceptions.ConnectionError):
+            if ("10060" in str(exception)):
+                # 10060 corresponds to Connection timed out in Windows
+                log.info("Connection timeout error, retrying")
+                return True
         if isinstance(exception, vmodl.MethodFault):
             if ("STREAM ioctl timeout" in exception.msg):
                 log.info("Stream IOCTL timeout, retrying")
