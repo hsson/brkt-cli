@@ -1,6 +1,6 @@
 import brkt_cli
 import logging
-
+import os
 from brkt_cli.subcommand import Subcommand
 
 from brkt_cli import encryptor_service, util
@@ -21,6 +21,7 @@ from brkt_cli.gce import (
     launch_gce_image_args,
     update_gce_image,
     update_encrypted_gce_image_args,
+    share_logs_gce_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -141,6 +142,7 @@ def run_launch(values, config):
     if values.instance_name:
         gce_service.validate_image_name(values.instance_name)
 
+
     if values.gce_tags:
         validate_tags(values.gce_tags)
 
@@ -157,6 +159,111 @@ def run_launch(values, config):
                             values.ssd_scratch_disks,
                             values.gce_tags)
     print(encrypted_instance_id)
+    return 0
+
+
+def run_sharelogs(values, config):
+    session_id = util.make_nonce()
+    gce_svc = gce_service.GCEService(values.project, session_id, log)
+    return share_logs(values, gce_svc)
+
+
+def share_logs(values, gce_svc):
+    snapshot_name = 'brkt-diag-snapshot-' + gce_svc.get_session_id()
+    instance_name = 'brkt-diag-instance-' + gce_svc.get_session_id()
+    disk_name = 'sdb-' + gce_svc.get_session_id()
+    log.info('Sharing logs')
+    snap = None 
+
+    try:
+        image_project = 'ubuntu-os-cloud'
+        # Retrieve latest image from family
+        ubuntu_image = gce_svc.get_public_image()
+        # Check to see if the bucket is available
+        gce_svc.check_bucket_name(values.bucket)
+
+        # Check to see if the tar file is already in the bucket
+        gce_svc.check_bucket_file(values.bucket, values.path)
+        
+        # Create snapshot from root disk
+        gce_svc.create_snapshot(
+            values.zone, values.instance, snapshot_name)
+
+        # Wait for the snapshot to finish
+        gce_svc.wait_snapshot(snapshot_name)
+
+        # Get snapshot object
+        snap = gce_svc.get_snapshot(snapshot_name)
+
+        # Create disk from snapshot and wait for it to be ready
+        gce_svc.disk_from_snapshot(values.zone, snapshot_name, disk_name)
+
+        # Wait for disk to initialize
+        gce_svc.wait_for_disk(values.zone, disk_name)
+
+        # Split path name into path and file
+        os.path.split(values.path)
+        path = os.path.dirname(values.path)
+        file = os.path.basename(values.path)
+
+        # Commands to mount file system and compress into tar file
+        cmds = '#!/bin/bash\n' + \
+            'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/sdb4 /mnt ||\n' + \
+            'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb5 /mnt\n' + \
+            'sudo tar czvf /tmp/%s -C /mnt .\n' % (file)+ \
+            'sudo gsutil mb gs://%s/\n' % (values.bucket) + \
+            'sudo gsutil cp /tmp/%s gs://%s/%s/\n' % (file, values.bucket, path)
+
+        metadata = {
+            "items": [
+                {
+                    "key": "startup-script",
+                    "value": cmds,
+                },
+            ]
+        }
+
+        # Attach new disk to instance
+        disks = [
+            {
+                'boot': False,
+                'autoDelete': False,
+                'source': 'zones/%s/disks/%s' % (values.zone, disk_name),
+            },
+        ]
+
+        # launch the instance and wait for it to initialize
+        gce_svc.run_instance(
+            values.zone, instance_name, ubuntu_image, disks=disks,
+            image_project=image_project, metadata=metadata, delete_boot=True)
+
+        # Wait for tar file to upload to bucket
+        if gce_svc.wait_bucket_file(values.bucket, values.path):
+            # Add email account to access control list
+            try:
+                gce_svc.storage.objectAccessControls().insert(
+                    bucket=values.bucket,
+                    object=values.path,
+                    body={'entity': 'user-%s' % (values.email),
+                        'role': 'READER'}).execute()
+                log.info('Updated file permissions')
+            except Exception as e:
+                log.error("Failed changing file permissions")
+                raise util.BracketError("Failed changing file permissions: %s", e)
+        else:
+            log.error("Can't upload logs file")
+            raise util.BracketError("Can't upload logs file")
+
+        log.info(
+            'Logs available at https://storage.cloud.google.com/%s/%s'
+            % (values.bucket, values.path))
+    finally:
+        try:
+            if snap:
+                gce_svc.delete_snapshot(snapshot_name)
+            gce_svc.cleanup(values.zone, None)
+        except Exception as e:
+            log.warn("Failed during cleanup: %s", e)
     return 0
 
 
@@ -225,6 +332,16 @@ class GCESubcommand(Subcommand):
         setup_instance_config_args(launch_gce_image_parser, parsed_config,
                                    mode=INSTANCE_METAVISOR_MODE)
 
+        share_logs_parser = gce_subparsers.add_parser(
+            'share-logs',
+            description='Creates a logs file of an instance and uploads it to a google bucket',
+            help='Upload logs file to google bucket',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        share_logs_gce_args.setup_share_logs_gce_args(share_logs_parser)
+        setup_instance_config_args(
+            share_logs_parser, parsed_config, mode=INSTANCE_METAVISOR_MODE)
+
     def debug_log_to_temp_file(self, values):
         return True
 
@@ -235,6 +352,8 @@ class GCESubcommand(Subcommand):
             return run_update(values, self.config)
         if values.gce_subcommand == 'launch':
             return run_launch(values, self.config)
+        if values.gce_subcommand == 'share-logs':
+            return run_sharelogs(values, self.config)
 
 
 class EncryptGCEImageSubcommand(Subcommand):
@@ -255,7 +374,6 @@ class EncryptGCEImageSubcommand(Subcommand):
         config.register_option(
             '%s.zone' % (self.name(),),
             'The GCE zone metavisors will be launched into')
-
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
@@ -365,24 +483,24 @@ class LaunchGCEImageSubcommand(Subcommand):
         )
         return run_launch(values, self.config)
 
-
 def get_subcommands():
     return [GCESubcommand(),
             EncryptGCEImageSubcommand(),
             UpdateGCEImageSubcommand(),
             LaunchGCEImageSubcommand()]
 
-
 def check_args(values, gce_svc, cli_config):
     if values.encryptor_image:
         if values.bucket != 'prod':
-            raise ValidationError("Please provided either an encryptor image or an image bucket")
+            raise ValidationError(
+                "Please provide either an encryptor image or an image bucket")
     if not values.token:
         raise ValidationError('Must provide a token')
 
     if values.validate:
         if not gce_svc.project_exists(values.project):
-            raise ValidationError("Project provider either does not exist or you do not have access to it")
+            raise ValidationError(
+                "Project provider either does not exist or you do not have access to it")
         if not gce_svc.network_exists(values.network):
             raise ValidationError("Network provided does not exist")
         brkt_env = brkt_cli.brkt_env_from_values(values)

@@ -33,7 +33,8 @@ brkt_image_buckets = {
 
 
 def retry(function, timeout=15.0):
-    return brkt_cli.util.retry(function, on=[socket.error, errors.HttpError], timeout=timeout)
+    return brkt_cli.util.retry(
+        function, on=[socket.error, errors.HttpError], timeout=timeout)
 
 
 def execute_gce_api_call(gce_object):
@@ -212,10 +213,100 @@ class GCEService(BaseGCEService):
     def __init__(self, project, session_id, logger):
         super(GCEService, self).__init__(project, session_id, logger)
         self.credentials = GoogleCredentials.get_application_default()
-        self.compute = discovery.build('compute', 'v1',
-                credentials=self.credentials)
-        self.storage = discovery.build('storage', 'v1',
-                credentials=self.credentials)
+        self.compute = discovery.build(
+            'compute', 'v1', credentials=self.credentials)
+
+        self.storage = discovery.build(
+            'storage', 'v1', credentials=self.credentials)
+
+    # Check if bucket exists and user has permission
+    def check_bucket_name(self, bucket):
+        try:
+            bucket = self.storage.buckets().get(
+                bucket=bucket).execute()
+            # bucket exists and we can access it
+            return 
+        except errors.HttpError as e:
+            code = e.resp.status
+            if code == 404:
+                # bucket doesn't exist. Check syntax
+                self.validate_bucket_name(bucket)
+            elif code == 403:
+                # bucket does exist. Permisions not valid
+                raise ValidationError("Permission denied for bucket %s" % bucket)
+            else:
+                # unexpected Http error
+                raise
+
+    # Check if the bucket name uses valid syntax
+    def validate_bucket_name(self,bucket):
+        m = re.match(r'[a-z0-9\-]', bucket)
+        if not m:
+            raise ValidationError(
+                "Bucket name must be lower case letters numbers and hyphens")
+
+        if (3 > len(bucket) or len(bucket) > 63):
+            raise ValidationError('Bucket name must be 3-63 characters')
+
+        if 'google' in bucket:
+            raise ValidationError("Bucket name can't contain 'google' ")
+
+        if bucket.startswith('-') or bucket.endswith('-'):
+            raise ValidationError("Bucket name can't start or end with '-'")
+        # Bucket name is valid
+        return 
+
+
+    # Check if the file name uses valid syntax
+    def validate_file_name(self, file):
+        m = re.match(r'[*?#]', file)
+        if m:
+            raise ValidationError("File name can't contain '*','?'' or '#'")
+        if "[" or "]" in file:
+            raise ValidationError("File name cant contain '['' or ']'")
+        return 
+
+
+    def check_bucket_file(self, bucket, file):
+        try:
+            existing_file = self.storage.objects().get(
+                    bucket=bucket,
+                    object=file).execute()
+            if existing_file:
+                raise ValidationError("File already exists")
+        except errors.HttpError as e:
+            code = e.resp.status
+            if code == 404:
+                return self.validate_file_name(file)
+            else:
+                raise ValidationError(e)
+
+    def wait_bucket_file(self, bucket, file):
+        for i in range(48):
+            try:
+                self.storage.objects().get(
+                   bucket=bucket,
+                   object=file).execute()
+                return True
+            except errors.HttpError as e:
+                self.log.debug(e)
+                code = e.resp.status
+                if code == 404:
+                    time.sleep(5)
+                else:
+                    self.log.warn("Failed uploading tar file")
+                    self.log.debug("Failed uploading tar file: %s", e)
+                    return False
+        return False
+
+    def get_public_image(self):
+        # guest_os is a family
+        self.log.info("Trying to get from image family...")
+        request = self.compute.images().getFromFamily(
+            project='ubuntu-os-cloud',
+            family='ubuntu-1404-lts')
+        public_image = request.execute(num_retries=5)
+        return public_image['name']
 
     def cleanup(self, zone, encryptor_image, keep_encryptor=False):
         try:
@@ -245,8 +336,8 @@ class GCEService(BaseGCEService):
         return self.session_id
 
     def get_snapshot(self, name):
-        snap_req = self.compute.snapshots().get(project=self.project,
-                snapshot=name)
+        snap_req = self.compute.snapshots().get(
+            project=self.project, snapshot=name)
         return retry(execute_gce_api_call)(snap_req)
 
     def wait_snapshot(self, snapshot):

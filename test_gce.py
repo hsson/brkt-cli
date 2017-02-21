@@ -8,6 +8,7 @@ from brkt_cli import util
 from brkt_cli.gce import encrypt_gce_image
 from brkt_cli.gce import gce_service
 from brkt_cli.gce import update_gce_image
+from brkt_cli.gce import share_logs
 from brkt_cli.instance_config import InstanceConfig
 from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.test_encryptor_service import (
@@ -42,6 +43,22 @@ class DummyGCEService(gce_service.BaseGCEService):
         if not keep_encryptor:
             self.delete_image(encryptor_image)
 
+    class OACInserter():
+        def execute(self):
+            return
+
+    class OAC():
+        def insert(self, bucket, object, body):
+            oacInserter = DummyGCEService.OACInserter()
+            return oacInserter
+
+    class Storage():
+        def objectAccessControls(self):
+            oac = DummyGCEService.OAC()
+            return oac
+
+    storage = Storage()
+
     def list_zones(self):
         return ['us-central1-a']
 
@@ -49,7 +66,25 @@ class DummyGCEService(gce_service.BaseGCEService):
         return self.session_id
 
     def get_snapshot(self, name):
-        return {'status':'READY'}
+        return {'status': 'READY', 'diskSizeGb': '1'}
+
+    def validate_file_name(self, path):
+        return False
+
+    def validate_bucket_name(self, bucket):
+        return False
+
+    def get_public_image(self):
+        return
+
+    def check_bucket_name(self, bucket):
+        return
+
+    def wait_bucket_file(self, bucket, path):
+        return True
+
+    def check_bucket_file(self, bucket, path):
+        return
 
     def wait_snapshot(self, snapshot):
         while True:
@@ -78,7 +113,7 @@ class DummyGCEService(gce_service.BaseGCEService):
             return True
         else:
             return False
-            
+
     def project_exists(self, project=None):
         if project == 'testproject':
             return True
@@ -360,3 +395,90 @@ class TestRunUpdate(unittest.TestCase):
         self.assertIsNotNone(encrypted_image)
         self.assertEqual(len(gce_svc.disks), 0)
         self.assertEqual(len(gce_svc.instances), 0)
+
+
+class ShareLogsValues():
+    def __init__(self):
+        self.instance = 'test-instance'
+        self.zone = 'us-central1-a'
+        self.email = 'support@brkt.com'
+        self.bucket = 'test-bucket'
+        self.project = 'test-project'
+        self.path = 'test-file'
+
+
+class GCEService1(DummyGCEService):
+    def check_bucket_name(self, bucket):
+        raise ValidationError("invalid permisions for bucket")
+
+
+class GCEService2(DummyGCEService):
+    def check_bucket_file(self, bucket, path):
+        raise ValidationError("File already exists")
+
+
+class GCEService3(DummyGCEService):
+    def check_bucket_file(self, bucket, path):
+        raise ValidationError()
+
+
+class GCEService4(DummyGCEService):
+    def wait_bucket_file(self, bucket, path):
+        return False
+
+
+class GCEService5(gce_service.GCEService):
+    def __init__(self):
+        super
+
+
+class TestShareLogs(unittest.TestCase):
+
+    def setUp(self):
+        util.SLEEP_ENABLED = False
+        self.values = ShareLogsValues()
+
+    # Run the program under normal conditions
+    def test_normal(self):
+        gce_svc = DummyGCEService()
+        logs = share_logs(self.values, gce_svc)
+        self.assertEqual(logs, 0)
+        self.assertEqual(len(gce_svc.disks), 0)
+        self.assertEqual(len(gce_svc.instances), 0)
+
+    # This tests bucket permission being denied
+    def test_bucket_name_exists(self):
+        gce_svc = GCEService1()
+        with self.assertRaises(ValidationError):
+            share_logs(self.values, gce_svc)
+
+    # Tests 6 cases of bucket name being invalid
+    def test_bucket_name_invalid(self):
+        gce_svc = GCEService5()
+        buckets = ['Test-bucket', 'Test.bucket', 'ab',
+        '12345678912345678912345678912345678912345678912345678912345678-65',
+        'google-bucket', '-bucket-']
+        for b in buckets:
+            with self.assertRaises(ValidationError):
+                gce_svc.validate_bucket_name(b)
+
+    # This tests if a file with the same name has already
+    # Been uploaded to the bucket
+    def test_file_exists(self):
+        gce_svc = GCEService2()
+        with self.assertRaises(ValidationError):
+            share_logs(self.values, gce_svc)
+
+    # This tests 5 cases of object name beind invalid
+    def test_file_name_invalid(self):
+        gce_svc = GCEService5()
+        paths = ['object?', '[object', 'object]', '#object', 'obj*ect']
+        for p in paths:
+            with self.assertRaises(ValidationError):
+                gce_svc.validate_file_name(p)
+
+    # This tests if the file is unable to upload
+    def test_file_upload(self):
+        gce_svc = GCEService4()
+        with self.assertRaises(util.BracketError):
+            share_logs(self.values, gce_svc)

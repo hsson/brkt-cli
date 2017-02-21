@@ -121,16 +121,24 @@ class YetiService(object):
             self.root_url + '/oauth/credentials',
             json=payload
         )
-        self.token = d['id_token']
+        self.token = str(d['id_token'])  # Convert Unicode to ASCII
+        return self.token
+
+    def get_customer_json(self):
+        """ Return the Customer object response from the server as a
+        dictionary.
+        """
+        return get_json(
+            self.root_url + '/api/v1/customer/self',
+            token=self.token
+        )
 
     def get_customer(self):
         """ Return the Customer object.
 
         :raise YetiError if Yeti returns an HTTP error status.
         """
-        d = get_json(
-            self.root_url + '/api/v1/customer/self',
-            token=self.token)
+        d = self.get_customer_json()
         return Customer(
             uuid=d['uuid'],
             name=d['name'],
