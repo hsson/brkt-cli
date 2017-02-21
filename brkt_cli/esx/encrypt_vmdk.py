@@ -166,7 +166,7 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
             log.error("Cannot get metavisor OVF from S3")
             raise Exception("Invalid MV OVF")
         mv_vm_name = None
-        if vc_swc.is_esx_host() is True:
+        if vc_swc.is_esx_host():
             mv_vm_name = vm_name
         vm = launch_mv_vm_from_s3(vc_swc, ovf_name,
                                   download_file_list, mv_vm_name)
@@ -198,9 +198,12 @@ def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
         log.info("Launching VM from local OVF")
         ovf_image_name = ovf_image_name + ".ovf"
         validate_local_mv_ovf(source_image_path, ovf_image_name)
+        mv_vm_name = None
+        if vc_swc.is_esx_host():
+            mv_vm_name = vm_name
         vm = vc_swc.upload_ovf_to_vcenter(source_image_path,
                                           ovf_image_name,
-                                          vm_name=vm_name)
+                                          vm_name=mv_vm_name)
     except Exception as e:
         log.exception("Failed to launch from metavisor OVF (%s)", e)
         if (vm is not None):

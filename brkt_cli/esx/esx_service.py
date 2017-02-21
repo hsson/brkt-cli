@@ -88,6 +88,8 @@ class BaseVCenterService(object):
         self.datastore_path = "[" + datastore_name + "] "
         self.esx_host = esx_host
         self.cluster_name = cluster_name
+        if self.esx_host:
+            self.cluster_name = None
         self.no_of_cpus = no_of_cpus
         self.memoryGB = memoryGB
         self.session_id = session_id
@@ -420,11 +422,8 @@ class VCenterService(BaseVCenterService):
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
         vmfolder = datacenter.vmFolder
-        if self.esx_host:
-            cluster = self.__get_obj(content, [vim.ComputeResource], None)
-        else:
-            cluster = self.__get_obj(content, [vim.ClusterComputeResource],
-                                     self.cluster_name)
+        cluster = self.__get_obj(content, [vim.ComputeResource],
+                                 self.cluster_name)
         pool = cluster.resourcePool
         timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
         vm_name = "VM-" + timestamp
@@ -562,7 +561,7 @@ class VCenterService(BaseVCenterService):
                 if (device.unitNumber == unit_number):
                     delete_device = device
         if (delete_device is None):
-            log.error("No disk found at %d in VM to detach",
+            log.error("No disk found at %d in VM %d to detach",
                       unit_number, vm.config.name)
             return
         spec = vim.vm.ConfigSpec()
@@ -639,7 +638,7 @@ class VCenterService(BaseVCenterService):
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
         destfolder = datacenter.vmFolder
-        cluster = self.__get_obj(content, [vim.ClusterComputeResource],
+        cluster = self.__get_obj(content, [vim.ComputeResource],
                                  self.cluster_name)
         pool = cluster.resourcePool
         datastore = self.__get_obj(content, [vim.Datastore],
@@ -828,11 +827,8 @@ class VCenterService(BaseVCenterService):
                                     self.datacenter_name)
         datastore = self.__get_obj(content, [vim.Datastore],
                                    self.datastore_name)
-        if self.esx_host:
-            cluster = self.__get_obj(content, [vim.ComputeResource], None)
-        else:
-            cluster = self.__get_obj(content, [vim.ClusterComputeResource],
-                                     self.cluster_name)
+        cluster = self.__get_obj(content, [vim.ComputeResource],
+                                 self.cluster_name)
         resource_pool = cluster.resourcePool
         destfolder = datacenter.vmFolder
         import_spec = manager.CreateImportSpec(ovfd,
