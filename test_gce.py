@@ -427,6 +427,11 @@ class GCEService4(DummyGCEService):
         return False
 
 
+class GCEService5(gce_service.GCEService):
+    def __init__(self):
+        super
+
+
 class TestShareLogs(unittest.TestCase):
 
     def setUp(self):
@@ -437,7 +442,6 @@ class TestShareLogs(unittest.TestCase):
     def test_normal(self):
         gce_svc = DummyGCEService()
         logs = share_logs(self.values, gce_svc)
-
         self.assertEqual(logs, 0)
         self.assertEqual(len(gce_svc.disks), 0)
         self.assertEqual(len(gce_svc.instances), 0)
@@ -450,8 +454,7 @@ class TestShareLogs(unittest.TestCase):
 
     # Tests 6 cases of bucket name being invalid
     def test_bucket_name_invalid(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
+        gce_svc = GCEService5()
         buckets = ['Test-bucket', 'Test.bucket', 'ab',
         '12345678912345678912345678912345678912345678912345678912345678-65',
         'google-bucket', '-bucket-']
@@ -467,20 +470,12 @@ class TestShareLogs(unittest.TestCase):
             share_logs(self.values, gce_svc)
 
     # This tests 5 cases of object name beind invalid
-    def test_file_name_invalid1(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
+    def test_file_name_invalid(self):
+        gce_svc = GCEService5()
         paths = ['object?', '[object', 'object]', '#object', 'obj*ect']
         for p in paths:
             with self.assertRaises(ValidationError):
                 gce_svc.validate_file_name(p)
-
-    def test_file_name_invalid2(self):
-        session_id = util.make_nonce()
-        gce_svc = gce_service.GCEService(self.values.project, session_id, log)
-        path = '[object]'
-        with self.assertRaises(ValidationError):
-            gce_svc.validate_file_name(path)
 
     # This tests if the file is unable to upload
     def test_file_upload(self):
