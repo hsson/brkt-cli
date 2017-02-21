@@ -22,7 +22,7 @@ def setup_encrypt_vmdk_args(parser):
     parser.add_argument(
         'vmdk',
         metavar='VMDK-NAME',
-        help='The Guest VMDK that will be encrypted'
+        help='The Guest VMDK path (in the datastore) that will be encrypted'
     )
     parser.add_argument(
         "--vcenter-host",
@@ -90,7 +90,7 @@ def setup_encrypt_vmdk_args(parser):
         '--template-vm-name',
         metavar='NAME',
         dest='template_vm_name',
-        help='Specify the name of the template VM',
+        help='Specify the name of the output template VM',
         required=False
     )
     parser.add_argument(
@@ -237,4 +237,14 @@ def setup_encrypt_vmdk_args(parser):
         choices=[CRYPTO_GCM, CRYPTO_XTS],
         help=argparse.SUPPRESS,
         default=None
+    )
+    # Optional argument to keep the downloaded artifacts. Can we used in
+    # cases where the same (downloaded) OVF is used for multiple
+    # encryption/update jobs
+    parser.add_argument(
+        '--no-cleanup',
+        dest='cleanup',
+        default=True,
+        action='store_false',
+        help=argparse.SUPPRESS
     )

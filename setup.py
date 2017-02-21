@@ -31,6 +31,14 @@ with open('brkt_cli/__init__.py', 'r') as fd:
 if not version:
     raise RuntimeError('Cannot find version information')
 
+# Enforce pyvmomi version based on python version
+# pyvmomi version 6.0 and higher is not compatible with python version
+# 2.7.8 or older
+if sys.version_info <= (2,7,8):
+    pyvmomi_version = '5.5.0'
+else:
+    pyvmomi_version = '6.0.0'
+
 setup(
     name='brkt-cli',
     version=version,
@@ -51,15 +59,16 @@ setup(
     ],
     install_requires=[
         'boto>=2.38.0',
-        'cryptography>=1.3.2',
+        'cryptography<1.5,>=1.3.2',
         'google-api-python-client>=1.5.0',
         'iso8601>=0.1.11',
         'oauth2client<3,>= 2.0.0',
         'oauthlib>=1.1.0',
         'pyasn1>=0.1.9',
         'pyjwt>=1.4.0',
-        'pyvmomi>=5.5.50,<=6.0.0',
+        'pyvmomi==' + pyvmomi_version,
         'PyYaml>=3.11',
+        'sshpubkeys>=2.0',
         'requests>=2.7.0',
     ],
     zip_safe=False,
@@ -69,6 +78,5 @@ setup(
         ]
     },
     package_dir={'brkt_cli': 'brkt_cli'},
-    package_data={'brkt_cli': ['assets/ca_cert.pem']},
     test_suite='test test_gce'
 )

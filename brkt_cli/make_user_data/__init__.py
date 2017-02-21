@@ -84,6 +84,12 @@ def make(values):
     if values.unencrypted_guest:
         instance_cfg.brkt_config['allow_unencrypted_guest'] = True
 
+    if values.ssh_public_key_file:
+        with open(values.ssh_public_key_file, 'r') as f:
+            key_value = (f.read()).strip()
+            brkt_cli.validate_ssh_pub_key(key_value)
+            instance_cfg.brkt_config['ssh-public-key'] = key_value
+
     return instance_cfg.make_userdata()
 
 
@@ -111,7 +117,7 @@ class MakeUserDataSubcommand(Subcommand):
             '--verbose',
             dest='make_user_data_verbose',
             action='store_true',
-            help='Print status information to the console'
+            help=argparse.SUPPRESS
         )
         parser.add_argument(
             '--unencrypted-guest',
@@ -142,6 +148,16 @@ class MakeUserDataSubcommand(Subcommand):
             '--guest-fqdn',
             metavar='FQDN',
             dest='make_user_data_guest_fqdn',
+            help=argparse.SUPPRESS
+        )
+        # Optional ssh-public key to be put into the Metavisor.
+        # Use only with debug instances for unencrypted guests
+        # Hidden because it is used only for development.
+        parser.add_argument(
+            '--ssh-public-key',
+            metavar='PATH',
+            dest='ssh_public_key_file',
+            default=None,
             help=argparse.SUPPRESS
         )
         argutil.add_out(parser)

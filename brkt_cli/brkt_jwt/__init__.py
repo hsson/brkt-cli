@@ -276,7 +276,7 @@ def setup_make_jwt_args(subparsers):
         '--verbose',
         dest='make_jwt_verbose',
         action='store_true',
-        help='Print status information to the console'
+        help=argparse.SUPPRESS
     )
 
     # The signing key is now passed as a positional argument.  This option

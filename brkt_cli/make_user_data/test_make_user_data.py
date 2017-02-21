@@ -52,6 +52,7 @@ class TestMakeUserData(unittest.TestCase):
         values.make_user_data_guest_fqdn = None
         values.make_user_data_guest_files = None
         values.unencrypted_guest = False
+        values.ssh_public_key_file = None
         return values
 
     def test_token_and_one_brkt_file(self):
@@ -107,6 +108,12 @@ class TestMakeUserData(unittest.TestCase):
         infile2 = os.path.join(self.testdata_dir, 'cloud-config')
         values.make_user_data_guest_files = [
             infile1 + ':x-shellscript', infile2 + ':cloud-config' ]
+        self.run_cmd(values)
+
+    def test_ssh_public_key(self):
+        values = self._init_values()
+        values.ssh_public_key_file = os.path.join(
+            self.testdata_dir, 'pub-key')
         self.run_cmd(values)
 
     def test_unencrypted_guest(self):

@@ -225,6 +225,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                 user_data_str=user_data_str,
                 serial_port_file_name=values.serial_port_file_name,
                 status_port=values.status_port,
+                cleanup=values.cleanup,
             )
         return 0
     except Exception as e:
@@ -371,6 +372,7 @@ def run_update(values, parsed_config, log, use_esx=False):
                 download_file_list=download_file_list,
                 user_data_str=user_data_str,
                 status_port=values.status_port,
+                cleanup=values.cleanup,
             )
         return 0
     except:
@@ -432,7 +434,12 @@ class VMwareSubcommand(Subcommand):
         )
 
         vmware_subparsers = vmware_parser.add_subparsers(
-            dest='vmware_subcommand'
+            dest='vmware_subcommand',
+            # Hardcode the list, so that we don't expose internal subcommands.
+            metavar=(
+                '{encrypt-with-vcenter,encrypt-with-esx-host,'
+                'update-with-vcenter,update-with-esx-host}'
+            )
         )
 
         encrypt_with_vcenter_parser = vmware_subparsers.add_parser(
@@ -484,11 +491,12 @@ class VMwareSubcommand(Subcommand):
         setup_instance_config_args(update_with_esx_parser, parsed_config)
 
         rescue_metavisor_parser = vmware_subparsers.add_parser(
+            # Don't specify the help field.  This is an internal command
+            # which shouldn't show up in usage output.
             'rescue-metavisor',
             description=(
                 'Upload a Metavisor VM cores and diagnostics to a URL'
             ),
-            help='Upload Metavisor VM cores to URL',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         rescue_metavisor_args.setup_rescue_metavisor_args(

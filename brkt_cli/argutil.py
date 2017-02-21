@@ -21,8 +21,7 @@ def add_out(parser):
         '--out',
         metavar='PATH',
         help=(
-            'Write the private key to a file instead of stdout.  This '
-            'can be used to avoid character encoding issues when '
-            'redirecting output on Windows.'
+            'Write to a file instead of stdout.  This can be used to avoid '
+            'character encoding issues when redirecting output on Windows.'
         )
     )

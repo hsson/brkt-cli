@@ -81,7 +81,7 @@ def setup_diag_args(parser):
         '--verbose',
         dest='aws_verbose',
         action='store_true',
-        help='Print status information to the console'
+        help=argparse.SUPPRESS
     )
     parser.add_argument(
         '--key',
