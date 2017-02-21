@@ -73,6 +73,9 @@ def _get_vcenter_password(use_esx):
 def run_encrypt(values, parsed_config, log, use_esx=False):
     session_id = util.make_nonce()
     if values.create_ovf or values.create_ova:
+        # ovf/ova creation on Windows is not supported
+        if os.name is "nt":
+            raise ValidationError("OVF/OVA creation is unsupported on Windows")
         # verify we have a valid output directory
         if values.target_path is None:
             raise ValidationError("Missing directory path to store "
@@ -238,6 +241,9 @@ def run_update(values, parsed_config, log, use_esx=False):
     encrypted_ovf_name = None
     encrypted_ova_name = None
     if values.create_ovf or values.create_ova:
+        # ovf/ova creation on Windows is not supported
+        if os.name is "nt":
+            raise ValidationError("OVF/OVA creation is unsupported on Windows")
         # verify we have a valid input directory
         if values.target_path is None:
             raise ValidationError("Missing directory path to fetch "
