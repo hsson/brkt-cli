@@ -16,9 +16,12 @@ import logging
 import re
 import tempfile
 import urllib2
+import uuid
 
 import boto
 from boto.exception import EC2ResponseError, NoAuthHandlerFound
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 import brkt_cli
 from brkt_cli import encryptor_service, util
@@ -28,6 +31,8 @@ from brkt_cli.aws import (
     diag_args,
     encrypt_ami,
     encrypt_ami_args,
+    launch_instance,
+    launch_args,
     share_logs,
     share_logs_args,
     update_encrypted_ami_args
@@ -40,6 +45,7 @@ from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_UPDATER_MODE,
+    INSTANCE_METAVISOR_MODE,
 )
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
@@ -97,6 +103,60 @@ def _handle_aws_errors(func):
                 raise
         return 1
     return _do_handle_aws_errors
+
+
+@_handle_aws_errors
+def launch_unencrypted_guest(values, config, verbose=False):
+    nonce = util.make_nonce()
+
+    aws_svc = aws_service.AWSService(
+        nonce,
+        retry_timeout=values.retry_timeout,
+        retry_initial_sleep_seconds=values.retry_initial_sleep_seconds
+    )
+    log.debug(
+        'Retry timeout=%.02f, initial sleep seconds=%.02f',
+        aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
+
+    aws_svc.connect(values.region, key_name=values.key_name)
+
+    if values.validate:
+        guest_image = _validate_guest_ami(aws_svc, values.ami)
+    else:
+        guest_image = aws_svc.get_image(values.ami)
+
+    metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
+
+    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
+    if values.validate:
+        _validate(aws_svc, values, encryptor_ami)
+        brkt_cli.validate_ntp_servers(values.ntp_servers)
+
+    instance_config = instance_config_from_values(
+        values, mode=INSTANCE_METAVISOR_MODE, cli_config=config)
+    instance_config.brkt_config['allow_unencrypted_guest'] = True
+
+    if not values.encrypted_ami_name:
+        instance_name = 'brkt' + '-' + str(uuid.uuid4().hex)
+    else:
+        instance_name = values.encrypted_ami_name
+
+    instance_id = launch_instance.launch_instance(
+        aws_svc=aws_svc,
+        enc_svc_cls=encryptor_service.EncryptorService,
+        image_id=guest_image.id,
+        metavisor_ami=metavisor_ami,
+        instance_name=instance_name,
+        subnet_id=values.subnet_id,
+        security_group_ids=values.security_group_ids,
+        guest_instance_type=values.guest_instance_type,
+        instance_config=instance_config,
+        status_port=values.status_port
+    )
+    # Print the Instance ID to stdout, in case the caller wants to process
+    # the output. Log messages go to stderr
+    print(instance_id)
+    return 0
 
 
 @_handle_aws_errors
@@ -423,6 +483,18 @@ class AWSSubcommand(Subcommand):
         diag_args.setup_diag_args(diag_parser)
         diag_parser.set_defaults(aws_subcommand='diag')
 
+        launch_parser = aws_subparsers.add_parser(
+            'create-unencrypted-guest',
+            description=(
+                'Launch Metavisor with unencrypted guest root'
+            ),
+            help='Launch Metavisor with unencrypted guest root'
+        )
+        launch_args.setup_launch_args(launch_parser)
+        setup_instance_config_args(launch_parser, parsed_config,
+                                   mode=INSTANCE_CREATOR_MODE)
+        launch_parser.set_defaults(aws_subcommand='create-unencrypted-guest')
+
         encrypt_ami_parser = aws_subparsers.add_parser(
             'encrypt',
             description='Create an encrypted AMI from an existing AMI.',
@@ -474,6 +546,9 @@ class AWSSubcommand(Subcommand):
             return run_diag(values)
         if values.aws_subcommand == 'share-logs':
             return run_share_logs(values)
+        if values.aws_subcommand == 'create-unencrypted-guest':
+            verbose = brkt_cli.is_verbose(values, self)
+            return launch_unencrypted_guest(values, self.config, verbose=verbose)
 
 
 class DiagSubcommand(Subcommand):

@@ -76,6 +76,46 @@ def run_encrypt(values, config):
     return 0
 
 
+def run_launch_unencrypted_guest(values, config):
+    session_id = util.make_nonce()
+    gce_svc = gce_service.GCEService(values.project, session_id, log)
+    check_args(values, gce_svc, config)
+
+    encrypted_image_name = gce_service.get_image_name(
+        values.encrypted_image_name, values.image)
+    gce_service.validate_image_name(encrypted_image_name)
+    if values.validate:
+        gce_service.validate_images(gce_svc,
+                                    encrypted_image_name,
+                                    values.encryptor_image,
+                                    values.image,
+                                    values.image_project)
+        if values.gce_tags:
+            validate_tags(values.gce_tags)
+    if not values.verbose:
+        logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+    log.info('Starting encryptor session %s', gce_svc.get_session_id())
+
+    unencrypted_image_id = encrypt_gce_image.launch_unencrypted_guest(
+        gce_svc=gce_svc,
+        image_id=values.image,
+        encryptor_image=values.encryptor_image,
+        zone=values.zone,
+        instance_config=instance_config_from_values(
+            values, mode=INSTANCE_METAVISOR_MODE, cli_config=config),
+        image_project=values.image_project,
+        keep_encryptor=values.keep_encryptor,
+        image_file=values.image_file,
+        image_bucket=values.bucket,
+        network=values.network,
+        subnetwork=values.subnetwork,
+        cleanup=values.cleanup,
+        gce_tags=values.gce_tags
+    )
+    # Print the image name to stdout, in case the caller wants to process
+    # the output.  Log messages go to stderr.
+    print(unencrypted_image_id)
+    return 0
 def run_update(values, config):
     session_id = util.make_nonce()
     gce_svc = gce_service.GCEService(values.project, session_id, log)
@@ -332,6 +372,17 @@ class GCESubcommand(Subcommand):
         setup_instance_config_args(launch_gce_image_parser, parsed_config,
                                    mode=INSTANCE_METAVISOR_MODE)
 
+        launch_unencrypted_guest_parser = gce_subparsers.add_parser(
+            'launch-unencrypted-guest',
+            description='Launch an unencrypted GCE image',
+            help='Launch an unencrypted GCE image',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        encrypt_gce_image_args.setup_encrypt_gce_image_args(
+            launch_unencrypted_guest_parser, parsed_config)
+        setup_instance_config_args(launch_unencrypted_guest_parser, parsed_config,
+                                   mode=INSTANCE_METAVISOR_MODE)
+
         share_logs_parser = gce_subparsers.add_parser(
             'share-logs',
             description='Creates a logs file of an instance and uploads it to a google bucket',
@@ -352,6 +403,8 @@ class GCESubcommand(Subcommand):
             return run_update(values, self.config)
         if values.gce_subcommand == 'launch':
             return run_launch(values, self.config)
+        if values.gce_subcommand == 'launch-unencrypted-guest':
+            return run_launch_unencrypted_guest(values, self.config)
         if values.gce_subcommand == 'share-logs':
             return run_sharelogs(values, self.config)
 

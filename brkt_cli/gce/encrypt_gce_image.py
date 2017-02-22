@@ -173,3 +173,55 @@ def encrypt(gce_svc, enc_svc_cls, image_id, encryptor_image,
             return
         log.info("Cleaning up")
         gce_svc.cleanup(zone, encryptor_image, keep_encryptor)
+
+
+def launch_unencrypted_guest(gce_svc, image_id, encryptor_image,
+                             zone, instance_config, image_project=None,
+                             keep_encryptor=False, image_file=None,
+                             image_bucket=None, network=None, subnetwork=None,
+                             cleanup=True, gce_tags=None):
+    try:
+        # create metavisor image from file in GCS bucket
+        log.info('Retrieving encryptor image from GCS bucket')
+        if not encryptor_image:
+            try:
+                encryptor_image = gce_svc.get_latest_encryptor_image(zone,
+                    image_bucket, image_file=image_file)
+            except errors.HttpError as e:
+                encryptor_image = None
+                log.exception('GCE API call to create image from file failed')
+                return
+        else:
+            # Keep user provided encryptor image
+            keep_encryptor = True
+
+        instance_name = 'brkt-guest-' + gce_svc.get_session_id()
+        encryptor = instance_name + '-unencrypted'
+        encrypted_image_disk = 'unencrypted-image-' + gce_svc.get_session_id()
+
+        gce_svc.disk_from_image(zone, image_id, instance_name, image_project)
+        log.info('Waiting for guest root disk to become ready')
+        gce_svc.wait_for_detach(zone, instance_name)
+
+        guest_disk = gce_svc.get_disk(zone, instance_name)
+        guest_disk['autoDelete'] = True
+
+        instance_config.brkt_config['allow_unencrypted_guest'] = True
+        metadata = gce_metadata_from_userdata(instance_config.make_userdata())
+        log.info('Launching unencrypted guest')
+        gce_svc.run_instance(zone=zone,
+                             name=encryptor,
+                             image=encryptor_image,
+                             network=network,
+                             subnet=subnetwork,
+                             disks=[guest_disk],
+                             delete_boot=True,
+                             metadata=metadata,
+                             tags=gce_tags)
+        gce_svc.wait_instance(encryptor, zone)
+        log.info("Instance %s (%s) launched successfully" % (encryptor,
+                 gce_svc.get_instance_ip(encryptor, zone)))
+    except errors.HttpError as e:
+        log.exception('GCE API request failed: {}'.format(e.message))
+
+    return encryptor
