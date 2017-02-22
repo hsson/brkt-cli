@@ -758,7 +758,7 @@ class VCenterService(BaseVCenterService):
                 size = os.path.getsize(target_file)
                 ovf_file = vim.OvfManager.OvfFile()
                 ovf_file.deviceId = devid
-                ovf_file.path = target_file
+                ovf_file.path = file_name
                 ovf_file.size = size
                 ovf_files.append(ovf_file)
             desc = vim.OvfManager.CreateDescriptorParams()
@@ -815,10 +815,18 @@ class VCenterService(BaseVCenterService):
             # Load checksums for each file
             mf_checksum = None
             if ovf_name.endswith('.ovf'):
-                mf_file_name = ovf_name[:ovf_name.find(".ovf")] + ".mf"
+                mf_file_name = ovf_name[:ovf_name.find(".ovf")] + "-brkt.mf"
             else:
-                mf_file_name = ovf_name + '.mf'
+                mf_file_name = ovf_name + '-brkt.mf'
             mf_path = os.path.join(target_path, mf_file_name)
+            # Deprecate this code over time
+            if not os.path.exists(mf_path):
+                if ovf_name.endswith('.ovf'):
+                    mf_file_name = ovf_name[:ovf_name.find(".ovf")] + ".mf"
+                else:
+                    mf_file_name = ovf_name + '.mf'
+                mf_path = os.path.join(target_path, mf_file_name)
+            # end deprecate code
             with open(mf_path, 'r') as mf_file:
                 mf_checksum = json.load(mf_file)
             # Validate ovf file
