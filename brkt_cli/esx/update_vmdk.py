@@ -147,7 +147,8 @@ def update_from_s3(vc_swc, enc_svc_cls, template_vm_name=None,
             log.error("Cannot get metavisor OVF from S3")
             raise Exception("Invalid MV OVF")
         mv_vm = launch_mv_vm_from_s3(vc_swc, mv_ovf_name,
-                                     download_file_list, cleanup)
+                                     download_file_list,
+                                     vm_name=None, cleanup=cleanup)
     except Exception as e:
         log.exception("Failed to launch metavisor OVF from S3 (%s)", e)
         if (mv_vm is not None):
