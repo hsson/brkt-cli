@@ -23,6 +23,7 @@ import signal
 import hashlib
 import requests
 import boto.s3
+import itertools
 
 from functools import wraps
 from threading import Thread
@@ -373,12 +374,18 @@ class VCenterService(BaseVCenterService):
         return obj
 
     def __wait_for_task(self, task):
-        while True:
+        for i in itertools.count():
             if task.info.state == 'success':
                 return task.info.result
             if task.info.state == 'error':
                 raise Exception('Task failed to finish with error %s' %
                                 task.info.error)
+            time.sleep(1)
+            if i % 180 == 0:
+                log.info("Still waiting for task with name: %s, state: %s, "
+                         "result: %s, progress: %s, descriptionId: %s",
+                         task.info.name, task.info.state, task.info.result,
+                         task.info.progress, task.info.descriptionId)
 
     def find_vm(self, vm_name):
         content = self.si.RetrieveContent()

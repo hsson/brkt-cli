@@ -58,11 +58,11 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
             vc_swc.add_serial_port_to_file(vm, serial_port_file_name)
         # Add datastore path to the guest vmdk
         guest_vmdk_path = vc_swc.get_datastore_path(guest_vmdk)
-        # Attach guest vmdk
+        log.info("Attaching guest vmdk")
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=2)
         if crypto_policy is None:
             crypto_policy = CRYPTO_XTS
-        # Attach empty disk
+        log.info("Attaching empty disk")
         size = vc_swc.get_disk_size(vm, 2)
         if crypto_policy == CRYPTO_XTS:
             encrypted_guest_size = size + (1024*1024)
