@@ -22,13 +22,16 @@ import os
 import signal
 import hashlib
 import requests
-import boto.s3
-
 from functools import wraps
+from operator import attrgetter
 from threading import Thread
+
+import boto3
+from botocore.handlers import disable_signing
 from pyVim import connect
 from pyVmomi import vmodl
 from pyVmomi import vim
+
 from brkt_cli.util import (
     retry,
     RetryExceptionChecker
@@ -36,10 +39,12 @@ from brkt_cli.util import (
 from brkt_cli import validate_ssh_pub_key
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 from brkt_cli.validation import ValidationError
-from boto.s3.key import Key
 
 
 log = logging.getLogger(__name__)
+logging.getLogger('boto3').setLevel(logging.FATAL)
+logging.getLogger('botocore').setLevel(logging.FATAL)
+logging.getLogger('s3transfer').setLevel(logging.FATAL)
 
 
 class TimeoutError(Exception):
@@ -963,16 +968,15 @@ def initialize_vcenter(host, user, password, port,
 
 def need_to_download_from_s3(file_list):
     """ Checks if the necessary files are already downloaded
-       
+
         Returns: True or False to indicate whether the download
-        is required or not and an OVF image name when download
-        is not required
+        is required or not
     """
-    ovf_image = None
-    for item in file_list:
-        file_name = item[item.rfind('/')+1:]
+    fetch_s3_objects = True
+    vmdk_sha = ovf_sha = manifest = False
+    for file_name in file_list:
         if not os.path.exists(file_name):
-            return ovf_image, True
+            break
         if '.mf' in file_name:
             with open(file_name) as manifest_data:
                 manifest = json.load(manifest_data)
@@ -982,73 +986,80 @@ def need_to_download_from_s3(file_list):
                 f.close()
             vmdk_sha = hashlib.sha1(data).hexdigest()
         if '.ovf' in file_name:
-            ovf_image = file_name
             with open(file_name) as f:
                 data = f.read()
                 f.close()
             ovf_sha = hashlib.sha1(data).hexdigest()
-    if vmdk_sha in manifest.values() and ovf_sha in manifest.values():
-        return ovf_image, False
-    return ovf_image, True
+    if vmdk_sha and ovf_sha and manifest:
+        if vmdk_sha in manifest.values() and ovf_sha in manifest.values():
+            fetch_s3_objects = False
+
+    return fetch_s3_objects
 
 
 def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
-    logging.getLogger('boto').setLevel(logging.FATAL)
     log.info("Fetching Metavisor OVF from S3")
     if bucket_name is None:
         log.error("Bucket-name is unknown, cannot get metavisor OVF")
         raise Exception("Invalid bucket-name")
-    ovf_name = None
-    download_file_list = []
+
     # Normalize image_name for S3 downloads
     if image_name and image_name.endswith('.ovf'):
         image_name = image_name[:image_name.find('.ovf')]
+
     try:
-        anon = not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ))
+        _environ = dict(os.environ)
+
         if proxy:
-            conn = boto.connect_s3(None, None, anon=anon,
-                                   host="s3.amazonaws.com",
-                                   proxy=proxy.host, proxy_port=proxy.port)
+            #TODO(workaround) https://github.com/boto/boto3/issues/338
+            os.environ["HTTP_PROXY"] = "http://%s:%d" % (proxy.host, proxy.port)
+            os.environ["HTTPS_PROXY"] = "https://%s:%d" % (proxy.host, proxy.port)
+
+        s3 = boto3.resource('s3')
+
+        if not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ)):
+            s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
+
+        bucket = s3.Bucket(bucket_name)
+        blist = list(bucket.objects.filter(Prefix="metavisor/"))
+        if not blist:
+            blist = list(bucket.objects.all())
+
+        # Get latest, exact, or partial match of ovfs
+        # No debug for partial match
+        if image_name is None:
+            ovfs = [ o for o in blist if o.key.endswith('.ovf')
+                     and ('latest/' in o.key or 'release-' in o.key)
+                     and not '-debug' in o.key ]
         else:
-            conn = boto.connect_s3(None, None, anon=anon, host="s3.amazonaws.com")
-        bucket = boto.s3.bucket.Bucket(connection=conn, name=bucket_name)
-        if (image_name is None):
-            # Get the last one
-            c_list = list(bucket.list("", "/"))
-            dir_list = []
-            for content in c_list:
-                dir_name = str(content.name)
-                if "release" in dir_name:
-                    dir_list.append(dir_name)
-            image_name = (sorted(dir_list))[len(dir_list)-1]
-            file_list_obj = list(bucket.list(image_name))
+            exact_match = image_name + '.ovf'
+            ovfs = [ o for o in blist if o.key.endswith(exact_match) ]
+            if not ovfs:
+                ovfs = [ o for o in blist if o.key.endswith('.ovf')
+                         and image_name in o.key
+                         and not '-debug' in o.key ]
+
+        if ovfs:
+            ovf_key = sorted(ovfs, key=attrgetter('last_modified'))[-1].key
+            ovf_name = ovf_key[ovf_key.rfind('/')+1:]
+            ovf_prefix = ovf_key[:ovf_key.rfind('/')+1]
+            ovf_filenames = [ o.key[o.key.rfind('/')+1:]
+                              for o in blist if o.key.startswith(ovf_prefix) ]
+            if need_to_download_from_s3(ovf_filenames):
+                for ovf_file in ovf_filenames:
+                    bucket.download_file(os.path.join(ovf_prefix, ovf_file),
+                                         os.path.join('./', ovf_file))
+            else:
+                log.info("Using previously downloaded OVF image")
         else:
-            file_list_obj = list(bucket.list(image_name + "/"))
-        if len(file_list_obj) is 0:
-            log.error("Directory %s in bucket %s is empty." % (image_name,
-                     bucket_name))
-            return (None, None)
-        file_list = []
-        for content in file_list_obj:
-            file_list.append(str(content.name))
-        ovf_name, download_required = need_to_download_from_s3(file_list)
-        if download_required:
-            for item in file_list:
-                file_name = item[item.rfind('/')+1:]
-                target_file = os.path.join("./", file_name)
-                certificate = Key(bucket)
-                certificate.key = item
-                certificate.get_contents_to_filename(target_file)
-                if (".ovf" in file_name):
-                    ovf_name = target_file
-                download_file_list.append(target_file)
-        else:
-            log.info("Using previously downloaded OVF image")
-        if ovf_name is None:
-            log.error("No OVF file in directory %s in bucket "
+            log.error("No OVF image found with name %s in bucket "
                      "%s" % (image_name, bucket_name))
-            return (None, None)
-        return (ovf_name, download_file_list)
+            ovf_name = ovf_filenames = None
+
+        os.environ.clear()
+        os.environ.update(_environ)
+
+        return (ovf_name, ovf_filenames)
     except Exception as e:
         log.exception("Exception downloading OVF from S3 %s" % e)
         raise
