@@ -75,6 +75,30 @@ def noop():
     pass
 
 
+class InternalOptionTestCase(unittest.TestCase):
+
+    def test_internal_option(self):
+        cfg = CLIConfig()
+
+        # Not set.
+        self.assertIsNone(cfg.get_internal_option('test'))
+        self.assertEqual(
+            'abc', cfg.get_internal_option('test', default='abc'))
+
+        # Set.
+        cfg.set_internal_option('test', 'abc')
+        self.assertEqual('abc', cfg.get_internal_option('test'))
+
+        # Save, reread, and make sure that the internal option is still set.
+        f = StringIO.StringIO()
+        cfg.write(f)
+        yaml = f.getvalue()
+
+        cfg = CLIConfig()
+        cfg.read(StringIO.StringIO(yaml))
+        self.assertEqual('abc', cfg.get_internal_option('test'))
+
+
 class ConfigCommandTestCase(unittest.TestCase):
     def setUp(self):
         self.out = StringIO.StringIO()

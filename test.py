@@ -21,46 +21,9 @@ import yaml
 
 import brkt_cli
 import brkt_cli.util
-from brkt_cli import proxy
+from brkt_cli import proxy, version
 from brkt_cli.proxy import Proxy
 from brkt_cli.validation import ValidationError
-
-
-class TestVersionCheck(unittest.TestCase):
-
-    def test_is_version_supported(self):
-        supported = [
-            '0.9.8', '0.9.9', '0.9.9.1', '0.9.10', '0.9.11', '0.9.12'
-        ]
-        self.assertFalse(
-            brkt_cli._is_version_supported('0.9.7', supported)
-        )
-        self.assertTrue(
-            brkt_cli._is_version_supported('0.9.8', supported)
-        )
-        self.assertTrue(
-            brkt_cli._is_version_supported('0.9.12', supported)
-        )
-        self.assertTrue(
-            brkt_cli._is_version_supported('0.9.13pre1', supported)
-        )
-        self.assertTrue(
-            brkt_cli._is_version_supported('0.9.13', supported)
-        )
-
-    def test_is_later_version_available(self):
-        supported = [
-            '0.9.8', '0.9.9', '0.9.9.1', '0.9.10', '0.9.11', '0.9.12'
-        ]
-        self.assertTrue(
-            brkt_cli._is_later_version_available('0.9.11', supported)
-        )
-        self.assertFalse(
-            brkt_cli._is_later_version_available('0.9.12', supported)
-        )
-        self.assertFalse(
-            brkt_cli._is_later_version_available('0.9.13pre1', supported)
-        )
 
 
 class TestProxy(unittest.TestCase):
@@ -238,7 +201,7 @@ class TestJWT(unittest.TestCase):
         header = {'typ': 'JWT', 'alg': 'ES384', 'kid': 'abc'}
         payload = {
             'jti': brkt_cli.util.make_nonce(),
-            'iss': 'brkt-cli-' + brkt_cli.VERSION,
+            'iss': 'brkt-cli-' + version.VERSION,
             'iat': int(time.time())
         }
         signature = 'Signed, sealed, delivered'
