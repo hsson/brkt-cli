@@ -25,6 +25,7 @@ import requests
 from functools import wraps
 from operator import attrgetter
 from threading import Thread
+from httplib import BadStatusLine
 
 import boto3
 from botocore.handlers import disable_signing
@@ -119,6 +120,10 @@ class BaseVCenterService(object):
 
     @abc.abstractmethod
     def connected(self):
+        pass
+
+    @abc.abstractmethod
+    def validate_connection(self):
         pass
 
     @abc.abstractmethod
@@ -354,6 +359,24 @@ class VCenterService(BaseVCenterService):
             return False
         return True
 
+    def validate_connection(self):
+        try:
+            content = self.si.RetrieveContent()
+            self.__get_obj(content, [vim.VirtualMachine], None)
+        except BadStatusLine:
+            # Connection has expired, reconnect
+            self.si = None
+            try:
+                log.info("vCenter connection expired, reconnecting")
+                self.connect()
+            except:
+                log.error("vCenter connection expired and failed "
+                          "to reconnect")
+                raise
+        except:
+            log.error("vCenter connection expired and failed to reconnect")
+            raise
+
     def get_session_id(self):
         return self.session_id
 
@@ -386,23 +409,27 @@ class VCenterService(BaseVCenterService):
                                 task.info.error)
 
     def find_vm(self, vm_name):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
         return vm
 
     def power_on(self, vm):
+        self.validate_connection()
         if format(vm.runtime.powerState) == "poweredOn":
             return
         task = vm.PowerOnVM_Task()
         self.__wait_for_task(task)
 
     def power_off(self, vm):
+        self.validate_connection()
         if format(vm.runtime.powerState) != "poweredOn":
             return
         task = vm.PowerOffVM_Task()
         self.__wait_for_task(task)
 
     def destroy_vm(self, vm):
+        self.validate_connection()
         log.info("Destroying VM %s", vm.config.name)
         content = self.si.RetrieveContent()
         f = self.si.content.fileManager
@@ -420,6 +447,7 @@ class VCenterService(BaseVCenterService):
         self.__wait_for_task(task)
 
     def get_ip_address(self, vm):
+        self.validate_connection()
         retry = 0
         while (vm.guest.ipAddress is None):
             if retry > 60:
@@ -429,6 +457,7 @@ class VCenterService(BaseVCenterService):
         return (vm.guest.ipAddress)
 
     def create_vm(self, memoryGB=1, numCPUs=1):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
@@ -479,6 +508,7 @@ class VCenterService(BaseVCenterService):
         return vm
 
     def reconfigure_vm_cpu_ram(self, vm):
+        self.validate_connection()
         vm_name = vm.config.name
         spec = vim.vm.ConfigSpec(name=vm_name,
                                  memoryMB=(1024*int(self.memoryGB)),
@@ -487,6 +517,7 @@ class VCenterService(BaseVCenterService):
         self.__wait_for_task(task)
 
     def add_serial_port_to_file(self, vm, filename):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         spec = vim.vm.ConfigSpec()
         port_spec = vim.vm.device.VirtualDeviceSpec()
@@ -507,6 +538,7 @@ class VCenterService(BaseVCenterService):
         log.info("Console messages will be dumped to file %s", filename)
 
     def delete_serial_port_to_file(self, vm, filename):
+        self.validate_connection()
         delete_device = None
         backing_filename = self.get_datastore_path(filename)
         for device in vm.config.hardware.device:
@@ -529,6 +561,7 @@ class VCenterService(BaseVCenterService):
 
     def add_disk(self, vm, disk_size=12*1024*1024,
                  filename=None, unit_number=0):
+        self.validate_connection()
         spec = vim.vm.ConfigSpec()
         controller = None
         for dev in vm.config.hardware.device:
@@ -566,6 +599,7 @@ class VCenterService(BaseVCenterService):
             log.info("%dKB empty disk added to %s", disk_size, vm.config.name)
 
     def detach_disk(self, vm, unit_number=2):
+        self.validate_connection()
         delete_device = None
         for device in vm.config.hardware.device:
             if (isinstance(device, vim.vm.device.VirtualDisk)):
@@ -589,6 +623,7 @@ class VCenterService(BaseVCenterService):
         return delete_device
 
     def clone_disk(self, source_disk, dest_disk=None, dest_disk_name=None):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         source_disk_name = source_disk.backing.fileName
         if (dest_disk_name is None):
@@ -625,6 +660,7 @@ class VCenterService(BaseVCenterService):
         return dest_disk_name
 
     def get_disk(self, vm, unit_number):
+        self.validate_connection()
         for device in vm.config.hardware.device:
             if (isinstance(device, vim.vm.device.VirtualDisk)):
                 if (device.unitNumber == unit_number):
@@ -632,6 +668,7 @@ class VCenterService(BaseVCenterService):
         return None
 
     def get_disk_size(self, vm, unit_number):
+        self.validate_connection()
         for device in vm.config.hardware.device:
             if (isinstance(device, vim.vm.device.VirtualDisk)):
                 if (device.unitNumber == unit_number):
@@ -642,9 +679,11 @@ class VCenterService(BaseVCenterService):
                         (unit_number, vm.config.name))
 
     def clone_vm(self, vm, powerOn=False, vm_name=None, template=False):
+        self.validate_connection()
         if self.esx_host:
             log.error("Cannot create template VM when connected to ESX host")
             return None
+        self.validate_connection()
         content = self.si.RetrieveContent()
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
@@ -697,6 +736,7 @@ class VCenterService(BaseVCenterService):
             raise
 
     def send_userdata(self, vm, user_data_str):
+        self.validate_connection()
         spec = vim.vm.ConfigSpec()
         option_n = vim.option.OptionValue()
         spec.extraConfig = []
@@ -720,6 +760,7 @@ class VCenterService(BaseVCenterService):
                 return
 
     def export_to_ovf(self, vm, target_path, ovf_name=None):
+        self.validate_connection()
         if (os.path.exists(target_path) is False):
             raise Exception("OVF target path does not exist")
         if (ovf_name is None):
@@ -812,6 +853,7 @@ class VCenterService(BaseVCenterService):
 
     def upload_ovf_to_vcenter(self, target_path, ovf_name,
                               vm_name=None, validate_mf=True):
+        self.validate_connection()
         vm = None
         content = self.si.RetrieveContent()
         manager = self.si.content.ovfManager
