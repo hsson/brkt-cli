@@ -130,6 +130,10 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
+    def validate_vcenter_params(self):
+        pass
+
+    @abc.abstractmethod
     def find_vm(self, vm_name):
         pass
 
@@ -384,6 +388,27 @@ class VCenterService(BaseVCenterService):
             if task.info.state == 'error':
                 raise Exception('Task failed to finish with error %s' %
                                 task.info.error)
+
+    def validate_vcenter_params(self):
+        content = self.si.RetrieveContent()
+        if self.datacenter_name:
+            datacenter = self.__get_obj(content, [vim.Datacenter],
+                                        self.datacenter_name)
+            if not datacenter:
+                raise ValidationError("Datacenter %s not found",
+                                      self.datacenter_name)
+        if self.datastore_name:
+            datastore = self.__get_obj(content, [vim.Datastore],
+                                       self.datastore_name)
+            if not datastore:
+                raise ValidationError("Datastore %s not found",
+                                      self.datastore_name)
+        if self.cluster_name:
+            cluster = self.__get_obj(content, [vim.ComputeResource],
+                                     self.cluster_name)
+            if not cluster:
+                raise ValidationError("Cluster %s not found",
+                                      self.cluster_name)
 
     def find_vm(self, vm_name):
         content = self.si.RetrieveContent()

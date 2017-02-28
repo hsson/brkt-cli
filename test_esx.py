@@ -79,6 +79,9 @@ class DummyVCenterService(esx_service.BaseVCenterService):
     def get_datastore_path(self, vmdk_name):
         return vmdk_name
 
+    def validate_vcenter_params(self):
+        return
+
     def find_vm(self, vm_name):
         return self.vms.get(vm_name)
 
