@@ -16,7 +16,11 @@ import inspect
 import os
 import unittest
 
-from brkt_cli import make_user_data
+from brkt_cli import (
+    brkt_env_from_domain,
+    make_user_data
+)
+from brkt_cli.config import CLIConfig
 from brkt_cli.instance_config_args import instance_config_args_to_values
 
 
@@ -32,7 +36,12 @@ class TestMakeUserData(unittest.TestCase):
         self.maxDiff = None # show full diff with knowngood multi-line strings
 
     def run_cmd(self, values):
-        output = make_user_data.make(values)
+        config = CLIConfig()
+        env = brkt_env_from_domain('foo.com')
+        config.set_env('test', env)
+        config.set_current_env('test')
+
+        output = make_user_data.make(values, config)
 
         knowngood_file = os.path.join(self.testdata_dir,
                                       self.test_name + ".out")
