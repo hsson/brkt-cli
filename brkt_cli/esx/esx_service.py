@@ -631,7 +631,7 @@ class VCenterService(BaseVCenterService):
                 if (device.unitNumber == unit_number):
                     delete_device = device
         if (delete_device is None):
-            log.error("No disk found at %d in VM %d to detach",
+            log.error("No disk found at %d in VM %s to detach",
                       unit_number, vm.config.name)
             return
         spec = vim.vm.ConfigSpec()
