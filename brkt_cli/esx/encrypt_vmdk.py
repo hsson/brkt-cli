@@ -50,7 +50,7 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                                 user_data_str=None, serial_port_file_name=None,
                                 status_port=ENCRYPTOR_STATUS_PORT):
     try:
-        mv_vm_name = None
+        mv_vm_name = vc_swc.get_vm_name(vm)
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(vm)
         # Reconfigure VM with serial port
@@ -76,7 +76,6 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         ip_addr = vc_swc.get_ip_address(vm)
         log.info("VM ip address is %s", ip_addr)
         # disconnect from vcenter
-        mv_vm_name = vc_swc.get_vm_name(vm)
         vc_swc.disconnect()
         # wait for encryption to complete
         host_ips = [ip_addr]
