@@ -73,6 +73,9 @@ class DummyVCenterService(esx_service.BaseVCenterService):
     def connected(self):
         return self.connect
 
+    def validate_connection(self):
+        return
+
     def get_session_id(self):
         return self.session_id
 
