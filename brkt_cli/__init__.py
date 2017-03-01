@@ -22,19 +22,16 @@ import os
 import re
 import sys
 import tempfile
-import urllib2
-import sshpubkeys
-from distutils.version import LooseVersion
 from operator import attrgetter
 
-from brkt_cli import brkt_jwt, util
+import sshpubkeys
+
+from brkt_cli import brkt_jwt, util, version
 from brkt_cli.config import CLIConfig, CONFIG_PATH
 from brkt_cli.proxy import Proxy, generate_proxy_config, validate_proxy_config
 from brkt_cli.util import validate_dns_name_ip_address
 from brkt_cli.validation import ValidationError
 from brkt_cli.yeti import YetiService, YetiError
-
-VERSION = '1.0.8pre1'
 
 # The list of modules that may be loaded.  Modules contain subcommands of
 # the brkt command and CSP-specific code.
@@ -236,77 +233,6 @@ def _base64_decode_json(base64_string):
         )
 
 
-def _is_version_supported(version, supported_versions):
-    """ Return True if the given version string is at least as high as
-    the earliest version string in supported_versions.
-    """
-    # We use LooseVersion because StrictVersion can't deal with patch
-    # releases like 0.9.9.1.
-    sorted_versions = sorted(
-        supported_versions,
-        key=lambda v: LooseVersion(v)
-    )
-    return LooseVersion(version) >= LooseVersion(sorted_versions[0])
-
-
-def _is_later_version_available(version, supported_versions):
-    """ Return True if the given version string is the latest supported
-    version.
-    """
-    # We use LooseVersion because StrictVersion can't deal with patch
-    # releases like 0.9.9.1.
-    sorted_versions = sorted(
-        supported_versions,
-        key=lambda v: LooseVersion(v)
-    )
-    return LooseVersion(version) < LooseVersion(sorted_versions[-1])
-
-
-def _check_version():
-    """ Check if this version of brkt-cli is still supported by checking
-    our version against the versions available on PyPI.  If a
-    later version is available, print a message to the console.
-
-    :return True if this version is still supported
-    """
-    url = 'http://pypi.python.org/pypi/brkt-cli/json'
-    log.debug('Getting supported brkt-cli versions from %s', url)
-
-    try:
-        resp = urllib2.urlopen(url, timeout=5.0)
-        code = resp.getcode()
-        if code / 100 != 2:
-            raise Exception(
-                'Error %d when opening %s' % (code, url))
-        d = json.loads(resp.read())
-        supported_versions = d['releases'].keys()
-    except Exception as e:
-        # If we can't get the list of versions from PyPI, print the error
-        # and return true.  We don't want the version check to block people
-        # from getting their work done.
-        log.debug('', exc_info=1)
-        msg = e.message or type(e).__name__
-        log.info('Unable to load brkt-cli versions from PyPI: %s', msg)
-        return True
-
-    if not _is_version_supported(VERSION, supported_versions):
-        log.error(
-            'Version %s is no longer supported. '
-            'Run "pip install --upgrade brkt-cli" to upgrade to the '
-            'latest version.',
-            VERSION
-        )
-        return False
-    if _is_later_version_available(VERSION, supported_versions):
-        log.info(
-            'A new release of brkt-cli is available. '
-            'Run "pip install --upgrade brkt-cli" to upgrade to the '
-            'latest version.'
-        )
-
-    return True
-
-
 def validate_jwt(jwt):
     """ Check the incoming JWT and verify that it has all of the fields that
     we require.
@@ -477,7 +403,7 @@ def main():
     parser.add_argument(
         '--version',
         action='version',
-        version='brkt-cli version %s' % VERSION
+        version='brkt-cli version %s' % version.VERSION
     )
     parser.add_argument(
         '--no-check-version',
@@ -612,9 +538,15 @@ def main():
     for msg in subcommand_load_messages:
         log.debug(msg)
 
-    if values.check_version:
-        if not _check_version():
+    # Check if the version is supported.
+    dt = version.get_last_version_check_time(config)
+    if dt:
+        log.debug('Last version check: %s', dt.isoformat())
+    if values.check_version and version.is_version_check_needed(config):
+        if not version.check_version():
             return 1
+        version.set_last_version_check_time(config)
+        config.save_config()
 
     result = 1
 

@@ -24,7 +24,7 @@ if python_version != '2.7':
         python_version)
 
 version = ''
-with open('brkt_cli/__init__.py', 'r') as fd:
+with open('brkt_cli/version.py', 'r') as fd:
     version = re.search(r'^VERSION\s*=\s*[\'"]([^\'"]*)[\'"]',
                         fd.read(), re.MULTILINE).group(1)
 
