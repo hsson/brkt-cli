@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 CONFIG_DIR = os.path.expanduser('~/.brkt')
 CONFIG_PATH = os.path.join(CONFIG_DIR, 'config')
 
-VERSION = 2
+VERSION = 3
 
 
 class InvalidOptionError(Exception):
@@ -137,6 +137,7 @@ class CLIConfig(object):
             'environments': {},
             'options': {},
             'version': VERSION,
+            'internal': {}
         }
         self._add_prod_env()
         self._registered_options = collections.defaultdict(dict)
@@ -274,12 +275,23 @@ class CLIConfig(object):
         # Clean up any empty sub-sections
         self._remove_empty_dicts(self._config['options'])
 
+    def set_internal_option(self, option, value):
+        self._config['internal'][option] = value
+
+    def get_internal_option(self, option, default=None):
+        return self._config['internal'].get(option, default)
+
     def _migrate_config(self, config):
         """Handle migrating between different config versions"""
         if config['version'] == 1:
             config['environments'] = {}
             config['current-environment'] = None
+            config['version'] = 2
+
+        if config['version'] == 2:
+            config['internal'] = {}
             config['version'] = VERSION
+
         return config
 
     def _add_prod_env(self):
@@ -289,23 +301,26 @@ class CLIConfig(object):
         if self._config.get('current-environment') is None:
             self._config['current-environment'] = BRKT_HOSTED_ENV_NAME
 
-    def read(self):
+    def read(self, f=None):
         """Read the config from disk"""
         try:
-            with open(CONFIG_PATH) as f:
-                config = yaml.safe_load(f)
+            if not f:
+                f = open(CONFIG_PATH)
+            config = yaml.safe_load(f)
             self._config = self._migrate_config(config)
             self._add_prod_env()
         except IOError as e:
             if e.errno != errno.ENOENT:
                 raise
+        finally:
+            if f:
+                f.close()
 
     def write(self, f):
         """Write the config to disk.
         :param f A file-like object
         """
         yaml.dump(self._config, f)
-
 
     def save_config(self):
         """Save the current config to disk.

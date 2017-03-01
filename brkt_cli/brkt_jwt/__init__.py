@@ -25,8 +25,7 @@ import iso8601
 import jwt
 
 import brkt_cli
-from brkt_cli import argutil
-from brkt_cli import util
+from brkt_cli import argutil, util, version
 from brkt_cli.brkt_jwt import jwk
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.validation import ValidationError
@@ -159,7 +158,7 @@ def make_jwt(crypto, exp=None, nbf=None, claims=None, customer=None):
 
     payload = {
         'jti': util.make_nonce(),
-        'iss': 'brkt-cli-' + brkt_cli.VERSION,
+        'iss': 'brkt-cli-' + version.VERSION,
         'iat': int(time.time())
     }
     if claims:
