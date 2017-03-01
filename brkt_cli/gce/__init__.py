@@ -180,7 +180,8 @@ def share_logs(values, gce_svc):
         # Retrieve latest image from family
         ubuntu_image = gce_svc.get_public_image()
         # Check to see if the bucket is available
-        gce_svc.check_bucket_name(values.bucket)
+
+        gce_svc.check_bucket_name(values.bucket, values.project)
 
         # Check to see if the tar file is already in the bucket
         gce_svc.check_bucket_file(values.bucket, values.path)
@@ -211,7 +212,6 @@ def share_logs(values, gce_svc):
             'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/sdb4 /mnt ||\n' + \
             'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb5 /mnt\n' + \
             'sudo tar czvf /tmp/%s -C /mnt .\n' % (file)+ \
-            'sudo gsutil mb gs://%s/\n' % (values.bucket) + \
             'sudo gsutil cp /tmp/%s gs://%s/%s/\n' % (file, values.bucket, path)
 
         metadata = {

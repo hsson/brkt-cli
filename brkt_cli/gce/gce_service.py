@@ -219,53 +219,32 @@ class GCEService(BaseGCEService):
         self.storage = discovery.build(
             'storage', 'v1', credentials=self.credentials)
 
-    # Check if bucket exists and user has permission
-    def check_bucket_name(self, bucket):
+
+    # Create bucket/check permissions 
+    def check_bucket_name(self, bucket, project):
         try:
-            bucket = self.storage.buckets().get(
-                bucket=bucket).execute()
-            # bucket exists and we can access it
+            body = {'name' : bucket}
+            self.storage.buckets().insert(
+                project=project, body=body).execute()
+
             return 
         except errors.HttpError as e:
-            code = e.resp.status
-            if code == 404:
-                # bucket doesn't exist. Check syntax
-                self.validate_bucket_name(bucket)
-            elif code == 403:
-                # bucket does exist. Permisions not valid
-                raise ValidationError("Permission denied for bucket %s" % bucket)
+            # Parse error message and return if user owns bucket
+            # Error codes are not unique so message is used
+            message = json.loads(e.content)["error"]["message"]
+            if 'You already own this bucket' in message:
+                return
             else:
-                # unexpected Http error
+                self.log.error("Bucket must be in project: %s", project)
                 raise
-
-    # Check if the bucket name uses valid syntax
-    def validate_bucket_name(self,bucket):
-        m = re.match(r'[a-z0-9\-]', bucket)
-        if not m:
-            raise ValidationError(
-                "Bucket name must be lower case letters numbers and hyphens")
-
-        if (3 > len(bucket) or len(bucket) > 63):
-            raise ValidationError('Bucket name must be 3-63 characters')
-
-        if 'google' in bucket:
-            raise ValidationError("Bucket name can't contain 'google' ")
-
-        if bucket.startswith('-') or bucket.endswith('-'):
-            raise ValidationError("Bucket name can't start or end with '-'")
-        # Bucket name is valid
-        return 
 
 
     # Check if the file name uses valid syntax
     def validate_file_name(self, file):
-        m = re.match(r'[*?#]', file)
+        m = re.search(r'[*\[\]?#]', file)
         if m:
-            raise ValidationError("File name can't contain '*','?'' or '#'")
-        if "[" or "]" in file:
-            raise ValidationError("File name cant contain '['' or ']'")
-        return 
-
+            raise ValidationError("File name can't contain '[',']','*','?' or '#'")
+        return
 
     def check_bucket_file(self, bucket, file):
         try:

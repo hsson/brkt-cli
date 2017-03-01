@@ -77,7 +77,7 @@ class DummyGCEService(gce_service.BaseGCEService):
     def get_public_image(self):
         return
 
-    def check_bucket_name(self, bucket):
+    def check_bucket_name(self, bucket, project):
         return
 
     def wait_bucket_file(self, bucket, path):
@@ -408,8 +408,8 @@ class ShareLogsValues():
 
 
 class GCEService1(DummyGCEService):
-    def check_bucket_name(self, bucket):
-        raise ValidationError("invalid permisions for bucket")
+    def check_bucket_name(self, bucket, project):
+        raise ValidationError()
 
 
 class GCEService2(DummyGCEService):
@@ -419,15 +419,10 @@ class GCEService2(DummyGCEService):
 
 class GCEService3(DummyGCEService):
     def check_bucket_file(self, bucket, path):
-        raise ValidationError()
+        raise util.BracketError("Can't upload logs file")
 
 
-class GCEService4(DummyGCEService):
-    def wait_bucket_file(self, bucket, path):
-        return False
-
-
-class GCEService5(gce_service.GCEService):
+class GCEService4(gce_service.GCEService):
     def __init__(self):
         super
 
@@ -452,16 +447,6 @@ class TestShareLogs(unittest.TestCase):
         with self.assertRaises(ValidationError):
             share_logs(self.values, gce_svc)
 
-    # Tests 6 cases of bucket name being invalid
-    def test_bucket_name_invalid(self):
-        gce_svc = GCEService5()
-        buckets = ['Test-bucket', 'Test.bucket', 'ab',
-        '12345678912345678912345678912345678912345678912345678912345678-65',
-        'google-bucket', '-bucket-']
-        for b in buckets:
-            with self.assertRaises(ValidationError):
-                gce_svc.validate_bucket_name(b)
-
     # This tests if a file with the same name has already
     # Been uploaded to the bucket
     def test_file_exists(self):
@@ -471,7 +456,7 @@ class TestShareLogs(unittest.TestCase):
 
     # This tests 5 cases of object name beind invalid
     def test_file_name_invalid(self):
-        gce_svc = GCEService5()
+        gce_svc = GCEService4()
         paths = ['object?', '[object', 'object]', '#object', 'obj*ect']
         for p in paths:
             with self.assertRaises(ValidationError):
@@ -479,6 +464,6 @@ class TestShareLogs(unittest.TestCase):
 
     # This tests if the file is unable to upload
     def test_file_upload(self):
-        gce_svc = GCEService4()
+        gce_svc = GCEService3()
         with self.assertRaises(util.BracketError):
             share_logs(self.values, gce_svc)
