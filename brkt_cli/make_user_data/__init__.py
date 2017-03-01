@@ -54,11 +54,21 @@ def _add_guest_files_to_instance_config(instance_cfg, guest_files):
         instance_cfg.add_guest_file(guest_file)
         
 
-def make(values):
+def make(values, config):
     """ Generate user-data based on command line options.
     :return the MIME content as a string
     """
-    instance_cfg = instance_config_from_values(values,
+    if values.unencrypted_guest:
+        # Only include Yeti endpoints if this userdata is going to be used to
+        # launch Metavisors with unencrypted guests (i.e., *not* encrypted
+        # instances). Encrypted images/AMIs have the Yeti endpoints
+        # 'baked in', so the endpoints are only needed when launching the
+        # metavisor instance from the 'creator' image/AMI (with the
+        # unencrypted guest root).
+        cli_config = config
+    else:
+        cli_config = None
+    instance_cfg = instance_config_from_values(values, cli_config=cli_config,
                                                mode=INSTANCE_METAVISOR_MODE)
 
     if values.make_user_data_brkt_files:
@@ -95,10 +105,15 @@ def make(values):
 
 class MakeUserDataSubcommand(Subcommand):
 
+    def __init__(self):
+        self.config = None
+
     def name(self):
         return 'make-user-data'
 
     def register(self, subparsers, parsed_config):
+        self.config = parsed_config
+
         parser = subparsers.add_parser(
             self.name(),
             description=(
@@ -166,7 +181,7 @@ class MakeUserDataSubcommand(Subcommand):
         return values.make_user_data_verbose
 
     def run(self, values):
-        mime = make(values)
+        mime = make(values, self.config)
         util.write_to_file_or_stdout(mime, values.out)
         return 0
 
