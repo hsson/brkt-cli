@@ -325,9 +325,18 @@ class CLIConfig(object):
     def save_config(self):
         """Save the current config to disk.
         """
+        try:
+            os.mkdir(CONFIG_DIR, 0755)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
         f = tempfile.NamedTemporaryFile(delete=False, prefix='brkt_cli')
-        yaml.dump(self._config, f)
-        f.close()
+        try:
+            self.write(f)
+            f.close()
+        except:
+            _unlink_noraise(f.name)
+            raise
         try:
             shutil.move(f.name, CONFIG_PATH)
         except:
@@ -555,28 +564,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             help='Print all user properties in JSON format'
         )
 
-    def _write_config(self):
-        """Create ~/.brkt if it doesn't exist and safely write out a
-        new config.
-        """
-        try:
-            os.mkdir(CONFIG_DIR, 0755)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-        f = tempfile.NamedTemporaryFile(delete=False, prefix='brkt_cli')
-        try:
-            self.parsed_config.write(f)
-            f.close()
-        except:
-            _unlink_noraise(f.name)
-            raise
-        try:
-            shutil.move(f.name, CONFIG_PATH)
-        except:
-            _unlink_noraise(f.name)
-            raise
-
     def _list_options(self):
         """Display the contents of the config"""
         for opt in sorted(self.parsed_config.registered_options().keys()):
@@ -601,7 +588,7 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.set_option(opt, val)
         except InvalidOptionError:
             raise ValidationError('Error: unknown option "%s".' % (opt,))
-        self._write_config()
+        self.parsed_config.save_config()
         return 0
 
     def _unset_option(self, opt):
@@ -610,7 +597,7 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.unset_option(opt)
         except InvalidOptionError:
             raise ValidationError('Error: unknown option "%s".' % (opt,))
-        self._write_config()
+        self.parsed_config.save_config()
         return 0
 
     def _set_env(self, values):
@@ -643,7 +630,7 @@ The leading `*' indicates that the `stage' environment is currently active.
         if values.service_domain is not None:
             env = brkt_cli.brkt_env_from_domain(values.service_domain)
         self.parsed_config.set_env(values.env_name, env)
-        self._write_config()
+        self.parsed_config.save_config()
         return 0
 
     def _use_env(self, values):
@@ -665,7 +652,7 @@ The leading `*' indicates that the `stage' environment is currently active.
             for attr in e.missing_keys:
                 opts.append(attr_opt[attr])
             raise ValidationError(msg % (values.env_name, ', '.join(opts)))
-        self._write_config()
+        self.parsed_config.save_config()
 
     def _list_envs(self):
         """Display all envs"""
@@ -706,7 +693,7 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.unset_env(values.env_name)
         except UnknownEnvironmentError:
             raise ValidationError('Error: unknown environment ' + values.env_name)
-        self._write_config()
+        self.parsed_config.save_config()
 
     def _get_yeti_service(self):
         """Return the YetiService object for the current environment."""
@@ -728,14 +715,14 @@ The leading `*' indicates that the `stage' environment is currently active.
             raise ValidationError(e.message)
 
         self.parsed_config.set_option('api-token', token)
-        self._write_config()
+        self.parsed_config.save_config()
 
         env_name, _ = self.parsed_config.get_current_env()
         print 'Logged into %s as %s' % (env_name, email)
 
     def _logout(self):
         self.parsed_config.unset_option('api-token')
-        self._write_config()
+        self.parsed_config.save_config()
 
     def _whoami(self, values):
         env_name, _ = self.parsed_config.get_current_env()
