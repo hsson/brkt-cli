@@ -2,7 +2,7 @@
 [Bracket Computing](http://www.brkt.com) service. It produces an
 encrypted version of an operating system image that runs on
 [Amazon Web Services](aws.md) (AWS), [Google Compute Engine](gce.md)
-(GCE), or [VMware ESX](vmw.md). The resulting encrypted image can then
+(GCE), or [VMware ESX](esx.md). The resulting encrypted image can then
 be launched in the same manner as the original.  Please see the
 links above for cloud-provider specific details and an overview of
 the encryption process.
