@@ -1,7 +1,7 @@
 import argparse
 
 
-def setup_update_gce_image_args(parser, parsed_config):
+def setup_update_gcp_image_args(parser, parsed_config):
     parser.add_argument(
         'image',
         metavar='ID',
@@ -14,18 +14,18 @@ def setup_update_gce_image_args(parser, parsed_config):
         help='Specify the name of the generated encrypted image',
         required=False
     )
-    required_zone = parsed_config.get_option('gce.zone', None)
+    required_zone = parsed_config.get_option('gcp.zone', None)
     parser.add_argument(
         '--zone',
-        help='GCE zone to operate in',
+        help='GCP zone to operate in',
         dest='zone',
         default=required_zone,
         required=not bool(required_zone)
     )
-    required_project = parsed_config.get_option('gce.project', None)
+    required_project = parsed_config.get_option('gcp.project', None)
     parser.add_argument(
         '--project',
-        help='GCE project name',
+        help='GCP project name',
         dest='project',
         default=required_project,
         required=not bool(required_project)
@@ -45,22 +45,22 @@ def setup_update_gce_image_args(parser, parsed_config):
     parser.add_argument(
         '--network',
         dest='network',
-        default=parsed_config.get_option('gce.network', 'default'),
+        default=parsed_config.get_option('gcp.network', 'default'),
         required=False
     )
     parser.add_argument(
         '--subnetwork',
         dest='subnetwork',
-        default=parsed_config.get_option('gce.subnetwork', None),
+        default=parsed_config.get_option('gcp.subnetwork', None),
         required=False
     )
     parser.add_argument(
-        '--gce-tag',
-        dest='gce_tags',
+        '--gcp-tag',
+        dest='gcp_tags',
         action='append',
         metavar='VALUE',
         help=(
-              'Set a GCE tag on the updater instance. May be specified '
+              'Set a GCP tag on the updater instance. May be specified '
               'multiple times.'
         )
     )

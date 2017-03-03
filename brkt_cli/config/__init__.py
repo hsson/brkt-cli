@@ -427,7 +427,7 @@ class ConfigSubcommand(Subcommand):
             formatter_class=argparse.RawDescriptionHelpFormatter)
         set_parser.add_argument(
             'option',
-            help='The option name (e.g. encrypt-gce-image.project)')
+            help='The option name (e.g. encrypt-gcp-image.project)')
         set_parser.add_argument(
             'value',
             help='The option value')
@@ -441,7 +441,7 @@ class ConfigSubcommand(Subcommand):
             formatter_class=argparse.RawDescriptionHelpFormatter)
         get_parser.add_argument(
             'option',
-            help='The option name (e.g. encrypt-gce-image.project)')
+            help='The option name (e.g. encrypt-gcp-image.project)')
 
         # Unset the value for an option
         unset_parser = config_subparsers.add_parser(
@@ -452,7 +452,7 @@ class ConfigSubcommand(Subcommand):
             formatter_class=argparse.RawDescriptionHelpFormatter)
         unset_parser.add_argument(
             'option',
-            help='The option name (e.g. encrypt-gce-image.project)')
+            help='The option name (e.g. encrypt-gcp-image.project)')
 
         # Define or update an environment
         set_env_parser = config_subparsers.add_parser(

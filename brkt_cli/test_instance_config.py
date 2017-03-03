@@ -149,8 +149,8 @@ class TestInstanceConfig(unittest.TestCase):
                         "{contents: DUMMY CERT}\n")
 
         """
-        gce_metadata = ic.make_gce_metadata()
-        item_list = gce_metadata['items']
+        gcp_metadata = ic.make_gcp_metadata()
+        item_list = gcp_metadata['items']
         self.assertEqual(len(item_list), 1)
         brkt_item = item_list[0]
         self.assertEqual(brkt_item['key'], 'brkt')

@@ -13,15 +13,15 @@ from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
-from brkt_cli.gce import (
-    encrypt_gce_image,
-    encrypt_gce_image_args,
-    gce_service,
-    launch_gce_image,
-    launch_gce_image_args,
-    update_gce_image,
-    update_encrypted_gce_image_args,
-    share_logs_gce_args,
+from brkt_cli.gcp import (
+    encrypt_gcp_image,
+    encrypt_gcp_image_args,
+    gcp_service,
+    launch_gcp_image,
+    launch_gcp_image_args,
+    update_gcp_image,
+    update_encrypted_gcp_image_args,
+    share_logs_gcp_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -30,28 +30,28 @@ log = logging.getLogger(__name__)
 
 def run_encrypt(values, config):
     session_id = util.make_nonce()
-    gce_svc = gce_service.GCEService(values.project, session_id, log)
-    check_args(values, gce_svc, config)
+    gcp_svc = gcp_service.GCPService(values.project, session_id, log)
+    check_args(values, gcp_svc, config)
 
-    encrypted_image_name = gce_service.get_image_name(
+    encrypted_image_name = gcp_service.get_image_name(
         values.encrypted_image_name, values.image)
-    gce_service.validate_image_name(encrypted_image_name)
+    gcp_service.validate_image_name(encrypted_image_name)
     if values.validate:
-        gce_service.validate_images(gce_svc,
+        gcp_service.validate_images(gcp_svc,
                                     encrypted_image_name,
                                     values.encryptor_image,
                                     values.image,
                                     values.image_project)
-        if values.gce_tags:
-            validate_tags(values.gce_tags)
+        if values.gcp_tags:
+            validate_tags(values.gcp_tags)
 
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
-    log.info('Starting encryptor session %s', gce_svc.get_session_id())
+    log.info('Starting encryptor session %s', gcp_svc.get_session_id())
 
-    encrypted_image_id = encrypt_gce_image.encrypt(
-        gce_svc=gce_svc,
+    encrypted_image_id = encrypt_gcp_image.encrypt(
+        gcp_svc=gcp_svc,
         enc_svc_cls=encryptor_service.EncryptorService,
         image_id=values.image,
         encryptor_image=values.encryptor_image,
@@ -68,7 +68,7 @@ def run_encrypt(values, config):
         subnetwork=values.subnetwork,
         status_port=values.status_port,
         cleanup=values.cleanup,
-        gce_tags=values.gce_tags
+        gcp_tags=values.gcp_tags
     )
     # Print the image name to stdout, in case the caller wants to process
     # the output.  Log messages go to stderr.
@@ -78,26 +78,26 @@ def run_encrypt(values, config):
 
 def run_update(values, config):
     session_id = util.make_nonce()
-    gce_svc = gce_service.GCEService(values.project, session_id, log)
-    check_args(values, gce_svc, config)
+    gcp_svc = gcp_service.GCPService(values.project, session_id, log)
+    check_args(values, gcp_svc, config)
 
-    encrypted_image_name = gce_service.get_image_name(
+    encrypted_image_name = gcp_service.get_image_name(
         values.encrypted_image_name, values.image)
-    gce_service.validate_image_name(encrypted_image_name)
+    gcp_service.validate_image_name(encrypted_image_name)
     if values.validate:
-        gce_service.validate_images(gce_svc,
+        gcp_service.validate_images(gcp_svc,
                                     encrypted_image_name,
                                     values.encryptor_image,
                                     values.image)
-        if values.gce_tags:
-            validate_tags(values.gce_tags)
+        if values.gcp_tags:
+            validate_tags(values.gcp_tags)
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
-    log.info('Starting updater session %s', gce_svc.get_session_id())
+    log.info('Starting updater session %s', gcp_svc.get_session_id())
 
-    updated_image_id = update_gce_image.update_gce_image(
-        gce_svc=gce_svc,
+    updated_image_id = update_gcp_image.update_gcp_image(
+        gcp_svc=gcp_svc,
         enc_svc_cls=encryptor_service.EncryptorService,
         image_id=values.image,
         encryptor_image=values.encryptor_image,
@@ -113,7 +113,7 @@ def run_update(values, config):
         subnetwork=values.subnetwork,
         status_port=values.status_port,
         cleanup=values.cleanup,
-        gce_tags=values.gce_tags
+        gcp_tags=values.gcp_tags
     )
 
     print(updated_image_id)
@@ -121,7 +121,7 @@ def run_update(values, config):
 
 
 def run_launch(values, config):
-    gce_svc = gce_service.GCEService(values.project, None, log)
+    gcp_svc = gcp_service.GCPService(values.project, None, log)
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
     instance_config = instance_config_from_values(
@@ -134,20 +134,20 @@ def run_launch(values, config):
     else:
         extra_items = None
     brkt_userdata = instance_config.make_userdata()
-    metadata = gce_service.gce_metadata_from_userdata(
+    metadata = gcp_service.gcp_metadata_from_userdata(
         brkt_userdata, extra_items=extra_items)
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
     if values.instance_name:
-        gce_service.validate_image_name(values.instance_name)
+        gcp_service.validate_image_name(values.instance_name)
 
 
-    if values.gce_tags:
-        validate_tags(values.gce_tags)
+    if values.gcp_tags:
+        validate_tags(values.gcp_tags)
 
-    encrypted_instance_id = launch_gce_image.launch(log,
-                            gce_svc,
+    encrypted_instance_id = launch_gcp_image.launch(log,
+                            gcp_svc,
                             values.image,
                             values.instance_name,
                             values.zone,
@@ -157,50 +157,50 @@ def run_launch(values, config):
                             values.subnetwork,
                             metadata,
                             values.ssd_scratch_disks,
-                            values.gce_tags)
+                            values.gcp_tags)
     print(encrypted_instance_id)
     return 0
 
 
 def run_sharelogs(values, config):
     session_id = util.make_nonce()
-    gce_svc = gce_service.GCEService(values.project, session_id, log)
-    return share_logs(values, gce_svc)
+    gcp_svc = gcp_service.GCPService(values.project, session_id, log)
+    return share_logs(values, gcp_svc)
 
 
-def share_logs(values, gce_svc):
-    snapshot_name = 'brkt-diag-snapshot-' + gce_svc.get_session_id()
-    instance_name = 'brkt-diag-instance-' + gce_svc.get_session_id()
-    disk_name = 'sdb-' + gce_svc.get_session_id()
+def share_logs(values, gcp_svc):
+    snapshot_name = 'brkt-diag-snapshot-' + gcp_svc.get_session_id()
+    instance_name = 'brkt-diag-instance-' + gcp_svc.get_session_id()
+    disk_name = 'sdb-' + gcp_svc.get_session_id()
     log.info('Sharing logs')
     snap = None 
 
     try:
         image_project = 'ubuntu-os-cloud'
         # Retrieve latest image from family
-        ubuntu_image = gce_svc.get_public_image()
+        ubuntu_image = gcp_svc.get_public_image()
         # Check to see if the bucket is available
 
-        gce_svc.check_bucket_name(values.bucket, values.project)
+        gcp_svc.check_bucket_name(values.bucket, values.project)
 
         # Check to see if the tar file is already in the bucket
-        gce_svc.check_bucket_file(values.bucket, values.path)
+        gcp_svc.check_bucket_file(values.bucket, values.path)
         
         # Create snapshot from root disk
-        gce_svc.create_snapshot(
+        gcp_svc.create_snapshot(
             values.zone, values.instance, snapshot_name)
 
         # Wait for the snapshot to finish
-        gce_svc.wait_snapshot(snapshot_name)
+        gcp_svc.wait_snapshot(snapshot_name)
 
         # Get snapshot object
-        snap = gce_svc.get_snapshot(snapshot_name)
+        snap = gcp_svc.get_snapshot(snapshot_name)
 
         # Create disk from snapshot and wait for it to be ready
-        gce_svc.disk_from_snapshot(values.zone, snapshot_name, disk_name)
+        gcp_svc.disk_from_snapshot(values.zone, snapshot_name, disk_name)
 
         # Wait for disk to initialize
-        gce_svc.wait_for_disk(values.zone, disk_name)
+        gcp_svc.wait_for_disk(values.zone, disk_name)
 
         # Split path name into path and file
         os.path.split(values.path)
@@ -233,15 +233,15 @@ def share_logs(values, gce_svc):
         ]
 
         # launch the instance and wait for it to initialize
-        gce_svc.run_instance(
+        gcp_svc.run_instance(
             values.zone, instance_name, ubuntu_image, disks=disks,
             image_project=image_project, metadata=metadata, delete_boot=True)
 
         # Wait for tar file to upload to bucket
-        if gce_svc.wait_bucket_file(values.bucket, values.path):
+        if gcp_svc.wait_bucket_file(values.bucket, values.path):
             # Add email account to access control list
             try:
-                gce_svc.storage.objectAccessControls().insert(
+                gcp_svc.storage.objectAccessControls().insert(
                     bucket=values.bucket,
                     object=values.path,
                     body={'entity': 'user-%s' % (values.email),
@@ -260,86 +260,86 @@ def share_logs(values, gce_svc):
     finally:
         try:
             if snap:
-                gce_svc.delete_snapshot(snapshot_name)
-            gce_svc.cleanup(values.zone, None)
+                gcp_svc.delete_snapshot(snapshot_name)
+            gcp_svc.cleanup(values.zone, None)
         except Exception as e:
             log.warn("Failed during cleanup: %s", e)
     return 0
 
 
-class GCESubcommand(Subcommand):
+class GCPSubcommand(Subcommand):
 
     def name(self):
-        return 'gce'
+        return 'gcp'
 
     def setup_config(self, config):
         config.register_option(
             '%s.project' % (self.name(),),
-            'The GCE project metavisors will be launched into')
+            'The GCP project metavisors will be launched into')
         config.register_option(
             '%s.network' % (self.name(),),
-            'The GCE network metavisors will be launched into')
+            'The GCP network metavisors will be launched into')
         config.register_option(
             '%s.subnetwork' % (self.name(),),
-            'The GCE subnetwork metavisors will be launched into')
+            'The GCP subnetwork metavisors will be launched into')
         config.register_option(
             '%s.zone' % (self.name(),),
-            'The GCE zone metavisors will be launched into')
+            'The GCP zone metavisors will be launched into')
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
 
-        gce_parser = subparsers.add_parser(
+        gcp_parser = subparsers.add_parser(
             self.name(),
-            description='GCE operations',
-            help='GCE operations'
+            description='GCP operations',
+            help='GCP operations'
         )
 
-        gce_subparsers = gce_parser.add_subparsers(
-            dest='gce_subcommand'
+        gcp_subparsers = gcp_parser.add_subparsers(
+            dest='gcp_subcommand'
         )
 
-        encrypt_gce_image_parser = gce_subparsers.add_parser(
+        encrypt_gcp_image_parser = gcp_subparsers.add_parser(
             'encrypt',
-            description='Create an encrypted GCE image from an existing image',
-            help='Encrypt a GCE image',
+            description='Create an encrypted GCP image from an existing image',
+            help='Encrypt a GCP image',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        encrypt_gce_image_args.setup_encrypt_gce_image_args(
-            encrypt_gce_image_parser, parsed_config)
-        setup_instance_config_args(encrypt_gce_image_parser, parsed_config)
+        encrypt_gcp_image_args.setup_encrypt_gcp_image_args(
+            encrypt_gcp_image_parser, parsed_config)
+        setup_instance_config_args(encrypt_gcp_image_parser, parsed_config)
 
-        update_gce_image_parser = gce_subparsers.add_parser(
+        update_gcp_image_parser = gcp_subparsers.add_parser(
             'update',
             description=(
-                'Update an encrypted GCE image with the latest Metavisor '
+                'Update an encrypted GCP image with the latest Metavisor '
                 'release'),
-            help='Update an encrypted GCE image',
+            help='Update an encrypted GCP image',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        update_encrypted_gce_image_args.setup_update_gce_image_args(
-            update_gce_image_parser, parsed_config)
-        setup_instance_config_args(update_gce_image_parser, parsed_config)
+        update_encrypted_gcp_image_args.setup_update_gcp_image_args(
+            update_gcp_image_parser, parsed_config)
+        setup_instance_config_args(update_gcp_image_parser, parsed_config)
 
-        launch_gce_image_parser = gce_subparsers.add_parser(
+        launch_gcp_image_parser = gcp_subparsers.add_parser(
             'launch',
-            description='Launch a GCE image',
-            help='Launch a GCE image',
+            description='Launch a GCP image',
+            help='Launch a GCP image',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        launch_gce_image_args.setup_launch_gce_image_args(
-            launch_gce_image_parser, parsed_config)
-        setup_instance_config_args(launch_gce_image_parser, parsed_config,
+        launch_gcp_image_args.setup_launch_gcp_image_args(
+            launch_gcp_image_parser, parsed_config)
+        setup_instance_config_args(launch_gcp_image_parser, parsed_config,
                                    mode=INSTANCE_METAVISOR_MODE)
 
-        share_logs_parser = gce_subparsers.add_parser(
+        share_logs_parser = gcp_subparsers.add_parser(
             'share-logs',
             description='Creates a logs file of an instance and uploads it '
                         'to a google bucket',
             help='Upload logs file to google bucket',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        share_logs_gce_args.setup_share_logs_gce_args(share_logs_parser)
+        share_logs_gcp_args.setup_share_logs_gcp_args(share_logs_parser)
         setup_instance_config_args(
             share_logs_parser, parsed_config, mode=INSTANCE_METAVISOR_MODE)
 
@@ -347,21 +347,21 @@ class GCESubcommand(Subcommand):
         return True
 
     def run(self, values):
-        if values.gce_subcommand == 'encrypt':
+        if values.gcp_subcommand == 'encrypt':
             return run_encrypt(values, self.config)
-        if values.gce_subcommand == 'update':
+        if values.gcp_subcommand == 'update':
             return run_update(values, self.config)
-        if values.gce_subcommand == 'launch':
+        if values.gcp_subcommand == 'launch':
             return run_launch(values, self.config)
-        if values.gce_subcommand == 'share-logs':
+        if values.gcp_subcommand == 'share-logs':
             return run_sharelogs(values, self.config)
 
 
 def get_subcommands():
-    return [GCESubcommand()]
+    return [GCPSubcommand()]
 
 
-def check_args(values, gce_svc, cli_config):
+def check_args(values, gcp_svc, cli_config):
     if values.encryptor_image:
         if values.bucket != 'prod':
             raise ValidationError(
@@ -370,10 +370,10 @@ def check_args(values, gce_svc, cli_config):
         raise ValidationError('Must provide a token')
 
     if values.validate:
-        if not gce_svc.project_exists(values.project):
+        if not gcp_svc.project_exists(values.project):
             raise ValidationError(
                 "Project provider either does not exist or you do not have access to it")
-        if not gce_svc.network_exists(values.network):
+        if not gcp_svc.network_exists(values.network):
             raise ValidationError("Network provided does not exist")
         brkt_env = brkt_cli.brkt_env_from_values(values)
         if brkt_env is None:
@@ -383,4 +383,4 @@ def check_args(values, gce_svc, cli_config):
 
 def validate_tags(tags):
     for tag in tags:
-        gce_service.validate_image_name(tag)
+        gcp_service.validate_image_name(tag)
