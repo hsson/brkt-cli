@@ -334,7 +334,8 @@ class GCESubcommand(Subcommand):
 
         share_logs_parser = gce_subparsers.add_parser(
             'share-logs',
-            description='Creates a logs file of an instance and uploads it to a google bucket',
+            description='Creates a logs file of an instance and uploads it '
+                        'to a google bucket',
             help='Upload logs file to google bucket',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
@@ -356,138 +357,9 @@ class GCESubcommand(Subcommand):
             return run_sharelogs(values, self.config)
 
 
-class EncryptGCEImageSubcommand(Subcommand):
-
-    def name(self):
-        return 'encrypt-gce-image'
-
-    def setup_config(self, config):
-        config.register_option(
-            '%s.project' % (self.name(),),
-            'The GCE project metavisors will be launched into')
-        config.register_option(
-            '%s.network' % (self.name(),),
-            'The GCE network metavisors will be launched into')
-        config.register_option(
-            '%s.subnetwork' % (self.name(),),
-            'The GCE subnetwork metavisors will be launched into')
-        config.register_option(
-            '%s.zone' % (self.name(),),
-            'The GCE zone metavisors will be launched into')
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        encrypt_gce_image_parser = subparsers.add_parser(
-            'encrypt-gce-image',
-            description='Create an encrypted GCE image from an existing image',
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-
-        # Migrate any config options if there were set
-        project = parsed_config.get_option('%s.project' % (self.name(),))
-        if project:
-            parsed_config.set_option('gce.project', project)
-            parsed_config.unset_option('%s.project' % (self.name(),))
-
-        network = parsed_config.get_option('%s.network' % (self.name(),))
-        if network:
-            parsed_config.set_option('gce.network', network)
-            parsed_config.unset_option('%s.network' % (self.name(),))
-
-        subnetwork = parsed_config.get_option('%s.subnetwork' % (self.name(),))
-        if subnetwork:
-            parsed_config.set_option('gce.subnetwork', subnetwork)
-            parsed_config.unset_option('%s.subnetwork' % (self.name(),))
-
-        zone = parsed_config.get_option('%s.zone' % (self.name(),))
-        if zone:
-            parsed_config.set_option('gce.zone', zone)
-            parsed_config.unset_option('%s.zone' % (self.name(),))
-        if project or network or subnetwork or zone:
-            parsed_config.save_config()
-
-        encrypt_gce_image_args.setup_encrypt_gce_image_args(
-            encrypt_gce_image_parser, parsed_config)
-        setup_instance_config_args(encrypt_gce_image_parser, parsed_config)
-
-    def debug_log_to_temp_file(self, values):
-        return True
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use brkt gce '
-            'encrypt instead'
-        )
-        return run_encrypt(values, self.config)
-
-
-class UpdateGCEImageSubcommand(Subcommand):
-
-    def name(self):
-        return 'update-gce-image'
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        update_gce_image_parser = subparsers.add_parser(
-            'update-gce-image',
-            description=(
-                'Update an encrypted GCE image with the latest Metavisor '
-                'release'),
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        update_encrypted_gce_image_args.setup_update_gce_image_args(
-            update_gce_image_parser, parsed_config)
-        setup_instance_config_args(update_gce_image_parser, parsed_config)
-
-    def debug_log_to_temp_file(self, values):
-        return True
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use brkt gce '
-            'update instead'
-            )
-        return run_update(values, self.config)
-
-
-class LaunchGCEImageSubcommand(Subcommand):
-
-    def name(self):
-        return 'launch-gce-image'
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        launch_gce_image_parser = subparsers.add_parser(
-            'launch-gce-image',
-            formatter_class=brkt_cli.SortingHelpFormatter,
-            description='Launch a GCE image',
-        )
-        launch_gce_image_args.setup_launch_gce_image_args(
-            launch_gce_image_parser, parsed_config)
-        setup_instance_config_args(launch_gce_image_parser, parsed_config,
-                                   mode=INSTANCE_METAVISOR_MODE)
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use brkt gce '
-            'launch instead'
-        )
-        return run_launch(values, self.config)
-
 def get_subcommands():
-    return [GCESubcommand(),
-            EncryptGCEImageSubcommand(),
-            UpdateGCEImageSubcommand(),
-            LaunchGCEImageSubcommand()]
+    return [GCESubcommand()]
+
 
 def check_args(values, gce_svc, cli_config):
     if values.encryptor_image:
@@ -507,6 +379,7 @@ def check_args(values, gce_svc, cli_config):
         if brkt_env is None:
             _, brkt_env = cli_config.get_current_env()
         brkt_cli.check_jwt_auth(brkt_env, values.token)
+
 
 def validate_tags(tags):
     for tag in tags:
