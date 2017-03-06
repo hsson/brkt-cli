@@ -181,6 +181,10 @@ class TestValidation(unittest.TestCase):
         # Valid image.
         brkt_cli.aws._validate_encryptor_ami(aws_svc, image.id)
 
+        # Valid image.
+        image.name = 'metavisor-0-0-1234'
+        brkt_cli.aws._validate_encryptor_ami(aws_svc, image.id)
+
         # Unexpected name.
         image.name = 'foobar'
         with self.assertRaises(ValidationError):
