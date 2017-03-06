@@ -234,7 +234,7 @@ def run_encrypt(values, config, verbose=False):
 
     mv_image = aws_svc.get_image(encryptor_ami)
     if values.crypto is None:
-        if mv_image.name.startswith('brkt-avatar-freebsd'):
+        if mv_image.name.startswith('metavisor'):
             crypto_policy = CRYPTO_XTS
         elif mv_image.name.startswith('brkt-avatar'):
             crypto_policy = CRYPTO_GCM
@@ -247,7 +247,7 @@ def run_encrypt(values, config, verbose=False):
             crypto_policy = CRYPTO_XTS
     else:
         crypto_policy = values.crypto
-        if crypto_policy == CRYPTO_XTS and not mv_image.name.startswith('brkt-avatar-freebsd'):
+        if crypto_policy == CRYPTO_XTS and not mv_image.name.startswith('metavisor'):
             raise ValidationError(
                 'Unsupported crypto policy %s for encryptor %s' %
                 crypto_policy, mv_image.name
@@ -606,7 +606,7 @@ def _validate_encryptor_ami(aws_svc, ami_id):
     :raise ValidationError if validation fails
     """
     image = _validate_ami(aws_svc, ami_id)
-    if 'brkt-avatar' not in image.name:
+    if 'brkt-avatar' not in image.name and 'metavisor' not in image.name:
         raise ValidationError(
             '%s (%s) is not a Bracket Encryptor image' % (ami_id, image.name)
         )

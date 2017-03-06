@@ -953,7 +953,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
         net_sriov_attr = aws_svc.get_instance_attribute(guest_instance.id,
                                                         "sriovNetSupport")
         if (guest_image.virtualization_type == 'hvm' and
-            'brkt-avatar-freebsd' not in mv_image.name):
+            'metavisor' not in mv_image.name):
             if net_sriov_attr.get("sriovNetSupport") == "simple":
                 log.warn("Guest Operating System license information will not "
                          "be preserved because guest has sriovNetSupport "
@@ -989,7 +989,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
                 vol_type=vol_type, iops=iops, legacy=legacy,
                 save_encryptor_logs=save_encryptor_logs, status_port=status_port)
 
-        if 'brkt-avatar-freebsd' in mv_image.name and \
+        if 'metavisor' in mv_image.name and \
             net_sriov_attr.get("sriovNetSupport") != "simple":
             log.info('Enabling sriovNetSupport for guest instance %s',
                       guest_instance.id)
