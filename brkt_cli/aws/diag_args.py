@@ -14,8 +14,10 @@
 
 import argparse
 
+from brkt_cli.aws import aws_args
 
-def setup_diag_args(parser):
+
+def setup_diag_args(parser, parsed_config):
     parser.add_argument(
         '--snapshot',
         metavar='ID',
@@ -43,13 +45,7 @@ def setup_diag_args(parser):
         default=True,
         help="Don't validate instances and snapshots"
     )
-    parser.add_argument(
-        '--region',
-        metavar='NAME',
-        help='AWS region (e.g. us-west-2)',
-        dest='region',
-        required=True
-    )
+    aws_args.add_region(parser, parsed_config)
     parser.add_argument(
         '--security-group',
         metavar='ID',

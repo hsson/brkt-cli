@@ -393,6 +393,11 @@ class AWSSubcommand(Subcommand):
         # at ERROR level.
         boto.log.setLevel(logging.FATAL)
 
+    def setup_config(self, config):
+        config.register_option(
+            '%s.region' % self.name(),
+            'The AWS region metavisors will be launched into')
+
     def verbose(self, values):
         return values.aws_verbose
 
@@ -420,7 +425,7 @@ class AWSSubcommand(Subcommand):
             ),
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        diag_args.setup_diag_args(diag_parser)
+        diag_args.setup_diag_args(diag_parser, parsed_config)
         diag_parser.set_defaults(aws_subcommand='diag')
 
         encrypt_ami_parser = aws_subparsers.add_parser(
@@ -429,7 +434,8 @@ class AWSSubcommand(Subcommand):
             help='Encrypt an AWS image',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        encrypt_ami_args.setup_encrypt_ami_args(encrypt_ami_parser)
+        encrypt_ami_args.setup_encrypt_ami_args(
+            encrypt_ami_parser, parsed_config)
         setup_instance_config_args(encrypt_ami_parser, parsed_config,
                                    mode=INSTANCE_CREATOR_MODE)
         encrypt_ami_parser.set_defaults(aws_subcommand='encrypt')
@@ -441,7 +447,8 @@ class AWSSubcommand(Subcommand):
             description='Share logs from an existing encrypted instance.',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        share_logs_args.setup_share_logs_args(share_logs_parser)
+        share_logs_args.setup_share_logs_args(
+            share_logs_parser, parsed_config)
         share_logs_parser.set_defaults(aws_subcommand='share-logs')
 
         update_encrypted_ami_parser = aws_subparsers.add_parser(
@@ -454,7 +461,7 @@ class AWSSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         update_encrypted_ami_args.setup_update_encrypted_ami(
-            update_encrypted_ami_parser)
+            update_encrypted_ami_parser, parsed_config)
         setup_instance_config_args(update_encrypted_ami_parser,
                                    parsed_config,
                                    mode=INSTANCE_UPDATER_MODE)
@@ -464,6 +471,9 @@ class AWSSubcommand(Subcommand):
         return values.aws_subcommand in ('encrypt', 'update')
 
     def run(self, values):
+        if not values.region:
+            raise ValidationError(
+                'Specify --region or set the aws.region config key')
         if values.aws_subcommand == 'encrypt':
             verbose = brkt_cli.is_verbose(values, self)
             return run_encrypt(values, self.config, verbose=verbose)

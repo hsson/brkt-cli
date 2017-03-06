@@ -13,8 +13,10 @@
 # limitations under the License.
 import argparse
 
+from brkt_cli.aws import aws_args
 
-def setup_share_logs_args(parser):
+
+def setup_share_logs_args(parser, parsed_config):
     parser.add_argument(
         '--snapshot',
         metavar='ID',
@@ -34,13 +36,7 @@ def setup_share_logs_args(parser):
         default=True,
         help="Don't validate instance has AMI with Bracket tags"
     )
-    parser.add_argument(
-        '--region',
-        metavar='NAME',
-        help='AWS region (e.g. us-west-2)',
-        dest='region',
-        required=True
-    )
+    aws_args.add_region(parser, parsed_config)
     parser.add_argument(
         '-v',
         '--verbose',
