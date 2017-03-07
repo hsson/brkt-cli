@@ -17,9 +17,10 @@ from brkt_cli.util import (
     CRYPTO_GCM,
     CRYPTO_XTS
 )
+from brkt_cli.aws import aws_args
 
 
-def setup_encrypt_ami_args(parser):
+def setup_encrypt_ami_args(parser, parsed_config):
     parser.add_argument(
         'ami',
         metavar='ID',
@@ -48,13 +49,7 @@ def setup_encrypt_ami_args(parser):
         default=True,
         help="Don't validate AMIs, subnet, and security groups"
     )
-    parser.add_argument(
-        '--region',
-        metavar='NAME',
-        help='AWS region (e.g. us-west-2)',
-        dest='region',
-        required=True
-    )
+    aws_args.add_region(parser, parsed_config)
     parser.add_argument(
         '--security-group',
         metavar='ID',

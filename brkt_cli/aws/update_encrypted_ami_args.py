@@ -14,8 +14,10 @@
 
 import argparse
 
+from brkt_cli.aws import aws_args
 
-def setup_update_encrypted_ami(parser):
+
+def setup_update_encrypted_ami(parser, parsed_config):
     parser.add_argument(
         'ami',
         metavar='ID',
@@ -53,13 +55,7 @@ def setup_update_encrypted_ami(parser):
         default=True,
         help="Don't validate AMIs, subnet, and security groups"
     )
-    parser.add_argument(
-        '--region',
-        metavar='REGION',
-        help='AWS region (e.g. us-west-2)',
-        dest='region',
-        required=True
-    )
+    aws_args.add_region(parser, parsed_config)
     parser.add_argument(
         '--security-group',
         metavar='ID',
