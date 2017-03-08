@@ -1116,8 +1116,9 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
                 for ovf_file in ovf_filenames:
                     bucket.download_file(os.path.join(ovf_prefix, ovf_file),
                                          os.path.join('./', ovf_file))
+                log.info("Found OVF image: %s", ovf_name)
             else:
-                log.info("Using previously downloaded OVF image")
+                log.info("Using previously downloaded OVF image: %s", ovf_name)
         else:
             log.error("No OVF image found with name %s in bucket "
                      "%s" % (image_name, bucket_name))
