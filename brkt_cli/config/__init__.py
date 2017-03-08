@@ -344,6 +344,36 @@ class CLIConfig(object):
             raise
 
 
+def _get_yeti_service(parsed_config):
+    _, env = parsed_config.get_current_env()
+    root_url = 'https://%s:%d' % (
+        env.public_api_host, env.public_api_port)
+    token = parsed_config.get_option('api-token')
+    return YetiService(root_url, token=token)
+
+
+def get_yeti_service(parsed_config):
+    """ Return a YetiService object based on the given CLIConfig.
+
+    :raise ValidationError if the API token is not set in config, or if
+    authentication with Yeti fails.
+    """
+    y = _get_yeti_service(parsed_config)
+    if not y.token:
+        raise ValidationError(
+            'Not logged in.  Please run brkt config login.')
+
+    try:
+        y.get_customer()
+    except YetiError as e:
+        if e.http_status == 401:
+            raise ValidationError(
+                'Config API token is not authorized to access %s' %
+                y.root_url)
+        raise ValidationError(e.message)
+    return y
+
+
 class ConfigSubcommand(Subcommand):
     def __init__(self, stdout=sys.stdout):
         self.stdout = stdout
@@ -695,19 +725,11 @@ The leading `*' indicates that the `stage' environment is currently active.
             raise ValidationError('Error: unknown environment ' + values.env_name)
         self.parsed_config.save_config()
 
-    def _get_yeti_service(self):
-        """Return the YetiService object for the current environment."""
-        _, env = self.parsed_config.get_current_env()
-        root_url = 'https://%s:%d' % (
-            env.public_api_host, env.public_api_port)
-        token = self.parsed_config.get_option('api-token')
-        return YetiService(root_url, token=token)
-
     def _login(self, values):
         """ Authenticate with Yeti and store the API token in config. """
         email = values.email or raw_input('Email: ')
         password = values.password or getpass.getpass('Password: ')
-        y = self._get_yeti_service()
+        y = _get_yeti_service(self.parsed_config)
 
         try:
             token = y.auth(email, password)
@@ -728,23 +750,13 @@ The leading `*' indicates that the `stage' environment is currently active.
         env_name, _ = self.parsed_config.get_current_env()
         log.debug('Current environment: %s', env_name)
 
-        y = self._get_yeti_service()
-        if not y.token:
-            raise ValidationError(
-                'Not logged in.  Please run brkt config login.')
-        try:
-            if values.json:
-                d = y.get_customer_json()
-                print util.pretty_print_json(d)
-            else:
-                cust = y.get_customer()
-                print cust.email
-        except YetiError as e:
-            if e.http_status == 401:
-                raise ValidationError(
-                    'Config API token is not authorized to access %s' %
-                    y.root_url)
-            raise ValidationError(e.message)
+        y = get_yeti_service(self.parsed_config)
+        if values.json:
+            d = y.get_customer_json()
+            print util.pretty_print_json(d)
+        else:
+            cust = y.get_customer()
+            print cust.email
 
     def run(self, values):
         subcommand = values.config_subcommand
