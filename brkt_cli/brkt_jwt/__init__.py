@@ -25,7 +25,7 @@ import iso8601
 import jwt
 
 import brkt_cli
-from brkt_cli import argutil, util, version
+from brkt_cli import argutil, config, util, version
 from brkt_cli.brkt_jwt import jwk
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.validation import ValidationError
@@ -35,13 +35,78 @@ log = logging.getLogger(__name__)
 
 SUBCOMMAND_NAME = 'make-token'
 
+# Registered claim names, per RFC 7519.
+JWT_REGISTERED_CLAIMS = (
+    'iss', 'sub', 'aud', 'exp', 'nbf', 'iat', 'jti'
+)
+
+
+def _name_value_list_to_dict(l):
+    """ Convert a list of NAME=VALUE strings to a dictionary.
+    :raise ValidationError if a key is specified more than once.
+    """
+    d = {}
+    if l:
+        for name_value in l:
+            name, value = util.parse_name_value(name_value)
+            validate_name_value(name, value)
+            if name in d:
+                raise ValidationError(
+                    'Claim %s specified multiple times' % name)
+            d[name] = value
+    return d
+
+
+def _brkt_tags_from_name_value_list(l):
+    """ Convert a list of NAME=VALUE strings to a dictionary.
+
+    :raise ValidationError if a key is specified more than once or a key
+    matches a JWT registered claim
+    """
+    d = _name_value_list_to_dict(l)
+    for k, _ in d.iteritems():
+        if k.lower() in JWT_REGISTERED_CLAIMS:
+            raise ValidationError(
+                k + ' is a JWT registered claim'
+            )
+    return d
+
+
+def _make_jwt_from_signing_key(values, signing_key):
+    crypto = util.read_private_key(signing_key)
+    exp = None
+    if values.exp:
+        exp = parse_timestamp(values.exp)
+    nbf = None
+    if values.nbf:
+        nbf = parse_timestamp(values.nbf)
+    customer = None
+    if values.customer:
+        customer = str(values.customer)
+
+    # Merge claims and tags.
+    claims = _name_value_list_to_dict(values.claims)
+    claims.update(_brkt_tags_from_name_value_list(values.brkt_tags))
+
+    return make_jwt(
+        crypto,
+        exp=exp,
+        nbf=nbf,
+        customer=customer,
+        claims=claims
+    )
+
 
 class MakeTokenSubcommand(Subcommand):
+
+    def __init__(self):
+        self.config = None
 
     def name(self):
         return SUBCOMMAND_NAME
 
     def register(self, subparsers, parsed_config):
+        self.config = parsed_config
         setup_make_jwt_args(subparsers)
 
     def verbose(self, values):
@@ -55,37 +120,30 @@ class MakeTokenSubcommand(Subcommand):
             )
 
         signing_key = values.signing_key or values.signing_key_option
-        if not signing_key:
-            raise ValidationError('Signing key path was not specified')
+        if signing_key:
+            # Original workflow: create a launch token from a private key.
+            jwt_string = _make_jwt_from_signing_key(values, signing_key)
+        else:
+            # We're scaling back the list of supported claims.  Don't allow
+            # these until there's a need, and the service API supports it.
+            msg = (
+                '%s is not supported when getting a launch '
+                'token from the Bracket service'
+            )
+            if values.claims:
+                raise ValidationError(msg % '--claim')
+            if values.customer:
+                raise ValidationError(msg % '--customer')
+            if values.exp:
+                raise ValidationError(msg % '--exp')
+            if values.nbf:
+                raise ValidationError(msg % '--nbf')
 
-        crypto = util.read_private_key(signing_key)
-        exp = None
-        if values.exp:
-            exp = parse_timestamp(values.exp)
-        nbf = None
-        if values.nbf:
-            nbf = parse_timestamp(values.nbf)
-        customer = None
-        if values.customer:
-            customer = str(values.customer)
+            # New workflow: get a launch token from Yeti.
+            yeti = config.get_yeti_service(self.config)
+            tags = _brkt_tags_from_name_value_list(values.brkt_tags)
+            jwt_string = yeti.get_token(tags=tags)
 
-        claims = {}
-        if values.claims:
-            for name_value in values.claims:
-                name, value = util.parse_name_value(name_value)
-                validate_name_value(name, value)
-                if name in claims:
-                    raise ValidationError('Claim %s specified multiple times' % name)
-                claims[name] = value
-
-        jwt_string = make_jwt(
-            crypto,
-            exp=exp,
-            nbf=nbf,
-            customer=customer,
-            claims=claims
-        )
-        log.debug(jwt_string)
         log.debug('Header: %s', json.dumps(get_header(jwt_string)))
         log.debug('Payload: %s', json.dumps(get_payload(jwt_string)))
         util.write_to_file_or_stdout(jwt_string, path=values.out)
@@ -221,8 +279,10 @@ def setup_make_jwt_args(subparsers):
     parser = subparsers.add_parser(
         SUBCOMMAND_NAME,
         description=(
-            'Generate a JSON Web Token for encrypting an instance or '
-            'launching an encrypted instance. A timestamp can be either a '
+            'Generate a launch token (JSON Web Token) for encrypting an '
+            'instance or launching an encrypted instance. If a signing key is '
+            'not specified, get a token from the Bracket service. '
+            'A timestamp can be either a '
             'Unix timestamp in seconds or ISO 8601 (2016-05-10T19:15:36Z). '
             'Timezone offset defaults to UTC if not specified.'),
         help=(
@@ -231,8 +291,6 @@ def setup_make_jwt_args(subparsers):
         formatter_class=brkt_cli.SortingHelpFormatter
     )
 
-    # TODO: Make this a required argument when we remove the --signing-key
-    # option.
     parser.add_argument(
         'signing_key',
         metavar='SIGNING-KEY-PATH',
@@ -241,6 +299,18 @@ def setup_make_jwt_args(subparsers):
             'The private key that is used to sign the JWT. The key must be a '
             '384-bit ECDSA private key (NIST P-384) in PEM format.')
     )
+
+    parser.add_argument(
+        '--brkt-tag',
+        metavar='NAME=VALUE',
+        dest='brkt_tags',
+        help=(
+            'Bracket tag which will be embedded in the JWT as a claim.  All '
+            'characters must be alphanumeric or [-_.].  The tag name cannot '
+            'be a JWT registered claim name (see RFC 7519).'),
+        action='append'
+    )
+
     parser.add_argument(
         '--claim',
         metavar='NAME=VALUE',

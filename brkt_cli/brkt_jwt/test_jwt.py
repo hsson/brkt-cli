@@ -125,3 +125,23 @@ class TestJWK(unittest.TestCase):
         l = long('deadbeef', 16)
         ba = brkt_jwt.jwk._long_to_byte_array(l)
         self.assertEqual(bytearray.fromhex('deadbeef'), ba)
+
+
+class TestNameValueToDict(unittest.TestCase):
+
+    def test_name_value_to_dict(self):
+        self.assertEqual(
+            {'a': 'b', 'c': 'd'},
+            brkt_jwt._name_value_list_to_dict(['a=b', 'c=d'])
+        )
+        with self.assertRaises(ValidationError):
+            brkt_jwt._name_value_list_to_dict(['a=b', 'a=c'])
+
+    def test_brkt_tags_from_name_value_list(self):
+        self.assertEqual(
+            {'a': 'b', 'c': 'd'},
+            brkt_jwt._brkt_tags_from_name_value_list(['a=b', 'c=d'])
+        )
+
+        with self.assertRaises(ValidationError):
+            brkt_jwt._brkt_tags_from_name_value_list(['exp=1'])
