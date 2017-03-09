@@ -618,7 +618,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.set_option(opt, val)
         except InvalidOptionError:
             raise ValidationError('Error: unknown option "%s".' % (opt,))
-        self.parsed_config.save_config()
         return 0
 
     def _unset_option(self, opt):
@@ -627,7 +626,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.unset_option(opt)
         except InvalidOptionError:
             raise ValidationError('Error: unknown option "%s".' % (opt,))
-        self.parsed_config.save_config()
         return 0
 
     def _set_env(self, values):
@@ -660,11 +658,10 @@ The leading `*' indicates that the `stage' environment is currently active.
         if values.service_domain is not None:
             env = brkt_cli.brkt_env_from_domain(values.service_domain)
         self.parsed_config.set_env(values.env_name, env)
-        self.parsed_config.save_config()
         return 0
 
     def _use_env(self, values):
-        """Set the active environemnt"""
+        """Set the active environment"""
         try:
             self.parsed_config.set_current_env(values.env_name)
         except UnknownEnvironmentError:
@@ -682,7 +679,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             for attr in e.missing_keys:
                 opts.append(attr_opt[attr])
             raise ValidationError(msg % (values.env_name, ', '.join(opts)))
-        self.parsed_config.save_config()
 
     def _list_envs(self):
         """Display all envs"""
@@ -723,7 +719,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.unset_env(values.env_name)
         except UnknownEnvironmentError:
             raise ValidationError('Error: unknown environment ' + values.env_name)
-        self.parsed_config.save_config()
 
     def _login(self, values):
         """ Authenticate with Yeti and store the API token in config. """
@@ -737,14 +732,7 @@ The leading `*' indicates that the `stage' environment is currently active.
             raise ValidationError(e.message)
 
         self.parsed_config.set_option('api-token', token)
-        self.parsed_config.save_config()
-
-        env_name, _ = self.parsed_config.get_current_env()
-        print 'Logged into %s as %s' % (env_name, email)
-
-    def _logout(self):
-        self.parsed_config.unset_option('api-token')
-        self.parsed_config.save_config()
+        return email
 
     def _whoami(self, values):
         env_name, _ = self.parsed_config.get_current_env()
@@ -764,24 +752,33 @@ The leading `*' indicates that the `stage' environment is currently active.
             self._list_options()
         elif subcommand == 'set':
             self._set_option(values.option, values.value)
+            self.parsed_config.save_config()
         elif subcommand == 'get':
             self._get_option(values.option)
         elif subcommand == 'unset':
             self._unset_option(values.option)
+            self.parsed_config.save_config()
         elif subcommand == 'set-env':
             self._set_env(values)
+            self.parsed_config.save_config()
         elif subcommand == 'use-env':
             self._use_env(values)
+            self.parsed_config.save_config()
         elif subcommand == 'list-envs':
             self._list_envs()
         elif subcommand == 'get-env':
             self._get_env(values)
         elif subcommand == 'unset-env':
             self._unset_env(values)
+            self.parsed_config.save_config()
         elif subcommand == 'login':
-            self._login(values)
+            email = self._login(values)
+            self.parsed_config.save_config()
+            env_name, _ = self.parsed_config.get_current_env()
+            print 'Logged into %s as %s' % (env_name, email)
         elif subcommand == 'logout':
-            self._logout()
+            self.parsed_config.unset_option('api-token')
+            self.parsed_config.save_config()
         elif subcommand == 'whoami':
             self._whoami(values)
         return 0
