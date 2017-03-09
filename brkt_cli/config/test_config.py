@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import os
 import StringIO
 import unittest
 
@@ -306,3 +307,27 @@ class ConfigCommandTestCase(unittest.TestCase):
         self.cmd._unset_env(UnsetEnvValues('test1'))
         self.cmd._list_envs()
         self.assertEqual(self.out.getvalue(), "* brkt-hosted\n")
+
+
+class YetiServiceTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.original_token = os.environ.get('BRKT_API_TOKEN')
+
+    def tearDown(self):
+        if self.original_token:
+            os.environ['BRKT_API_TOKEN'] = self.original_token
+        else:
+            del os.environ['BRKT_API_TOKEN']
+
+    def test_get_yeti_service(self):
+        cfg = CLIConfig()
+        cfg.register_option('api-token', '')
+        y = brkt_cli.config._get_yeti_service(cfg)
+        self.assertEqual('https://api.mgmt.brkt.com:443', y.root_url)
+        self.assertEqual(self.original_token, y.token)
+
+        # Make sure the API token environment variable is picked up.
+        os.environ['BRKT_API_TOKEN'] = 'abc'
+        y = brkt_cli.config._get_yeti_service(cfg)
+        self.assertEqual('abc', y.token)

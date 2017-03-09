@@ -15,9 +15,7 @@ import getpass
 import logging
 
 import brkt_cli
-from brkt_cli import ValidationError
-from brkt_cli import argutil
-from brkt_cli import util
+from brkt_cli import argutil, ValidationError, util
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.yeti import YetiService, YetiError
 
@@ -29,10 +27,15 @@ SUBCOMMAND_NAME = 'auth'
 
 class AuthSubcommand(Subcommand):
 
+    def __init__(self):
+        self.cfg = None
+
     def name(self):
         return SUBCOMMAND_NAME
 
     def register(self, subparsers, parsed_config):
+        self.cfg = parsed_config
+
         parser = subparsers.add_parser(
             self.name(),
             description=(
@@ -53,10 +56,14 @@ class AuthSubcommand(Subcommand):
             '--password',
             help='If not specified, show a prompt.'
         )
+
+        _, env = parsed_config.get_current_env()
+        default_url = 'https://%s:%d' % (
+            env.public_api_host, env.public_api_port)
         parser.add_argument(
             '--root-url',
             metavar='URL',
-            default='https://api.mgmt.brkt.com',
+            default=default_url,
             help='Bracket service root URL'
         )
         argutil.add_out(parser)
@@ -68,6 +75,9 @@ class AuthSubcommand(Subcommand):
         try:
             token = y.auth(email, password)
         except YetiError as e:
+            if e.http_status == 401:
+                raise ValidationError(
+                    'Invalid email or password for %s' % values.root_url)
             raise ValidationError(e.message)
         util.write_to_file_or_stdout(token, path=values.out)
 
