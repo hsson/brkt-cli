@@ -730,6 +730,14 @@ class VCenterService(BaseVCenterService):
             vm_name = "template-vm-" + timestamp
         task = vm.Clone(folder=destfolder, name=vm_name, spec=clonespec)
         self.__wait_for_task(task)
+        try:
+            vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
+            return vm
+        except (BadStatusLine, vmodl.fault.ManagedObjectNotFound) as e:
+            log.debug("VM %s not found with error %s, retrying", vm_name, e)
+            pass
+        self.disconnect()
+        self.connect()
         vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
         return vm
 
