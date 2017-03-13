@@ -348,7 +348,10 @@ def _get_yeti_service(parsed_config):
     _, env = parsed_config.get_current_env()
     root_url = 'https://%s:%d' % (
         env.public_api_host, env.public_api_port)
-    token = parsed_config.get_option('api-token')
+    token = (
+        os.environ.get('BRKT_API_TOKEN') or
+        parsed_config.get_option('api-token')
+    )
     return YetiService(root_url, token=token)
 
 
@@ -361,14 +364,14 @@ def get_yeti_service(parsed_config):
     y = _get_yeti_service(parsed_config)
     if not y.token:
         raise ValidationError(
-            'Not logged in.  Please run brkt config login.')
+            '$BRKT_API_TOKEN is not set. Run brkt auth to get an API token.')
 
     try:
         y.get_customer()
     except YetiError as e:
         if e.http_status == 401:
             raise ValidationError(
-                'Config API token is not authorized to access %s' %
+                '$BRKT_API_TOKEN is not authorized to access %s' %
                 y.root_url)
         raise ValidationError(e.message)
     return y
