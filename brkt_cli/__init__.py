@@ -31,7 +31,6 @@ from brkt_cli.config import CLIConfig, CONFIG_PATH
 from brkt_cli.proxy import Proxy, generate_proxy_config, validate_proxy_config
 from brkt_cli.util import validate_dns_name_ip_address
 from brkt_cli.validation import ValidationError
-from brkt_cli.yeti import YetiService, YetiError
 
 # The list of modules that may be loaded.  Modules contain subcommands of
 # the brkt command and CSP-specific code.
@@ -267,52 +266,6 @@ def validate_jwt(jwt):
         )
 
     return jwt
-
-
-def check_jwt_auth(brkt_env, jwt):
-    """ Authenticate with Yeti using the given JWT and make sure that the
-    associated public key is registered with the account.
-
-    :param brkt_env a BracketEnvironment object
-    :param jwt a JWT string
-    :raise ValidationError if the token fails auth or the public key is not
-    registered with the given account
-    """
-    validate_jwt(jwt)
-    root_url = 'https://%s:%d' % (
-        brkt_env.public_api_host,
-        brkt_env.public_api_port
-    )
-    y = YetiService(root_url, token=jwt)
-    try:
-        y.get_customer()
-    except YetiError as e:
-        if e.http_status == 401:
-            raise ValidationError(
-                'Token is not authorized to access %s' %
-                brkt_env.public_api_host
-            )
-        elif e.http_status == 400:
-            message = 'Invalid token'
-            if e.message:
-                message += ': ' % e.message
-            raise ValidationError(message)
-        else:
-            # Unexpected server response.  Log a warning and continue, so
-            # that we don't unnecessarily interrupt the encryption process.
-            log.warn(
-                'Unable to validate token.  Server returned error %d %s.  '
-                'Use --no-validate to disable validation.',
-                e.http_status,
-                e.message
-            )
-    except IOError:
-        log.debug('', exc_info=1)
-        log.warn(
-            'Unable to validate token against %s.  Use --no-validate to '
-            'disable validation.',
-            root_url
-        )
 
 
 def validate_ssh_pub_key(key):

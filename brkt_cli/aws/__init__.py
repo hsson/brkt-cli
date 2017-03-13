@@ -212,9 +212,6 @@ def run_encrypt(values, config, verbose=False):
         # Validate the region before connecting.
         _validate_region(aws_svc, values.region)
 
-        if values.token:
-            brkt_cli.check_jwt_auth(brkt_env, values.token)
-
     aws_svc.connect(values.region, key_name=values.key_name)
 
     if values.validate:
@@ -305,9 +302,6 @@ def run_update(values, config, verbose=False):
     if values.validate:
         # Validate the region before connecting.
         _validate_region(aws_svc, values.region)
-
-        if values.token:
-            brkt_cli.check_jwt_auth(brkt_env, values.token)
 
     aws_svc.connect(values.region, key_name=values.key_name)
     encrypted_image = _validate_ami(aws_svc, values.ami)
