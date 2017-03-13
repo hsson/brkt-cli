@@ -52,7 +52,7 @@ setup(
         'brkt_cli.config',
         'brkt_cli.crypto',
         'brkt_cli.esx',
-        'brkt_cli.gce',
+        'brkt_cli.gcp',
         'brkt_cli.get_public_key',
         'brkt_cli.make_key',
         'brkt_cli.make_user_data'
@@ -79,5 +79,5 @@ setup(
         ]
     },
     package_dir={'brkt_cli': 'brkt_cli'},
-    test_suite='test test_gce'
+    test_suite='test test_gcp'
 )

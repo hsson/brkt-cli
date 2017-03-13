@@ -5,7 +5,7 @@ from brkt_cli.util import (
 )
 
 
-def setup_encrypt_gce_image_args(parser, parsed_config):
+def setup_encrypt_gcp_image_args(parser, parsed_config):
     parser.add_argument(
         'image',
         metavar='ID',
@@ -19,9 +19,9 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
         required=False
     )
     zone_kwargs = {
-        'help': 'GCE zone to operate in',
+        'help': 'GCP zone to operate in',
         'dest': 'zone',
-        'default': parsed_config.get_option('gce.zone'),
+        'default': parsed_config.get_option('gcp.zone'),
         'required': False,
     }
     if zone_kwargs['default'] is None:
@@ -38,9 +38,9 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
         help="Don't validate images or token"
     )
     proj_kwargs = {
-        'help': 'GCE project name',
+        'help': 'GCP project name',
         'dest': 'project',
-        'default': parsed_config.get_option('gce.project'),
+        'default': parsed_config.get_option('gcp.project'),
         'required': False,
     }
     if proj_kwargs['default'] is None:
@@ -51,7 +51,7 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
     parser.add_argument(
         '--image-project',
         metavar='NAME',
-        help='GCE project name which owns the image (e.g. centos-cloud)',
+        help='GCP project name which owns the image (e.g. centos-cloud)',
         dest='image_project',
         required=False
     )
@@ -63,22 +63,22 @@ def setup_encrypt_gce_image_args(parser, parsed_config):
     parser.add_argument(
         '--network',
         dest='network',
-        default=parsed_config.get_option('gce.network', 'default'),
+        default=parsed_config.get_option('gcp.network', 'default'),
         required=False
     )
     parser.add_argument(
         '--subnetwork',
         dest='subnetwork',
-        default=parsed_config.get_option('gce.subnetwork', None),
+        default=parsed_config.get_option('gcp.subnetwork', None),
         required=False
     )
     parser.add_argument(
-        '--gce-tag',
+        '--gcp-tag',
         metavar='VALUE',
-        dest='gce_tags',
+        dest='gcp_tags',
         action='append',
         help=(
-              'Set a GCE tag on the encryptor instance. May be specified'
+              'Set a GCP tag on the encryptor instance. May be specified'
               ' multiple times.'
         )
     )

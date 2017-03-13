@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def setup_share_logs_gce_args(parser):
+def setup_share_logs_gcp_args(parser):
     parser.add_argument(
         '--instance',
         metavar='NAME',
@@ -24,7 +24,7 @@ def setup_share_logs_gce_args(parser):
     parser.add_argument(
         '--zone',
         metavar='NAME',
-        help='GCE zone (e.g. us-central1-a)',
+        help='GCP zone (e.g. us-central1-a)',
         dest='zone',
         required=True
     )
