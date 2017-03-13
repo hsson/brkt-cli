@@ -14,6 +14,8 @@
 import getpass
 import logging
 
+import sys
+
 import brkt_cli
 from brkt_cli import argutil, ValidationError, util
 from brkt_cli.subcommand import Subcommand
@@ -69,7 +71,12 @@ class AuthSubcommand(Subcommand):
         argutil.add_out(parser)
 
     def run(self, values):
-        email = values.email or raw_input('Email: ')
+        email = values.email
+        if not email:
+            # Write to stderr, so that the user doesn't see the prompt
+            # in the output file when redirecting stdout.
+            sys.stderr.write('Email: ')
+            email = raw_input()
         password = values.password or getpass.getpass('Password: ')
         y = YetiService(values.root_url)
         try:
