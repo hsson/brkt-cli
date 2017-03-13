@@ -378,7 +378,6 @@ def check_args(values, gcp_svc, cli_config):
         brkt_env = brkt_cli.brkt_env_from_values(values)
         if brkt_env is None:
             _, brkt_env = cli_config.get_current_env()
-        brkt_cli.check_jwt_auth(brkt_env, values.token)
 
 
 def validate_tags(tags):
