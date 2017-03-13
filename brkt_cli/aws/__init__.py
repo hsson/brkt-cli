@@ -19,6 +19,7 @@ import urllib2
 
 import boto
 from boto.exception import EC2ResponseError, NoAuthHandlerFound
+from brkt_cli import instance_config_args
 
 import brkt_cli
 from brkt_cli import encryptor_service, util
@@ -250,8 +251,13 @@ def run_encrypt(values, config, verbose=False):
                 crypto_policy, mv_image.name
             )
 
+    lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_CREATOR_MODE, cli_config=config)
+        values,
+        mode=INSTANCE_CREATOR_MODE,
+        cli_config=config,
+        launch_token=lt)
+
     if verbose:
         with tempfile.NamedTemporaryFile(
             prefix='user-data-',
@@ -352,8 +358,13 @@ def run_update(values, config, verbose=False):
         encrypted_image.id, encryptor_ami
     )
 
+    lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_UPDATER_MODE, cli_config=config)
+        values,
+        mode=INSTANCE_UPDATER_MODE,
+        cli_config=config,
+        launch_token=lt
+    )
     if verbose:
         with tempfile.NamedTemporaryFile(
             prefix='user-data-',

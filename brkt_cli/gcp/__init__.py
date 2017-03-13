@@ -3,7 +3,7 @@ import logging
 import os
 from brkt_cli.subcommand import Subcommand
 
-from brkt_cli import encryptor_service, util
+from brkt_cli import encryptor_service, instance_config_args, util
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_METAVISOR_MODE,
@@ -50,6 +50,13 @@ def run_encrypt(values, config):
 
     log.info('Starting encryptor session %s', gcp_svc.get_session_id())
 
+    lt = instance_config_args.get_launch_token(values, config)
+    ic = instance_config_from_values(
+        values,
+        mode=INSTANCE_CREATOR_MODE,
+        cli_config=config,
+        launch_token=lt
+    )
     encrypted_image_id = encrypt_gcp_image.encrypt(
         gcp_svc=gcp_svc,
         enc_svc_cls=encryptor_service.EncryptorService,
@@ -57,8 +64,7 @@ def run_encrypt(values, config):
         encryptor_image=values.encryptor_image,
         encrypted_image_name=encrypted_image_name,
         zone=values.zone,
-        instance_config=instance_config_from_values(
-            values, mode=INSTANCE_CREATOR_MODE, cli_config=config),
+        instance_config=ic,
         crypto_policy=values.crypto,
         image_project=values.image_project,
         keep_encryptor=values.keep_encryptor,
@@ -96,6 +102,13 @@ def run_update(values, config):
 
     log.info('Starting updater session %s', gcp_svc.get_session_id())
 
+    lt = instance_config_args.get_launch_token(values, config)
+    ic = instance_config_from_values(
+        values,
+        mode=INSTANCE_UPDATER_MODE,
+        cli_config=config,
+        launch_token=lt
+    )
     updated_image_id = update_gcp_image.update_gcp_image(
         gcp_svc=gcp_svc,
         enc_svc_cls=encryptor_service.EncryptorService,
@@ -103,9 +116,7 @@ def run_update(values, config):
         encryptor_image=values.encryptor_image,
         encrypted_image_name=encrypted_image_name,
         zone=values.zone,
-        instance_config=instance_config_from_values(
-            values, mode=INSTANCE_UPDATER_MODE,
-            cli_config=config),
+        instance_config=ic,
         keep_encryptor=values.keep_encryptor,
         image_file=values.image_file,
         image_bucket=values.bucket,

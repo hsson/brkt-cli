@@ -21,6 +21,7 @@ from cryptography.hazmat.backends import default_backend
 import brkt_cli
 from brkt_cli import (
     add_brkt_env_to_brkt_config,
+    config,
     encryptor_service,
     get_proxy_config
 )
@@ -135,13 +136,15 @@ def setup_instance_config_args(parser, parsed_config,
 
 
 def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
-                                cli_config=None):
+                                cli_config=None, launch_token=None):
     """ Return an InstanceConfig object, based on options specified on
     the command line and Metavisor mode.
 
     :param values an argparse.Namespace object
     :param mode the mode in which Metavisor is running
     :param cli_config an brkt_cli.config.CLIConfig instance
+    :param launch_token the token that Metavisor will use to authenticate
+    with Yeti.  If not specified, use values.token.
     """
     brkt_config = {}
     if not values:
@@ -175,8 +178,9 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
         )
     add_brkt_env_to_brkt_config(brkt_env, brkt_config)
 
-    if values.token:
-        brkt_config['identity_token'] = values.token
+    launch_token = launch_token or values.token
+    if launch_token:
+        brkt_config['identity_token'] = launch_token
 
     if values.ntp_servers:
         brkt_config['ntp_servers'] = values.ntp_servers
@@ -215,6 +219,21 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
         ic.add_brkt_file('vpn.yaml', 'fqdn: ' + values.guest_fqdn)
 
     return ic
+
+
+def get_launch_token(values, cli_config):
+    """ Return the launch token either from values.token or from Yeti, in that
+    order.
+
+    :raise YetiError if an error occurs while talking to Yeti
+    """
+    token = values.token
+    if not token:
+        log.debug('Getting launch token from Yeti')
+        y = config.get_yeti_service(cli_config)
+        token = y.get_launch_token()
+
+    return token
 
 
 def instance_config_args_to_values(cli_args, mode=INSTANCE_CREATOR_MODE):

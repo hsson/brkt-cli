@@ -142,7 +142,7 @@ class MakeTokenSubcommand(Subcommand):
             # New workflow: get a launch token from Yeti.
             yeti = config.get_yeti_service(self.config)
             tags = _brkt_tags_from_name_value_list(values.brkt_tags)
-            jwt_string = yeti.get_token(tags=tags)
+            jwt_string = yeti.get_launch_token(tags=tags)
 
         log.debug('Header: %s', json.dumps(get_header(jwt_string)))
         log.debug('Payload: %s', json.dumps(get_payload(jwt_string)))
