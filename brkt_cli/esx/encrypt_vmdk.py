@@ -113,6 +113,8 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                 log.info("Creating the template VM")
                 template_vm = vc_swc.clone_vm(vm, vm_name=vm_name, template=True)
                 print(vc_swc.get_vm_name(template_vm))
+        # Clean up encryptor VM in case of successful encryption
+        vc_swc.set_teardown(False)
     except Exception:
         log.exception("Failed to encrypt the image")
         try:
