@@ -145,7 +145,7 @@ class YetiService(object):
             email=d['email']
         )
 
-    def get_token(self, tags=None):
+    def get_launch_token(self, tags=None):
         """ Return a Metavisor launch token (JWT).
 
         :param tags a string map that specifies Bracket tags that will be

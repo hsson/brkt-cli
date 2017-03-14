@@ -23,6 +23,7 @@ from brkt_cli.subcommand import Subcommand
 
 from brkt_cli import (
     encryptor_service,
+    instance_config_args,
     util
 )
 from brkt_cli.instance_config import (
@@ -170,8 +171,13 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                               "thick-eager-zeroed" % (values.disk_type,))
 
     try:
+        lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
-            values, mode=INSTANCE_CREATOR_MODE, cli_config=parsed_config)
+            values,
+            mode=INSTANCE_CREATOR_MODE,
+            cli_config=parsed_config,
+            launch_token=lt
+        )
         crypto_policy = values.crypto
         if crypto_policy is None:
             crypto_policy = CRYPTO_XTS
@@ -332,8 +338,13 @@ def run_update(values, parsed_config, log, use_esx=False):
             raise ValidationError("Template VM %s not found" %
                                   values.template_vm_name)
     try:
+        lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
-            values, mode=INSTANCE_UPDATER_MODE, cli_config=parsed_config)
+            values,
+            mode=INSTANCE_UPDATER_MODE,
+            cli_config=parsed_config,
+            launch_token=lt
+        )
         user_data_str = vc_swc.create_userdata_str(instance_config,
             update=True, ssh_key_file=values.ssh_public_key_file)
         if (values.encryptor_vmdk is not None):
