@@ -29,6 +29,8 @@ from brkt_cli.aws import (
     diag_args,
     encrypt_ami,
     encrypt_ami_args,
+    wrap_image,
+    wrap_image_args,
     share_logs,
     share_logs_args,
     update_encrypted_ami_args
@@ -41,6 +43,7 @@ from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_UPDATER_MODE,
+    INSTANCE_METAVISOR_MODE,
 )
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
@@ -189,6 +192,59 @@ def run_share_logs(values):
         snapshot_id=values.snapshot_id,
         bracket_aws_account=values.bracket_aws_account
     )
+    return 0
+
+
+@_handle_aws_errors
+def run_wrap_image(values, config, verbose=False):
+    nonce = util.make_nonce()
+
+    aws_svc = aws_service.AWSService(
+        nonce,
+        retry_timeout=values.retry_timeout,
+        retry_initial_sleep_seconds=values.retry_initial_sleep_seconds
+    )
+    log.debug(
+        'Retry timeout=%.02f, initial sleep seconds=%.02f',
+        aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
+
+    aws_svc.connect(values.region, key_name=values.key_name)
+
+    if values.validate:
+        guest_image = _validate_guest_ami(aws_svc, values.ami)
+    else:
+        guest_image = aws_svc.get_image(values.ami)
+
+    metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
+    if values.validate:
+        values.encrypted_ami_name = None
+        _validate(aws_svc, values, metavisor_ami)
+        brkt_cli.validate_ntp_servers(values.ntp_servers)
+
+    mv_image = aws_svc.get_image(metavisor_ami)
+    # Raise error if it is not a FreeBSD Metavisor
+    if 'metavisor-' not in mv_image.name:
+        raise ValidationError(
+            'Unsupported Bracket image for wrapped guest: %s' %
+            mv_image.name
+        )
+
+    instance_config = instance_config_from_values(
+        values, mode=INSTANCE_METAVISOR_MODE, cli_config=config)
+
+    instance_id = wrap_image.launch_wrapped_image(
+        aws_svc=aws_svc,
+        image_id = guest_image.id,
+        metavisor_ami=metavisor_ami,
+        wrapped_instance_name=values.wrapped_instance_name,
+        subnet_id=values.subnet_id,
+        security_group_ids=values.security_group_ids,
+        instance_type=values.instance_type,
+        instance_config=instance_config
+    )
+    # Print the Instance ID to stdout, in case the caller wants to process
+    # the output. Log messages go to stderr
+    print(instance_id)
     return 0
 
 
@@ -472,6 +528,19 @@ class AWSSubcommand(Subcommand):
                                    mode=INSTANCE_UPDATER_MODE)
         update_encrypted_ami_parser.set_defaults(aws_subcommand='update')
 
+        wrap_parser = aws_subparsers.add_parser(
+            'wrap-guest-image',
+            description=(
+                'Launch guest image wrapped with Bracket Metavsor'
+            ),
+            help='Launch guest image wrapped with Bracket Metavisor'
+        )
+        wrap_image_args.setup_wrap_image_args(wrap_parser, parsed_config)
+        setup_instance_config_args(wrap_parser, parsed_config,
+                                   mode=INSTANCE_CREATOR_MODE)
+        wrap_parser.set_defaults(aws_subcommand='wrap-guest-image')
+
+
     def debug_log_to_temp_file(self, values):
         return values.aws_subcommand in ('encrypt', 'update')
 
@@ -489,6 +558,9 @@ class AWSSubcommand(Subcommand):
             return run_diag(values)
         if values.aws_subcommand == 'share-logs':
             return run_share_logs(values)
+        if values.aws_subcommand == 'wrap-guest-image':
+            verbose = brkt_cli.is_verbose(values, self)
+            return run_wrap_image(values, self.config, verbose=verbose)
 
 
 def get_subcommands():
