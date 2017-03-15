@@ -29,13 +29,7 @@ def setup_share_logs_args(parser, parsed_config):
         dest='instance_id',
         help='The instance with Bracket system logs to be shared'
     )
-    parser.add_argument(
-        '--no-validate',
-        dest='validate',
-        action='store_false',
-        default=True,
-        help="Don't validate instance has AMI with Bracket tags"
-    )
+    aws_args.add_no_validate(parser)
     aws_args.add_region(parser, parsed_config)
     parser.add_argument(
         '-v',
@@ -53,20 +47,5 @@ def setup_share_logs_args(parser, parsed_config):
         default=164337164081,
         help=argparse.SUPPRESS
     )
-    # Optional arguments for changing the behavior of our retry logic.  We
-    # use these options internally, to avoid intermittent AWS service failures
-    # when running concurrent encryption processes in integration tests.
-    parser.add_argument(
-        '--retry-timeout',
-        metavar='SECONDS',
-        type=float,
-        help=argparse.SUPPRESS,
-        default=10.0
-    )
-    parser.add_argument(
-        '--retry-initial-sleep-seconds',
-        metavar='SECONDS',
-        type=float,
-        help=argparse.SUPPRESS,
-        default=0.25
-    )
+    aws_args.add_retry_timeout(parser)
+    aws_args.add_retry_initial_sleep_seconds(parser)

@@ -42,40 +42,11 @@ def setup_encrypt_ami_args(parser, parsed_config):
             'instance'),
         default='m3.medium'
     )
-    parser.add_argument(
-        '--no-validate',
-        dest='validate',
-        action='store_false',
-        default=True,
-        help="Don't validate AMIs, subnet, and security groups"
-    )
+    aws_args.add_no_validate(parser)
     aws_args.add_region(parser, parsed_config)
-    parser.add_argument(
-        '--security-group',
-        metavar='ID',
-        dest='security_group_ids',
-        action='append',
-        help=(
-            'Use this security group when running the encryptor instance. '
-            'May be specified multiple times.'
-        )
-    )
-    parser.add_argument(
-        '--subnet',
-        metavar='ID',
-        dest='subnet_id',
-        help='Launch instances in this subnet'
-    )
-    parser.add_argument(
-        '--aws-tag',
-        metavar='KEY=VALUE',
-        dest='aws_tags',
-        action='append',
-        help=(
-            'Set an AWS tag on resources created during encryption. '
-            'May be specified multiple times.'
-        )
-    )
+    aws_args.add_security_group(parser)
+    aws_args.add_subnet(parser)
+    aws_args.add_aws_tag(parser)
     parser.add_argument(
         '-v',
         '--verbose',
@@ -91,40 +62,11 @@ def setup_encrypt_ami_args(parser, parsed_config):
         action='append',
         help=argparse.SUPPRESS
     )
-    # Optional AMI ID that's used to launch the encryptor instance.  This
-    # argument is hidden because it's only used for development.
-    parser.add_argument(
-        '--encryptor-ami',
-        metavar='ID',
-        dest='encryptor_ami',
-        help=argparse.SUPPRESS
-    )
-    # Optional EC2 SSH key pair name to use for launching the guest
-    # and encryptor instances.  This argument is hidden because it's only
-    # used for development.
-    parser.add_argument(
-        '--key',
-        metavar='NAME',
-        help=argparse.SUPPRESS,
-        dest='key_name'
-    )
-    # Optional arguments for changing the behavior of our retry logic.  We
-    # use these options internally, to avoid intermittent AWS service failures
-    # when running concurrent encryption processes in integration tests.
-    parser.add_argument(
-        '--retry-timeout',
-        metavar='SECONDS',
-        type=float,
-        help=argparse.SUPPRESS,
-        default=10.0
-    )
-    parser.add_argument(
-        '--retry-initial-sleep-seconds',
-        metavar='SECONDS',
-        type=float,
-        help=argparse.SUPPRESS,
-        default=0.25
-    )
+
+    aws_args.add_encryptor_ami(parser)
+    aws_args.add_key(parser)
+    aws_args.add_retry_timeout(parser)
+    aws_args.add_retry_initial_sleep_seconds(parser)
 
     parser.add_argument(
         '--save-encryptor-logs',
