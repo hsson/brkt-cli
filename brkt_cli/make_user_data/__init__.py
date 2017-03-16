@@ -12,6 +12,7 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import base64
 import logging
 import os
 import re
@@ -100,8 +101,10 @@ def make(values, config):
             brkt_cli.validate_ssh_pub_key(key_value)
             instance_cfg.brkt_config['ssh-public-key'] = key_value
 
-    return instance_cfg.make_userdata()
-
+    ud = instance_cfg.make_userdata()
+    if values.base64:
+        ud = base64.b64encode(ud)
+    return ud
 
 class MakeUserDataSubcommand(Subcommand):
 
@@ -133,6 +136,12 @@ class MakeUserDataSubcommand(Subcommand):
             dest='make_user_data_verbose',
             action='store_true',
             help=argparse.SUPPRESS
+        )
+        parser.add_argument(
+            '--base64',
+            dest='base64',
+            action='store_true',
+            help='Base64-encode output (needed for instances in ESX)'
         )
         parser.add_argument(
             '--unencrypted-guest',
