@@ -38,6 +38,7 @@ from boto.ec2.blockdevicemapping import (
 
 from brkt_cli.user_data import gzip_user_data
 from brkt_cli.instance_config import InstanceConfig
+from brkt_cli.aws.aws_service import EBS_OPTIMIZED_INSTANCES
 from brkt_cli.aws.encrypt_ami import wait_for_instance, clean_up
 from brkt_cli.util import (
     make_nonce,
@@ -134,6 +135,7 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
                 aws_svc, vpc_id=vpc_id)
             security_group_ids = [temp_sg_id]
 
+        ebs_optimized = instance_type in EBS_OPTIMIZED_INSTANCES
         instance = aws_svc.run_instance(
             mv_image.id,
             instance_type=instance_type,
@@ -141,6 +143,7 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
             user_data=compressed_user_data,
             placement=None,
             block_device_map=bdm,
+            ebs_optimized=ebs_optimized,
             subnet_id=subnet_id
         )
         aws_svc.create_tags(

@@ -474,7 +474,7 @@ class AWSSubcommand(Subcommand):
         aws_subparsers = aws_parser.add_subparsers(
             dest='aws_subcommand',
             # Hardcode the list, so that we don't expose internal subcommands.
-            metavar='{encrypt,update}'
+            metavar='{encrypt,update,wrap-guest-image}'
         )
 
         diag_parser = aws_subparsers.add_parser(
