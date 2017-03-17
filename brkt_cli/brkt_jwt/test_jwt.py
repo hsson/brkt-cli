@@ -140,8 +140,8 @@ class TestNameValueToDict(unittest.TestCase):
     def test_brkt_tags_from_name_value_list(self):
         self.assertEqual(
             {'a': 'b', 'c': 'd'},
-            brkt_jwt._brkt_tags_from_name_value_list(['a=b', 'c=d'])
+            brkt_jwt.brkt_tags_from_name_value_list(['a=b', 'c=d'])
         )
 
         with self.assertRaises(ValidationError):
-            brkt_jwt._brkt_tags_from_name_value_list(['exp=1'])
+            brkt_jwt.brkt_tags_from_name_value_list(['exp=1'])

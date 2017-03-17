@@ -57,7 +57,7 @@ def _name_value_list_to_dict(l):
     return d
 
 
-def _brkt_tags_from_name_value_list(l):
+def brkt_tags_from_name_value_list(l):
     """ Convert a list of NAME=VALUE strings to a dictionary.
 
     :raise ValidationError if a key is specified more than once or a key
@@ -86,7 +86,7 @@ def _make_jwt_from_signing_key(values, signing_key):
 
     # Merge claims and tags.
     claims = _name_value_list_to_dict(values.claims)
-    claims.update(_brkt_tags_from_name_value_list(values.brkt_tags))
+    claims.update(brkt_tags_from_name_value_list(values.brkt_tags))
 
     return make_jwt(
         crypto,
@@ -141,7 +141,7 @@ class MakeTokenSubcommand(Subcommand):
 
             # New workflow: get a launch token from Yeti.
             yeti = config.get_yeti_service(self.config)
-            tags = _brkt_tags_from_name_value_list(values.brkt_tags)
+            tags = brkt_tags_from_name_value_list(values.brkt_tags)
             jwt_string = yeti.get_launch_token(tags=tags)
 
         log.debug('Header: %s', json.dumps(get_header(jwt_string)))
@@ -299,18 +299,7 @@ def setup_make_jwt_args(subparsers):
             'The private key that is used to sign the JWT. The key must be a '
             '384-bit ECDSA private key (NIST P-384) in PEM format.')
     )
-
-    parser.add_argument(
-        '--brkt-tag',
-        metavar='NAME=VALUE',
-        dest='brkt_tags',
-        help=(
-            'Bracket tag which will be embedded in the JWT as a claim.  All '
-            'characters must be alphanumeric or [-_.].  The tag name cannot '
-            'be a JWT registered claim name (see RFC 7519).'),
-        action='append'
-    )
-
+    argutil.add_brkt_tag(parser)
     parser.add_argument(
         '--claim',
         metavar='NAME=VALUE',
