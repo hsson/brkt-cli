@@ -4,9 +4,12 @@ import datetime
 
 #import test
 from brkt_cli import util
-from brkt_cli.esx import encrypt_vmdk
-from brkt_cli.esx import update_vmdk
-from brkt_cli.esx import esx_service
+from brkt_cli.esx import (
+    encrypt_vmdk,
+    update_vmdk,
+    esx_service,
+    wrap_image
+)
 from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
@@ -466,3 +469,40 @@ class TestRunUpdate(unittest.TestCase):
         self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
         self.assertEqual(template_vm.disks[1].size, 33*1024*1024)
         self.assertTrue(template_vm.template)
+
+
+class TestWrappedGuest(unittest.TestCase):
+
+    def setUp(self):
+        util.SLEEP_ENABLED = False
+        h = NullHandler()
+        logging.getLogger("brkt_cli").addHandler(h)
+
+    def test_smoke(self):
+        vc_swc = DummyVCenterService()
+        mv_vm = DummyVM("mv_image", 1, 1024)
+        disk = DummyDisk(12*1024*1024, None)
+        mv_vm.add_disk(disk, 0)
+        mv_ovf = DummyOVF(mv_vm, "mv-ovf")
+        vc_swc.ovfs = [mv_ovf]
+        guest_vmdk = "guest-vmdk"
+        guest_vmdk_disk = DummyDisk(16*1024*1024, guest_vmdk)
+        vc_swc.disks[guest_vmdk] = guest_vmdk_disk
+        wrap_image.wrap_from_s3(
+            vc_swc,
+            guest_vmdk,
+            vm_name="template-unencrypted",
+            ovf_name="mv-ovf",
+            download_file_list=[],
+            user_data_str=None
+        )
+        self.assertEqual(len(vc_swc.vms), 1)
+        template_vm = (vc_swc.vms.values())[0]
+        self.assertEqual(len(template_vm.disks), 2)
+        # With vCenter, the VM name will be set as "VM-<Timestamp>"
+        self.assertNotEqual(template_vm.name, "template-unencrypted")
+        self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
+        # Verify disk size remains same for unencrypted guest
+        self.assertEqual(template_vm.disks[1].size, 16*1024*1024)
+        # Will be created as an instance, instead of a template
+        self.assertFalse(template_vm.template)

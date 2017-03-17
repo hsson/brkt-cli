@@ -22,6 +22,7 @@ import os
 import signal
 import hashlib
 import requests
+import xml.etree.ElementTree
 from functools import wraps
 from operator import attrgetter
 from threading import Thread
@@ -159,7 +160,7 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def create_vm(self, memoryGB=1, numCPUs=1):
+    def create_vm(self, memoryGB=1, numCPUs=1, vm_name=None):
         pass
 
     @abc.abstractmethod
@@ -481,7 +482,7 @@ class VCenterService(BaseVCenterService):
             retry = retry + 1
         return (vm.guest.ipAddress)
 
-    def create_vm(self, memoryGB=1, numCPUs=1):
+    def create_vm(self, memoryGB=1, numCPUs=1, vm_name=None):
         self.validate_connection()
         content = self.si.RetrieveContent()
         datacenter = self.__get_obj(content, [vim.Datacenter],
@@ -491,7 +492,8 @@ class VCenterService(BaseVCenterService):
                                  self.cluster_name)
         pool = cluster.resourcePool
         timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
-        vm_name = "VM-" + timestamp
+        if not vm_name:
+            vm_name = "VM-" + timestamp
         vmx_file = vim.vm.FileInfo(logDirectory=None,
                                    snapshotDirectory=None,
                                    suspendDirectory=None,
@@ -917,6 +919,15 @@ class VCenterService(BaseVCenterService):
         # Load the OVF file
         spec_params = vim.OvfManager.CreateImportSpecParams()
         ovfd = self.get_ovf_descriptor(ovf_path)
+        if self.is_esx_host():
+            # Remove property section
+            e = xml.etree.ElementTree.fromstring(ovfd)
+            for child in e:
+                if "VirtualSystem" in child.tag:
+                    for child_2 in child:
+                        if "ProductSection" in child_2.tag:
+                            child.remove(child_2)
+            ovfd = xml.etree.ElementTree.tostring(e)
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
         datastore = self.__get_obj(content, [vim.Datastore],

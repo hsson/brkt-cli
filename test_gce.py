@@ -9,6 +9,7 @@ from brkt_cli.gcp import encrypt_gcp_image
 from brkt_cli.gcp import gcp_service
 from brkt_cli.gcp import update_gcp_image
 from brkt_cli.gcp import share_logs
+from brkt_cli.gcp import wrap_gcp_image
 from brkt_cli.instance_config import InstanceConfig
 from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.test_encryptor_service import (
@@ -467,3 +468,34 @@ class TestShareLogs(unittest.TestCase):
         gcp_svc = GCPService3()
         with self.assertRaises(util.BracketError):
             share_logs(self.values, gcp_svc)
+
+
+class TestWrappedGuest(unittest.TestCase):
+
+    def setUp(self):
+        util.SLEEP_ENABLED = False
+
+    def test_smoke(self):
+        gcp_svc = DummyGCPService()
+        wrapped_instance = wrap_gcp_image.wrap_guest_image(
+            gcp_svc=gcp_svc,
+            image_id=IGNORE_IMAGE,
+            encryptor_image='encryptor-image',
+            zone='us-central1-a',
+            metadata={}
+        )
+        self.assertIsNotNone(wrapped_instance)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 1)
+
+    def test_cleanup(self):
+        gcp_svc = DummyGCPService()
+        wrap_gcp_image.wrap_guest_image(
+            gcp_svc=gcp_svc,
+            image_id=IGNORE_IMAGE,
+            encryptor_image='encryptor-image',
+            zone='us-central1-a',
+            metadata={}
+        )
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 1)
