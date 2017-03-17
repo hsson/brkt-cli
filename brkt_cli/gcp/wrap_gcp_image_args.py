@@ -1,8 +1,20 @@
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# A copy of the License is located at
+#
+# https://github.com/brkt/brkt-cli/blob/master/LICENSE
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and
+# limitations under the License.
 import argparse
+from brkt_cli.gcp import gcp_args
 
 
-# VERY EXPERIMENTAL FEATURE
-# It will not work for you
 def setup_wrap_gcp_image_args(parser, parsed_config):
     parser.add_argument(
         'image',
@@ -21,18 +33,7 @@ def setup_wrap_gcp_image_args(parser, parsed_config):
         dest='instance_type',
         default='n1-standard-1'
     )
-    zone_kwargs = {
-        'help': 'GCP zone to operate in',
-        'dest': 'zone',
-        'default': parsed_config.get_option('gcp.zone'),
-        'required': False,
-    }
-    if zone_kwargs['default'] is None:
-        zone_kwargs['required'] = True
-    parser.add_argument(
-        '--zone',
-        **zone_kwargs
-    )
+    gcp_args.add_gcp_zone(parser, parsed_config)
     parser.add_argument(
         '--no-delete-boot',
         help='Do not delete boot disk when instance is deleted',
@@ -40,31 +41,9 @@ def setup_wrap_gcp_image_args(parser, parsed_config):
         default=True,
         action='store_false'
     )
-    proj_kwargs = {
-        'help': 'GCP project name',
-        'dest': 'project',
-        'default': parsed_config.get_option('gcp.project'),
-        'required': False,
-    }
-    if proj_kwargs['default'] is None:
-        proj_kwargs['required'] = True
-    parser.add_argument(
-        '--project',
-        **proj_kwargs
-    )
-    parser.add_argument(
-        '--image-project',
-        metavar='NAME',
-        help='GCP project name which owns the image (e.g. centos-cloud)',
-        dest='image_project',
-        required=False
-    )
-    parser.add_argument(
-        '--network',
-        dest='network',
-        default=parsed_config.get_option('gcp.network', 'default'),
-        required=False
-    )
+    gcp_args.add_gcp_project(parser, parsed_config)
+    gcp_args.add_gcp_image_project(parser)
+    gcp_args.add_gcp_network(parser, parsed_config)
     parser.add_argument(
         '--gcp-tag',
         dest='gcp_tags',
@@ -75,29 +54,9 @@ def setup_wrap_gcp_image_args(parser, parsed_config):
               'specified multiple times.'
         )
     )
-    parser.add_argument(
-        '--encryptor-image',
-        dest='encryptor_image',
-        required=False
-    )
-
-    # Optional Image Name that's used to launch the metavisor instance. This
-    # argument is hidden because it's only used for development.
-    parser.add_argument(
-        '--encryptor-image-file',
-        dest='image_file',
-        required=False,
-        help=argparse.SUPPRESS
-    )
-    # Optional bucket name to retrieve the metavisor image from
-    # (prod, stage, shared, <custom>)
-    parser.add_argument(
-        '--encryptor-image-bucket',
-        help=argparse.SUPPRESS,
-        dest='bucket',
-        default='prod',
-        required=False
-    )
+    gcp_args.add_gcp_encryptor_image(parser)
+    gcp_args.add_gcp_encryptor_image_file(parser)
+    gcp_args.add_gcp_encryptor_image_bucket(parser)
     # Optional startup script. Hidden because it is only used for development
     # and testing. It should be passed as a string containing a multi-line
     # script (bash, python etc.)
@@ -107,28 +66,14 @@ def setup_wrap_gcp_image_args(parser, parsed_config):
         dest='startup_script',
         metavar='SCRIPT'
     )
-    parser.add_argument(
-        '--subnetwork',
-        metavar='NAME',
-        help='Launch instance in this subnetwork',
-        dest='subnetwork',
-        default=parsed_config.get_option('gcp.subnetwork', None),
-        required=False
-    )
+    gcp_args.add_gcp_subnetwork(parser, parsed_config)
     parser.add_argument(
         '--guest-fqdn',
         metavar='FQDN',
         dest='guest_fqdn',
         help=argparse.SUPPRESS
     )
-    parser.add_argument(
-        '--no-cleanup',
-        dest='cleanup',
-        required=False,
-        default=True,
-        action='store_false',
-        help=argparse.SUPPRESS
-    )
+    gcp_args.add_no_cleanup(parser)
     # Optional (number of) SSD scratch disks because these can only be attached
     # at instance launch time, compared to the other (persistent) disks
     parser.add_argument(
