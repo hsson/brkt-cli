@@ -25,6 +25,8 @@ from brkt_cli import (
     encryptor_service,
     get_proxy_config
 )
+from brkt_cli import argutil
+from brkt_cli import brkt_jwt
 from brkt_cli.config import CLIConfig
 from brkt_cli.instance_config import (
     InstanceConfig,
@@ -36,12 +38,11 @@ from brkt_cli.util import (
 )
 from brkt_cli.validation import ValidationError
 
-
 log = logging.getLogger(__name__)
 
 
 def setup_instance_config_args(parser, parsed_config,
-                               mode=INSTANCE_CREATOR_MODE):
+                               mode=INSTANCE_CREATOR_MODE, brkt_tag=True):
     parser.add_argument(
         '--ntp-server',
         metavar='DNS_NAME',
@@ -121,7 +122,8 @@ def setup_instance_config_args(parser, parsed_config,
         help=argparse.SUPPRESS
     )
 
-    parser.add_argument(
+    token_group = parser.add_mutually_exclusive_group()
+    token_group.add_argument(
         '--token',
         help=(
             'Token (JWT) that Metavisor uses to authenticate with the '
@@ -133,6 +135,9 @@ def setup_instance_config_args(parser, parsed_config,
         default=parsed_config.get_option('token'),
         required=False
     )
+
+    if brkt_tag:
+        argutil.add_brkt_tag(token_group)
 
 
 def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
@@ -223,15 +228,16 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
 
 def get_launch_token(values, cli_config):
     """ Return the launch token either from values.token or from Yeti, in that
-    order.
+    order.  Assume that the values.token and values.brkt_tags fields exist.
 
-    :raise YetiError if an error occurs while talking to Yeti
+    :raise ValidationError if an error occurs while talking to Yeti
     """
     token = values.token
     if not token:
         log.debug('Getting launch token from Yeti')
         y = config.get_yeti_service(cli_config)
-        token = y.get_launch_token()
+        tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
+        token = y.get_launch_token(tags=tags)
 
     return token
 

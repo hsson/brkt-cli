@@ -137,8 +137,15 @@ def run_launch(values, config):
     gcp_svc = gcp_service.GCPService(values.project, None, log)
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
+
+    # Use the token in the image unless a token or tags were specified on
+    # the command line.
+    lt = None
+    if values.token or values.brkt_tags:
+        lt = instance_config_args.get_launch_token(values, config)
+
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_METAVISOR_MODE)
+        values, mode=INSTANCE_METAVISOR_MODE, launch_token=lt)
     if values.startup_script:
         extra_items = [{
             'key': 'startup-script',
