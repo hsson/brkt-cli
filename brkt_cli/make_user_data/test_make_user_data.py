@@ -12,6 +12,7 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import inspect
 import os
 import unittest
@@ -35,6 +36,16 @@ class TestMakeUserData(unittest.TestCase):
         self.testdata_dir = os.path.join(my_dir, 'testdata')
         self.maxDiff = None # show full diff with knowngood multi-line strings
 
+    def check_output_vs_knowngood(self, output, knowngood_file):
+        self.assertTrue(os.path.exists(knowngood_file), msg=
+            'knowngood file does not exist: %s\ntest_output:\n---\n%s\n---\n'
+            % (knowngood_file, output)
+        )
+        with open(knowngood_file, 'r') as f:
+            knowngood = f.read()
+
+        self.assertMultiLineEqual(output, knowngood)
+
     def run_cmd(self, values):
         config = CLIConfig()
         env = brkt_env_from_domain('foo.com')
@@ -45,15 +56,8 @@ class TestMakeUserData(unittest.TestCase):
 
         knowngood_file = os.path.join(self.testdata_dir,
                                       self.test_name + ".out")
-        if not os.path.exists(knowngood_file):
-            print 'knowngood file does not exist: %s' % (knowngood_file)
-            print 'test_output = \n------\n%s\n------\n' % (output)
-            raise
-
-        with open(knowngood_file, 'r') as f:
-            knowngood = f.read()
-
-        self.assertMultiLineEqual(output, knowngood)
+        self.check_output_vs_knowngood(output, knowngood_file)
+        return output
 
     def _init_values(self):
         values = instance_config_args_to_values('')
@@ -62,6 +66,7 @@ class TestMakeUserData(unittest.TestCase):
         values.make_user_data_guest_files = None
         values.unencrypted_guest = False
         values.ssh_public_key_file = None
+        values.base64 = False
         return values
 
     def test_token_and_one_brkt_file(self):
@@ -129,3 +134,16 @@ class TestMakeUserData(unittest.TestCase):
         values = self._init_values()
         values.unencrypted_guest = True
         self.run_cmd(values)
+
+    def test_base64(self):
+        values = self._init_values()
+        values.base64 = True
+        # Throw in a brkt-file, for good measure.
+        infile = os.path.join(self.testdata_dir, 'logging.yaml')
+        values.make_user_data_brkt_files = [ infile ]
+        output = self.run_cmd(values)
+        decoded_output = base64.b64decode(output)
+        decoded_knowngood_file = os.path.join(self.testdata_dir,
+                                      self.test_name + ".out.decoded")
+        self.check_output_vs_knowngood(decoded_output,
+                                       decoded_knowngood_file)
