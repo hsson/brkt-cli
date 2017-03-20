@@ -1,4 +1,5 @@
 import argparse
+from brkt_cli.gcp import gcp_args
 
 
 # VERY EXPERIMENTAL FEATURE
@@ -21,18 +22,7 @@ def setup_launch_gcp_image_args(parser, parsed_config):
         dest='instance_type',
         default='n1-standard-1'
     )
-    zone_kwargs = {
-        'help': 'GCP zone to operate in',
-        'dest': 'zone',
-        'default': parsed_config.get_option('gcp.zone'),
-        'required': False,
-    }
-    if zone_kwargs['default'] is None:
-        zone_kwargs['required'] = True
-    parser.add_argument(
-        '--zone',
-        **zone_kwargs
-    )
+    gcp_args.add_gcp_zone(parser, parsed_config)
     parser.add_argument(
         '--no-delete-boot',
         help='Do not delete boot disk when instance is deleted',
@@ -40,24 +30,8 @@ def setup_launch_gcp_image_args(parser, parsed_config):
         default=True,
         action='store_false'
     )
-    proj_kwargs = {
-        'help': 'GCP project name',
-        'dest': 'project',
-        'default': parsed_config.get_option('gcp.project'),
-        'required': False,
-    }
-    if proj_kwargs['default'] is None:
-        proj_kwargs['required'] = True
-    parser.add_argument(
-        '--project',
-        **proj_kwargs
-    )
-    parser.add_argument(
-        '--network',
-        dest='network',
-        default=parsed_config.get_option('gcp.network', 'default'),
-        required=False
-    )
+    gcp_args.add_gcp_project(parser, parsed_config)
+    gcp_args.add_gcp_network(parser, parsed_config)
     parser.add_argument(
         '--gcp-tag',
         dest='gcp_tags',
@@ -78,14 +52,7 @@ def setup_launch_gcp_image_args(parser, parsed_config):
         dest='startup_script',
         metavar='SCRIPT'
     )
-    parser.add_argument(
-        '--subnetwork',
-        metavar='NAME',
-        help='Launch instance in this subnetwork',
-        dest='subnetwork',
-        default=parsed_config.get_option('gcp.subnetwork', None),
-        required=False
-    )
+    gcp_args.add_gcp_subnetwork(parser, parsed_config)
     parser.add_argument(
         '--guest-fqdn',
         metavar='FQDN',
