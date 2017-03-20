@@ -689,7 +689,7 @@ class GCPService(BaseGCPService):
             project=self.project,
             zone=zone,
             body=config)
-        retry(execute_gcp_api_call)(instance_req)
+        retry(execute_gcp_api_call, timeout=30.0)(instance_req)
         if tags:
             self.log.info("Setting instance tags %s", tags)
             self.set_tags(zone, name, tags)
