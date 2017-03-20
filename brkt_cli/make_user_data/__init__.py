@@ -127,8 +127,15 @@ class MakeUserDataSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
 
+        # Don't add --brkt-tag, since we don't want make-user-data to talk
+        # to Yeti to generate a launch token.  Users can generate a token
+        # and specify tags with the make-token command.
         setup_instance_config_args(
-            parser, parsed_config, mode=INSTANCE_METAVISOR_MODE)
+            parser,
+            parsed_config,
+            mode=INSTANCE_METAVISOR_MODE,
+            brkt_tag=False
+        )
 
         parser.add_argument(
             '-v',

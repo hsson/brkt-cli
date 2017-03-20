@@ -1,4 +1,18 @@
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# A copy of the License is located at
+#
+# https://github.com/brkt/brkt-cli/blob/master/LICENSE
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and
+# limitations under the License.
 import argparse
+from brkt_cli.gcp import gcp_args
 
 
 def setup_update_gcp_image_args(parser, parsed_config):
@@ -14,46 +28,12 @@ def setup_update_gcp_image_args(parser, parsed_config):
         help='Specify the name of the generated encrypted image',
         required=False
     )
-    required_zone = parsed_config.get_option('gcp.zone', None)
-    parser.add_argument(
-        '--zone',
-        help='GCP zone to operate in',
-        dest='zone',
-        default=required_zone,
-        required=not bool(required_zone)
-    )
-    required_project = parsed_config.get_option('gcp.project', None)
-    parser.add_argument(
-        '--project',
-        help='GCP project name',
-        dest='project',
-        default=required_project,
-        required=not bool(required_project)
-    )
-    parser.add_argument(
-        '--no-validate',
-        dest='validate',
-        action='store_false',
-        default=True,
-        help="Don't validate images or token"
-    )
-    parser.add_argument(
-        '--encryptor-image',
-        dest='encryptor_image',
-        required=False
-    )
-    parser.add_argument(
-        '--network',
-        dest='network',
-        default=parsed_config.get_option('gcp.network', 'default'),
-        required=False
-    )
-    parser.add_argument(
-        '--subnetwork',
-        dest='subnetwork',
-        default=parsed_config.get_option('gcp.subnetwork', None),
-        required=False
-    )
+    gcp_args.add_gcp_zone(parser, parsed_config)
+    gcp_args.add_gcp_project(parser, parsed_config)
+    gcp_args.add_no_validate(parser)
+    gcp_args.add_gcp_encryptor_image(parser)
+    gcp_args.add_gcp_network(parser, parsed_config)
+    gcp_args.add_gcp_subnetwork(parser, parsed_config)
     parser.add_argument(
         '--gcp-tag',
         dest='gcp_tags',
@@ -64,31 +44,9 @@ def setup_update_gcp_image_args(parser, parsed_config):
               'multiple times.'
         )
     )
-    # Optional arg <image name>.image.tar.gz for specifying metavisor
-    # image file if you don't want to use the latest image
-    parser.add_argument(
-        '--encryptor-image-file',
-        dest='image_file',
-        required=False,
-        help=argparse.SUPPRESS
-    )
-    # Optional bucket name to retrieve the encryptor image from
-    # (prod, stage, shared, <custom>)
-    parser.add_argument(
-        '--encryptor-image-bucket',
-        help=argparse.SUPPRESS,
-        dest='bucket',
-        default='prod',
-        required=False
-    )
-    parser.add_argument(
-        '--no-cleanup',
-        dest='cleanup',
-        default=True,
-        required=False,
-        action='store_false',
-        help=argparse.SUPPRESS
-    )
+    gcp_args.add_gcp_encryptor_image_file(parser)
+    gcp_args.add_gcp_encryptor_image_bucket(parser)
+    gcp_args.add_no_cleanup(parser)
     parser.add_argument(
         '--keep-encryptor',
         dest='keep_encryptor',

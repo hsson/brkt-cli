@@ -21,6 +21,8 @@ from brkt_cli.gcp import (
     launch_gcp_image_args,
     update_gcp_image,
     update_encrypted_gcp_image_args,
+    wrap_gcp_image,
+    wrap_gcp_image_args,
     share_logs_gcp_args,
 )
 from brkt_cli.validation import ValidationError
@@ -135,8 +137,15 @@ def run_launch(values, config):
     gcp_svc = gcp_service.GCPService(values.project, None, log)
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
+
+    # Use the token in the image unless a token or tags were specified on
+    # the command line.
+    lt = None
+    if values.token or values.brkt_tags:
+        lt = instance_config_args.get_launch_token(values, config)
+
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_METAVISOR_MODE)
+        values, mode=INSTANCE_METAVISOR_MODE, launch_token=lt)
     if values.startup_script:
         extra_items = [{
             'key': 'startup-script',
@@ -170,6 +179,55 @@ def run_launch(values, config):
                             values.ssd_scratch_disks,
                             values.gcp_tags)
     print(encrypted_instance_id)
+    return 0
+
+
+def run_wrap_image(values, config):
+    session_id = util.make_nonce()
+    gcp_svc = gcp_service.GCPService(values.project, session_id, log)
+
+    if values.ssd_scratch_disks > 8:
+        raise ValidationError("Maximum of 8 SSD scratch disks are supported")
+    instance_config = instance_config_from_values(
+        values, mode=INSTANCE_METAVISOR_MODE)
+    if values.startup_script:
+        extra_items = [{
+            'key': 'startup-script',
+            'value': values.startup_script
+        }]
+    else:
+        extra_items = None
+    instance_config.brkt_config['allow_unencrypted_guest'] = True
+    brkt_userdata = instance_config.make_userdata()
+    metadata = gcp_service.gcp_metadata_from_userdata(
+        brkt_userdata, extra_items=extra_items)
+
+    if values.instance_name:
+        gcp_service.validate_image_name(values.instance_name)
+    if values.gcp_tags:
+        validate_tags(values.gcp_tags)
+    if not values.verbose:
+        logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+    
+    wrapped_instance = wrap_gcp_image.wrap_guest_image(
+        gcp_svc=gcp_svc,
+        image_id=values.image,
+        encryptor_image=values.encryptor_image,
+        zone=values.zone,
+        metadata=metadata,
+        instance_name=values.instance_name,
+        image_project=values.image_project,
+        image_file=values.image_file,
+        image_bucket=values.bucket,
+        network=values.network,
+        subnet=values.subnetwork,
+        cleanup=values.cleanup,
+        ssd_disks=values.ssd_scratch_disks,
+        gcp_tags=values.gcp_tags
+    )
+    # Print the instance name to stdout in case the caller want to process
+    # the output. Log messages go to stderr
+    print(wrapped_instance)
     return 0
 
 
@@ -343,6 +401,19 @@ class GCPSubcommand(Subcommand):
         setup_instance_config_args(launch_gcp_image_parser, parsed_config,
                                    mode=INSTANCE_METAVISOR_MODE)
 
+        wrap_image_parser = gcp_subparsers.add_parser(
+            'wrap-guest-image',
+            description=(
+                'Launch guest image wrapped with Bracket Metavisor'
+            ),
+            help='Launch guest image wrapped with Bracket Metavisor',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        wrap_gcp_image_args.setup_wrap_gcp_image_args(
+            wrap_image_parser, parsed_config)
+        setup_instance_config_args(wrap_image_parser, parsed_config,
+                                   mode=INSTANCE_METAVISOR_MODE)
+
         share_logs_parser = gcp_subparsers.add_parser(
             'share-logs',
             description='Creates a logs file of an instance and uploads it '
@@ -366,6 +437,8 @@ class GCPSubcommand(Subcommand):
             return run_launch(values, self.config)
         if values.gcp_subcommand == 'share-logs':
             return run_sharelogs(values, self.config)
+        if values.gcp_subcommand == 'wrap-guest-image':
+            return run_wrap_image(values, self.config)
 
 
 def get_subcommands():

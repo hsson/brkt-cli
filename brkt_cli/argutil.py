@@ -25,3 +25,16 @@ def add_out(parser):
             'character encoding issues when redirecting output on Windows.'
         )
     )
+
+
+def add_brkt_tag(parser):
+    parser.add_argument(
+        '--brkt-tag',
+        metavar='NAME=VALUE',
+        dest='brkt_tags',
+        help=(
+            'Bracket tag which will be embedded in the JWT as a claim.  All '
+            'characters must be alphanumeric or [-_.].  The tag name cannot '
+            'be a JWT registered claim name (see RFC 7519).'),
+        action='append'
+    )
