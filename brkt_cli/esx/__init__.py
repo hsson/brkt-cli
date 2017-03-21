@@ -481,8 +481,12 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
                               "thick-eager-zeroed" % (values.disk_type,))
 
     try:
+        lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
-            values, mode=INSTANCE_METAVISOR_MODE, cli_config=parsed_config)
+            values,
+            mode=INSTANCE_METAVISOR_MODE,
+            cli_config=parsed_config,
+            launch_token=lt)
         instance_config.brkt_config['allow_unencrypted_guest'] = True
         user_data_str = vc_swc.create_userdata_str(instance_config,
             update=False, ssh_key_file=values.ssh_public_key_file)
