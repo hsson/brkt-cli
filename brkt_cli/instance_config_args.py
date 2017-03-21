@@ -235,7 +235,7 @@ def get_launch_token(values, cli_config):
     token = values.token
     if not token:
         log.debug('Getting launch token from Yeti')
-        y = config.get_yeti_service(cli_config)
+        y = config.get_yeti_service(cli_config, values)
         tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
         token = y.get_launch_token(tags=tags)
 

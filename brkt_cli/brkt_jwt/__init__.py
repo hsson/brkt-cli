@@ -140,7 +140,7 @@ class MakeTokenSubcommand(Subcommand):
                 raise ValidationError(msg % '--nbf')
 
             # New workflow: get a launch token from Yeti.
-            yeti = config.get_yeti_service(self.config)
+            yeti = config.get_yeti_service(self.config, values)
             tags = brkt_tags_from_name_value_list(values.brkt_tags)
             jwt_string = yeti.get_launch_token(tags=tags)
 

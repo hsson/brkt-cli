@@ -344,8 +344,11 @@ class CLIConfig(object):
             raise
 
 
-def _get_yeti_service(parsed_config):
-    _, env = parsed_config.get_current_env()
+def _get_yeti_service(parsed_config, values=None):
+    if values:
+        env = brkt_cli.brkt_env_from_values(values)
+    if not values or env is None:
+        _, env = parsed_config.get_current_env()
     root_url = 'https://%s:%d' % (
         env.public_api_host, env.public_api_port)
     token = (
@@ -355,13 +358,13 @@ def _get_yeti_service(parsed_config):
     return YetiService(root_url, token=token)
 
 
-def get_yeti_service(parsed_config):
+def get_yeti_service(parsed_config, values=None):
     """ Return a YetiService object based on the given CLIConfig.
 
     :raise ValidationError if the API token is not set in config, or if
     authentication with Yeti fails.
     """
-    y = _get_yeti_service(parsed_config)
+    y = _get_yeti_service(parsed_config, values)
     if not y.token:
         raise ValidationError(
             '$BRKT_API_TOKEN is not set. Run brkt auth to get an API token.')
