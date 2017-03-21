@@ -229,8 +229,12 @@ def run_wrap_image(values, config, verbose=False):
             mv_image.name
         )
 
+    lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_METAVISOR_MODE, cli_config=config)
+        values,
+        mode=INSTANCE_METAVISOR_MODE,
+        cli_config=config,
+        launch_token=lt)
 
     instance_id = wrap_image.launch_wrapped_image(
         aws_svc=aws_svc,
