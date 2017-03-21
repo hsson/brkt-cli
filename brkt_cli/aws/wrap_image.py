@@ -95,7 +95,7 @@ def create_instance_security_group(aws_svc, vpc_id=None):
         log.error('Failed adding security group rule to %s: %s', sg.id, e)
         clean_up(aws_svc, security_group_ids=[sg.id])
 
-    aws_svc.create_tags(sg.id)
+    aws_svc.create_tags(sg.id, name=sg_name, description=sg_desc)
     return sg
 
 
