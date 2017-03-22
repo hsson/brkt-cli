@@ -226,7 +226,7 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
     return ic
 
 
-def get_launch_token(values, cli_config):
+def get_launch_token(values, cli_config, brkt_env=None):
     """ Return the launch token either from values.token or from Yeti, in that
     order.  Assume that the values.token and values.brkt_tags fields exist.
 
@@ -235,7 +235,7 @@ def get_launch_token(values, cli_config):
     token = values.token
     if not token:
         log.debug('Getting launch token from Yeti')
-        y = config.get_yeti_service(cli_config)
+        y = config.get_yeti_service(cli_config, brkt_env)
         tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
         token = y.get_launch_token(tags=tags)
 

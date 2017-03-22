@@ -175,7 +175,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                               "thick-eager-zeroed" % (values.disk_type,))
 
     try:
-        lt = instance_config_args.get_launch_token(values, parsed_config)
+        lt = instance_config_args.get_launch_token(
+            values, parsed_config, brkt_env)
         instance_config = instance_config_from_values(
             values,
             mode=INSTANCE_CREATOR_MODE,
@@ -342,7 +343,8 @@ def run_update(values, parsed_config, log, use_esx=False):
             raise ValidationError("Template VM %s not found" %
                                   values.template_vm_name)
     try:
-        lt = instance_config_args.get_launch_token(values, parsed_config)
+        lt = instance_config_args.get_launch_token(
+            values, parsed_config, brkt_env)
         instance_config = instance_config_from_values(
             values,
             mode=INSTANCE_UPDATER_MODE,
@@ -481,7 +483,8 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
                               "thick-eager-zeroed" % (values.disk_type,))
 
     try:
-        lt = instance_config_args.get_launch_token(values, parsed_config)
+        lt = instance_config_args.get_launch_token(
+            values, parsed_config, brkt_env)
         instance_config = instance_config_from_values(
             values,
             mode=INSTANCE_METAVISOR_MODE,

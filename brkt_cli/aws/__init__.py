@@ -208,6 +208,10 @@ def run_wrap_image(values, config, verbose=False):
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
 
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if brkt_env is None:
+        _, brkt_env = config.get_current_env()
+
     aws_svc.connect(values.region, key_name=values.key_name)
 
     if values.validate:
@@ -229,7 +233,7 @@ def run_wrap_image(values, config, verbose=False):
             mv_image.name
         )
 
-    lt = instance_config_args.get_launch_token(values, config)
+    lt = instance_config_args.get_launch_token(values, config, brkt_env)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_METAVISOR_MODE,
@@ -311,7 +315,7 @@ def run_encrypt(values, config, verbose=False):
                 crypto_policy, mv_image.name
             )
 
-    lt = instance_config_args.get_launch_token(values, config)
+    lt = instance_config_args.get_launch_token(values, config, brkt_env)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_CREATOR_MODE,
@@ -418,7 +422,7 @@ def run_update(values, config, verbose=False):
         encrypted_image.id, encryptor_ami
     )
 
-    lt = instance_config_args.get_launch_token(values, config)
+    lt = instance_config_args.get_launch_token(values, config, brkt_env)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_UPDATER_MODE,

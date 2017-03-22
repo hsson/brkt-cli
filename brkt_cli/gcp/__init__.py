@@ -35,6 +35,10 @@ def run_encrypt(values, config):
     gcp_svc = gcp_service.GCPService(values.project, session_id, log)
     check_args(values, gcp_svc, config)
 
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if brkt_env is None:
+        _, brkt_env = config.get_current_env()
+
     encrypted_image_name = gcp_service.get_image_name(
         values.encrypted_image_name, values.image)
     gcp_service.validate_image_name(encrypted_image_name)
@@ -52,7 +56,7 @@ def run_encrypt(values, config):
 
     log.info('Starting encryptor session %s', gcp_svc.get_session_id())
 
-    lt = instance_config_args.get_launch_token(values, config)
+    lt = instance_config_args.get_launch_token(values, config, brkt_env)
     ic = instance_config_from_values(
         values,
         mode=INSTANCE_CREATOR_MODE,
@@ -89,6 +93,10 @@ def run_update(values, config):
     gcp_svc = gcp_service.GCPService(values.project, session_id, log)
     check_args(values, gcp_svc, config)
 
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if brkt_env is None:
+        _, brkt_env = config.get_current_env()
+
     encrypted_image_name = gcp_service.get_image_name(
         values.encrypted_image_name, values.image)
     gcp_service.validate_image_name(encrypted_image_name)
@@ -104,7 +112,7 @@ def run_update(values, config):
 
     log.info('Starting updater session %s', gcp_svc.get_session_id())
 
-    lt = instance_config_args.get_launch_token(values, config)
+    lt = instance_config_args.get_launch_token(values, config, brkt_env)
     ic = instance_config_from_values(
         values,
         mode=INSTANCE_UPDATER_MODE,
@@ -186,9 +194,13 @@ def run_wrap_image(values, config):
     session_id = util.make_nonce()
     gcp_svc = gcp_service.GCPService(values.project, session_id, log)
 
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if brkt_env is None:
+        _, brkt_env = config.get_current_env()
+
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
-    lt = instance_config_args.get_launch_token(values, config)
+    lt = instance_config_args.get_launch_token(values, config, brkt_env)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_METAVISOR_MODE,
@@ -463,9 +475,6 @@ def check_args(values, gcp_svc, cli_config):
                 "Project provider either does not exist or you do not have access to it")
         if not gcp_svc.network_exists(values.network):
             raise ValidationError("Network provided does not exist")
-        brkt_env = brkt_cli.brkt_env_from_values(values)
-        if brkt_env is None:
-            _, brkt_env = cli_config.get_current_env()
 
 
 def validate_tags(tags):
