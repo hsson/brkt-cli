@@ -13,10 +13,12 @@
 # limitations under the License.
 import logging
 
+from brkt_cli.validation import ValidationError
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography import x509
 
 SECP384R1 = ec.SECP384R1.name
 
@@ -95,3 +97,15 @@ def is_encrypted_key(pem):
 
 def is_private_key(pem):
     return 'PRIVATE KEY' in pem
+
+
+def validate_cert(cert_data):
+    """ Validate that the given string is a valid x509 certificate.
+
+    :return True if the cert is valid
+    :raise ValidationError if the string has an unexpected format
+    """
+    try:
+        x509.load_pem_x509_certificate(cert_data, default_backend())
+    except Exception as e:
+        raise ValidationError('Error validating CA cert: %s' % e)
