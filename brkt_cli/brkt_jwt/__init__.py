@@ -29,6 +29,7 @@ from brkt_cli import argutil, config, util, version
 from brkt_cli.brkt_jwt import jwk
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.validation import ValidationError
+import brkt_cli.crypto
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def brkt_tags_from_name_value_list(l):
 
 
 def _make_jwt_from_signing_key(values, signing_key):
-    crypto = util.read_private_key(signing_key)
+    crypto = brkt_cli.crypto.read_private_key(signing_key)
     exp = None
     if values.exp:
         exp = parse_timestamp(values.exp)

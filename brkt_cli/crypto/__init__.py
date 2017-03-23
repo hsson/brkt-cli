@@ -11,6 +11,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+import getpass
 import logging
 
 from brkt_cli.validation import ValidationError
@@ -97,6 +98,38 @@ def is_encrypted_key(pem):
 
 def is_private_key(pem):
     return 'PRIVATE KEY' in pem
+
+
+def read_private_key(pem_path):
+    """ Read a private key from a PEM file.
+
+    :return a brkt_cli.crypto.Crypto object
+    :raise ValidationError if the file cannot be read or is malformed, or
+    if the PEM does not represent a 384-bit ECDSA private key.
+    """
+    key_format_err = (
+        'Signing key must be a 384-bit ECDSA private key (NIST P-384)'
+    )
+
+    try:
+        with open(pem_path) as f:
+            pem = f.read()
+        if not is_private_key(pem):
+            raise ValidationError(key_format_err)
+
+        password = None
+        if is_encrypted_key(pem):
+            password = getpass.getpass('Encrypted private key password: ')
+        crypto = from_private_key_pem(pem, password=password)
+    except (ValueError, IOError) as e:
+        log.debug('Unable to load signing key from %s', pem_path, exc_info=1)
+        raise ValidationError(
+            'Unable to load signing key: %s' % e)
+
+    log.debug('crypto.curve=%s', crypto.curve)
+    if crypto.curve != ec.SECP384R1.name:
+        raise ValidationError(key_format_err)
+    return crypto
 
 
 def validate_cert(cert_data):
