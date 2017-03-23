@@ -13,6 +13,8 @@
 # limitations under the License.
 import unittest
 
+from brkt_cli.validation import ValidationError
+
 import brkt_cli.crypto
 from cryptography.hazmat.backends.openssl import ec
 
@@ -44,6 +46,20 @@ U7wZaJcaN6RelbwRqnM7Qk9HqD5U9+lvS7g7vhP++AXhQretG7l9LYMZKxk3F/th
 pZPjFPt2fjlVkJnhl6NkhsTder9rJE3qKlP9JM8zwUQ=
 -----END EC PRIVATE KEY-----"""
 TEST_ENCRYPTED_PRIVATE_KEY_PASSWORD = 'test123'
+
+TEST_CERT = """
+-----BEGIN CERTIFICATE-----
+MIIBtTCCATugAwIBAgIQZBk/5Ngmtc0sE7XGFlF11TAKBggqhkjOPQQDAzAcMRow
+GAYDVQQKExFCcmFja2V0IENvbXB1dGluZzAeFw0xNjA1MTIwNDIwNDVaFw0xOTAy
+MDYwNDIwNDVaMBwxGjAYBgNVBAoTEUJyYWNrZXQgQ29tcHV0aW5nMHYwEAYHKoZI
+zj0CAQYFK4EEACIDYgAEAohisKTivkVGrLwSYMo17ttWnw2cBdK5ZPTun48r781/
+Z1DTxrLjnc7cCFMYWq01XOsjEhy+bIZNh/82E9i/GfqAfycitfuNO1OESZ8bdD17
+00SMs0y08DVB3kdTy9aNo0IwQDAOBgNVHQ8BAf8EBAMCAqwwHQYDVR0lBBYwFAYI
+KwYBBQUHAwEGCCsGAQUFBwMCMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMD
+aAAwZQIxAO7hEZk6O74+Vz20OCiLit7HKOFhsGgvFtQfqzsz3LiOahpGAZaAphbu
+rjBoDDI8bgIwJWB24fgP6ueUOVbUQ9NaV/m3RHloIhQyY5LypcJALmnQVC7YPqwx
+lu+fKEaeTQLW
+-----END CERTIFICATE-----"""
 
 
 class TestCrypto(unittest.TestCase):
@@ -96,3 +112,8 @@ class TestCrypto(unittest.TestCase):
         self.assertTrue('BEGIN EC PRIVATE KEY' in pem)
         pem = crypto.get_private_key_pem('test123')
         self.assertTrue('Proc-Type: 4,ENCRYPTED' in pem)
+
+    def test_validate_cert(self):
+        brkt_cli.crypto.validate_cert(TEST_CERT)
+        with self.assertRaises(ValidationError):
+            brkt_cli.crypto.validate_cert('foobar')

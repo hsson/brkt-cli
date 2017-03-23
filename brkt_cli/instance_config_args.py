@@ -15,9 +15,6 @@
 import argparse
 import logging
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-
 import brkt_cli
 from brkt_cli import (
     add_brkt_env_to_brkt_config,
@@ -27,6 +24,7 @@ from brkt_cli import (
 )
 from brkt_cli import argutil
 from brkt_cli import brkt_jwt
+import brkt_cli.crypto
 from brkt_cli.config import CLIConfig
 from brkt_cli.instance_config import (
     InstanceConfig,
@@ -210,10 +208,8 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
                 ca_cert_data = f.read()
         except IOError as e:
             raise ValidationError(e)
-        try:
-            x509.load_pem_x509_certificate(ca_cert_data, default_backend())
-        except Exception as e:
-            raise ValidationError('Error validating CA cert: %s' % e)
+
+        brkt_cli.crypto.validate_cert(ca_cert_data)
 
         domain = get_domain_from_brkt_env(brkt_env)
 
