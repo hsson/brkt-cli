@@ -28,6 +28,7 @@ from brkt_cli.instance_config import (
     INSTANCE_METAVISOR_MODE,
     INSTANCE_UPDATER_MODE
 )
+import brkt_cli.crypto
 from brkt_cli.instance_config_args import (
     instance_config_args_to_values,
     instance_config_from_values
@@ -261,17 +262,21 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ic = instance_config_from_values(values)
 
-        # Now specify endpoint args but use a bogus cert
         endpoint_args = ('--brkt-env api.%s:7777,hsmproxy.%s:8888,' +
-            'network.%s:9999') % (domain, domain, domain)
-        dummy_ca_cert = 'THIS IS NOT A CERTIFICATE'
-        with tempfile.NamedTemporaryFile() as f:
-            f.write(dummy_ca_cert)
-            f.flush()
-            cli_args = endpoint_args + ' --ca-cert %s' % f.name
-            values = instance_config_args_to_values(cli_args)
-            with self.assertRaises(ValidationError):
-                ic = instance_config_from_values(values)
+                         'network.%s:9999') % (domain, domain, domain)
+
+        if brkt_cli.crypto.cryptography_library_available:
+            # Now specify endpoint args but use a bogus cert.  Validation
+            # only works if the cryptography library is available or
+            # openssl is installed.
+            dummy_ca_cert = 'THIS IS NOT A CERTIFICATE'
+            with tempfile.NamedTemporaryFile() as f:
+                f.write(dummy_ca_cert)
+                f.flush()
+                cli_args = endpoint_args + ' --ca-cert %s' % f.name
+                values = instance_config_args_to_values(cli_args)
+                with self.assertRaises(ValidationError):
+                    ic = instance_config_from_values(values)
 
         # Now use endpoint args and a valid cert, with all three modes
         with tempfile.NamedTemporaryFile() as f:

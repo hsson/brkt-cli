@@ -120,9 +120,20 @@ class MakeTokenSubcommand(Subcommand):
                 'in a future release.'
             )
 
-        signing_key = values.signing_key or values.signing_key_option
+        signing_key = (
+            # The signing_key field doesn't exist if cryptography isn't
+            # installed.
+            getattr(values, 'signing_key', None) or
+            values.signing_key_option
+        )
         if signing_key:
             # Original workflow: create a launch token from a private key.
+            if not brkt_cli.crypto.cryptography_library_available:
+                raise ValidationError(
+                    'Token generation from a private key requires the '
+                    'cryptography library.\nPlease run pip install '
+                    'cryptography.'
+                )
             jwt_string = _make_jwt_from_signing_key(values, signing_key)
         else:
             # We're scaling back the list of supported claims.  Don't allow
@@ -292,14 +303,17 @@ def setup_make_jwt_args(subparsers):
         formatter_class=brkt_cli.SortingHelpFormatter
     )
 
-    parser.add_argument(
-        'signing_key',
-        metavar='SIGNING-KEY-PATH',
-        nargs='?',
-        help=(
-            'The private key that is used to sign the JWT. The key must be a '
-            '384-bit ECDSA private key (NIST P-384) in PEM format.')
-    )
+    if brkt_cli.crypto.cryptography_library_available:
+        parser.add_argument(
+            'signing_key',
+            metavar='SIGNING-KEY-PATH',
+            nargs='?',
+            help=(
+                'The private key that is used to sign the JWT. The key must '
+                'be a 384-bit ECDSA private key (NIST P-384) in PEM format.'
+            )
+        )
+
     argutil.add_brkt_tag(parser)
     parser.add_argument(
         '--claim',

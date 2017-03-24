@@ -25,9 +25,10 @@ from brkt_cli.crypto import test_crypto
 from brkt_cli.validation import ValidationError
 import jwt as pyjwt
 
-_crypto = brkt_cli.crypto.from_private_key_pem(
-    test_crypto.TEST_PRIVATE_KEY_PEM
-)
+if brkt_cli.crypto.cryptography_library_available:
+    _crypto = brkt_cli.crypto.from_private_key_pem(
+        test_crypto.TEST_PRIVATE_KEY_PEM
+    )
 
 
 class TestTimestamp(unittest.TestCase):
@@ -54,6 +55,9 @@ class TestGenerateJWT(unittest.TestCase):
         super(TestGenerateJWT, self).__init__(*args, **kwargs)
 
     def test_make_jwt(self):
+        if not brkt_cli.crypto.cryptography_library_available:
+            return
+
         # Generate the JWT.
         now = datetime.now(tz=iso8601.UTC).replace(microsecond=0)
         nbf = now + timedelta(days=1)
@@ -103,6 +107,9 @@ class TestGenerateJWT(unittest.TestCase):
 
     def test_validate_jwt_missing_kid(self):
         """ Test that validate_jwt() detects when kid is missing. """
+        if not brkt_cli.crypto.cryptography_library_available:
+            return
+
         jwt = pyjwt.encode({}, _crypto.private_key, algorithm='ES384')
         with self.assertRaises(ValidationError):
             brkt_cli.validate_jwt(jwt)
