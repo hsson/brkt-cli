@@ -42,11 +42,10 @@ class AuthSubcommand(Subcommand):
             self.name(),
             description=(
                 'Authenticate with the Bracket service. On success, print '
-                'the JSON Web Token that can be used to make calls '
-                'to Bracket REST API endpoints.'
+                'the API token (JSON Web Token) that can be used to make '
+                'calls to Bracket REST API endpoints.'
             ),
-            # Hide this command while the feature is in development.
-            # help='Authenticate with the Bracket service',
+            help='Authenticate with the Bracket service',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         parser.add_argument(
@@ -89,9 +88,6 @@ class AuthSubcommand(Subcommand):
         util.write_to_file_or_stdout(token, path=values.out)
 
         return 0
-
-    def exposed(self):
-        return False
 
 
 def get_subcommands():
