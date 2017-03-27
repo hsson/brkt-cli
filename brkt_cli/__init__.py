@@ -378,11 +378,6 @@ def main():
         'token',
         'The default token to use when encrypting, updating, or launching'
         ' images')
-    config.register_option(
-        'api-token',
-        'The token that brkt-cli uses to communicate with the Bracket '
-        'service (set by the config login command)'
-    )
 
     # Dynamically load subcommands from modules.
     subcommands = []
