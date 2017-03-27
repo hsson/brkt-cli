@@ -68,4 +68,8 @@ class GetPublicKeySubcommand(Subcommand):
 
 
 def get_subcommands():
-    return [GetPublicKeySubcommand()]
+    if brkt_cli.crypto.cryptography_library_available:
+        return [GetPublicKeySubcommand()]
+    else:
+        return []
+

@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+# Run the unit tests with and without the cryptography library.
+./test
+pip install cryptography
+./test
