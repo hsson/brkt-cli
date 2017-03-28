@@ -21,7 +21,7 @@ from oauth2client.client import GoogleCredentials
 from brkt_cli.validation import ValidationError
 
 
-GCE_NAME_MAX_LENGTH = 63
+GCP_NAME_MAX_LENGTH = 63
 LATEST_IMAGE = 'latest.image.tar.gz'
 
 
@@ -37,22 +37,22 @@ def retry(function, timeout=15.0):
         function, on=[socket.error, errors.HttpError], timeout=timeout)
 
 
-def execute_gce_api_call(gce_object):
-    return gce_object.execute()
+def execute_gcp_api_call(gcp_object):
+    return gcp_object.execute()
 
 
 class InstanceError(BracketError):
     pass
 
 
-class BaseGCEService(object):
+class BaseGCPService(object):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, project, session_id, logger):
         self.log = logger
         self.project = project
         self.session_id = session_id
-        self.gce_res_uri = "https://www.googleapis.com/compute/v1/"
+        self.gcp_res_uri = "https://www.googleapis.com/compute/v1/"
         self.disks = []
         self.instances = []
 
@@ -149,11 +149,11 @@ class BaseGCEService(object):
         pass
 
     @abc.abstractmethod
-    def create_gce_image_from_disk(self, zone, image_name, disk_name):
+    def create_gcp_image_from_disk(self, zone, image_name, disk_name):
         pass
 
     @abc.abstractmethod
-    def create_gce_image_from_file(self, zone, image_name, file_name, bucket):
+    def create_gcp_image_from_file(self, zone, image_name, file_name, bucket):
         pass
 
     @abc.abstractmethod
@@ -209,9 +209,9 @@ class BaseGCEService(object):
         pass
 
 
-class GCEService(BaseGCEService):
+class GCPService(BaseGCPService):
     def __init__(self, project, session_id, logger):
-        super(GCEService, self).__init__(project, session_id, logger)
+        super(GCPService, self).__init__(project, session_id, logger)
         self.credentials = GoogleCredentials.get_application_default()
         self.compute = discovery.build(
             'compute', 'v1', credentials=self.credentials)
@@ -219,53 +219,32 @@ class GCEService(BaseGCEService):
         self.storage = discovery.build(
             'storage', 'v1', credentials=self.credentials)
 
-    # Check if bucket exists and user has permission
-    def check_bucket_name(self, bucket):
+
+    # Create bucket/check permissions 
+    def check_bucket_name(self, bucket, project):
         try:
-            bucket = self.storage.buckets().get(
-                bucket=bucket).execute()
-            # bucket exists and we can access it
+            body = {'name' : bucket}
+            self.storage.buckets().insert(
+                project=project, body=body).execute()
+
             return 
         except errors.HttpError as e:
-            code = e.resp.status
-            if code == 404:
-                # bucket doesn't exist. Check syntax
-                self.validate_bucket_name(bucket)
-            elif code == 403:
-                # bucket does exist. Permisions not valid
-                raise ValidationError("Permission denied for bucket %s" % bucket)
+            # Parse error message and return if user owns bucket
+            # Error codes are not unique so message is used
+            message = json.loads(e.content)["error"]["message"]
+            if 'You already own this bucket' in message:
+                return
             else:
-                # unexpected Http error
+                self.log.error("Bucket must be in project: %s", project)
                 raise
-
-    # Check if the bucket name uses valid syntax
-    def validate_bucket_name(self,bucket):
-        m = re.match(r'[a-z0-9\-]', bucket)
-        if not m:
-            raise ValidationError(
-                "Bucket name must be lower case letters numbers and hyphens")
-
-        if (3 > len(bucket) or len(bucket) > 63):
-            raise ValidationError('Bucket name must be 3-63 characters')
-
-        if 'google' in bucket:
-            raise ValidationError("Bucket name can't contain 'google' ")
-
-        if bucket.startswith('-') or bucket.endswith('-'):
-            raise ValidationError("Bucket name can't start or end with '-'")
-        # Bucket name is valid
-        return 
 
 
     # Check if the file name uses valid syntax
     def validate_file_name(self, file):
-        m = re.match(r'[*?#]', file)
+        m = re.search(r'[*\[\]?#]', file)
         if m:
-            raise ValidationError("File name can't contain '*','?'' or '#'")
-        if "[" or "]" in file:
-            raise ValidationError("File name cant contain '['' or ']'")
-        return 
-
+            raise ValidationError("File name can't contain '[',']','*','?' or '#'")
+        return
 
     def check_bucket_file(self, bucket, file):
         try:
@@ -338,7 +317,7 @@ class GCEService(BaseGCEService):
     def get_snapshot(self, name):
         snap_req = self.compute.snapshots().get(
             project=self.project, snapshot=name)
-        return retry(execute_gce_api_call)(snap_req)
+        return retry(execute_gcp_api_call)(snap_req)
 
     def wait_snapshot(self, snapshot):
         while True:
@@ -406,7 +385,7 @@ class GCEService(BaseGCEService):
         instance = self.compute.instances().list(project=self.project,
                 zone=zone)
         while True:
-            instance_data = retry(execute_gce_api_call)(instance)
+            instance_data = retry(execute_gcp_api_call)(instance)
             if 'items' in instance_data:
                 for i in instance_data['items']:
                     if name == i['name'] and i['status'] == 'RUNNING':
@@ -421,7 +400,7 @@ class GCEService(BaseGCEService):
                     zone=zone, instance=name)
             try:
                 nw = 'networkInterfaces'
-                instance = retry(execute_gce_api_call)(instance_req)
+                instance = retry(execute_gcp_api_call)(instance_req)
                 if instance[nw][0]['accessConfigs'][0]['natIP']:
                     return instance[nw][0]['accessConfigs'][0]['natIP']
             except:
@@ -449,7 +428,7 @@ class GCEService(BaseGCEService):
     def detach_disk(self, zone, instance, diskName):
         detach_req = self.compute.instances().detachDisk(project=self.project,
                 instance=instance, zone=zone, deviceName=diskName)
-        retry(execute_gce_api_call)(detach_req)
+        retry(execute_gcp_api_call)(detach_req)
         # wait for disk ready
         return self.wait_for_detach(zone, diskName)
 
@@ -459,7 +438,7 @@ class GCEService(BaseGCEService):
                                             disk=diskName)
         while True:
             self.log.info("Waiting for disk to become ready")
-            if 'READY' == retry(execute_gce_api_call)(disk_req)['status']:
+            if 'READY' == retry(execute_gcp_api_call)(disk_req)['status']:
                 return
             time.sleep(10)
 
@@ -472,7 +451,7 @@ class GCEService(BaseGCEService):
                                               project=self.project,
                                               disk=diskName)
         while True:
-            resp = retry(execute_gce_api_call)(detach_req)
+            resp = retry(execute_gcp_api_call)(detach_req)
             if "users" not in resp and resp != {}:
                 self.log.info("Disk detach successful")
                 return
@@ -562,7 +541,7 @@ class GCEService(BaseGCEService):
         }
         return body
 
-    def create_gce_image_from_disk(self, zone, image_name, disk_name):
+    def create_gcp_image_from_disk(self, zone, image_name, disk_name):
         build_disk = "projects/%s/zones/%s/disks/%s" % (self.project,
                 zone, disk_name)
         self.compute.images().insert(body={"rawdisk": {},
@@ -570,7 +549,7 @@ class GCEService(BaseGCEService):
             "sourceDisk": build_disk},
             project=self.project).execute()
 
-    def create_gce_image_from_file(self, zone, image_name, file_name, bucket):
+    def create_gcp_image_from_file(self, zone, image_name, file_name, bucket):
         source = "https://storage.googleapis.com/%s/%s" % (bucket, file_name)
         self.compute.images().insert(
             body={
@@ -584,7 +563,7 @@ class GCEService(BaseGCEService):
     def wait_image(self, image_name):
         image_req = self.compute.images().get(image=image_name, project=self.project)
         while True:
-            if retry(execute_gce_api_call, timeout=30.0)(image_req)['status'] == 'READY':
+            if retry(execute_gcp_api_call, timeout=30.0)(image_req)['status'] == 'READY':
                 return
             time.sleep(10)
 
@@ -625,7 +604,7 @@ class GCEService(BaseGCEService):
         # if latest.image.tar.gz doesnt exist return the newest image
         if not image_file:
             image_file = self.get_image_file(bucket)
-        self.create_gce_image_from_file(zone,
+        self.create_gcp_image_from_file(zone,
                                         image_name,
                                         image_file,
                                         bucket)
@@ -673,7 +652,7 @@ class GCEService(BaseGCEService):
                     'boot': True,
                     'autoDelete': delete_boot,
                     'initializeParams': {
-                        'sourceImage': self.gce_res_uri + source_disk_image,
+                        'sourceImage': self.gcp_res_uri + source_disk_image,
                     },
                 },
             ] + disks,
@@ -710,7 +689,7 @@ class GCEService(BaseGCEService):
             project=self.project,
             zone=zone,
             body=config)
-        retry(execute_gce_api_call)(instance_req)
+        retry(execute_gcp_api_call, timeout=30.0)(instance_req)
         if tags:
             self.log.info("Setting instance tags %s", tags)
             self.set_tags(zone, name, tags)
@@ -724,7 +703,7 @@ class GCEService(BaseGCEService):
         return {
             'boot': False,
             'autoDelete': False,
-            'source': self.gce_res_uri + source_disk,
+            'source': self.gcp_res_uri + source_disk,
         }
 
     def set_tags(self, zone, instance, tags):
@@ -738,7 +717,7 @@ class GCEService(BaseGCEService):
                                                    zone=zone,
                                                    instance=instance,
                                                    body=body)
-        retry(execute_gce_api_call)(request)
+        retry(execute_gcp_api_call)(request)
         return
 
     def get_tags_fingerprint(self, name, zone):
@@ -749,11 +728,11 @@ class GCEService(BaseGCEService):
         request = self.compute.instances().get(project=self.project,
                                                 instance=name,
                                                 zone=zone)
-        instance = execute_gce_api_call(request)
+        instance = execute_gcp_api_call(request)
         if instance['tags']['fingerprint']:
             return instance['tags']['fingerprint']
 
-def gce_metadata_from_userdata(brkt_data, extra_items=None):
+def gcp_metadata_from_userdata(brkt_data, extra_items=None):
     """ brkt_data is a JSON blob containing the brkt-config """
     items_list = [{'key': 'brkt', 'value': brkt_data}]
     if extra_items:
@@ -772,32 +751,32 @@ def get_image_name(encrypted_image_name, name):
         encrypted_image_name = append_suffix(
                 m.group(1),
                 '-encrypted-%s' % (nonce,),
-                GCE_NAME_MAX_LENGTH)
+                GCP_NAME_MAX_LENGTH)
     else:
         encrypted_image_name = append_suffix(
                 name,
                 '-encrypted-%s' % (nonce,),
-                GCE_NAME_MAX_LENGTH)
+                GCP_NAME_MAX_LENGTH)
     return encrypted_image_name
 
 
-def validate_images(gce_svc, encrypted_image_name, encryptor, guest_image, image_project=None):
+def validate_images(gcp_svc, encrypted_image_name, encryptor, guest_image, image_project=None):
     # check that image to be updated exists
-    if not gce_svc.image_exists(guest_image, image_project):
+    if not gcp_svc.image_exists(guest_image, image_project):
         raise ValidationError('Guest image or image project invalid')
 
     # check that encryptor exists
-    if encryptor and not gce_svc.image_exists(encryptor):
+    if encryptor and not gcp_svc.image_exists(encryptor):
         raise ValidationError('Encryptor image %s does not exist. Encryption failed.' % encryptor)
 
     # check that there is no existing image named encrypted_image_name
-    if gce_svc.image_exists(encrypted_image_name):
+    if gcp_svc.image_exists(encrypted_image_name):
         raise ValidationError('An image already exists with name %s. Encryption Failed.' % encrypted_image_name)
 
 
 
 def validate_image_name(name):
-    """ Verify that the name is a valid GCE image name. Return the name
+    """ Verify that the name is a valid GCP image name. Return the name
         if it is valid.
 
     : raises ValidationError if name is invalid

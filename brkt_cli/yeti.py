@@ -144,3 +144,24 @@ class YetiService(object):
             name=d['name'],
             email=d['email']
         )
+
+    def get_launch_token(self, tags=None):
+        """ Return a Metavisor launch token (JWT).
+
+        :param tags a string map that specifies Bracket tags that will be
+        added to the JWT payload.
+        """
+        tags = tags or {}
+        payload = {}
+        if tags:
+            payload['tags'] = []
+            for key, value in tags.iteritems():
+                tag_dict = {'key': key, 'value': value}
+                payload['tags'].append(tag_dict)
+
+        d = post_json(
+            self.root_url + '/api/v1/token',
+            token=self.token,
+            json=payload
+        )
+        return d['jwt']

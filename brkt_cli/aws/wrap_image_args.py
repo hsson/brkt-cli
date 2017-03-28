@@ -13,29 +13,27 @@
 # limitations under the License.
 
 import argparse
-
 from brkt_cli.aws import aws_args
 
 
-def setup_diag_args(parser, parsed_config):
+def setup_wrap_image_args(parser, parsed_config):
     parser.add_argument(
-        '--snapshot',
+        'ami',
         metavar='ID',
-        dest='snapshot_id',
-        help='The snapshot with Bracket system logs'
+        help='The guest AMI that will be launched as a wrapped Bracket instance'
     )
     parser.add_argument(
-        '--instance',
-        metavar='ID',
-        dest='instance_id',
-        help='The instance with Bracket system logs'
+        '--wrapped-instance-name',
+        metavar='NAME',
+        dest='wrapped_instance_name',
+        help='Specify the name of the wrapped Bracket instance',
+        required=False
     )
     parser.add_argument(
-        '--diag-instance-type',
+        '--instance-type',
         metavar='TYPE',
-        dest='diag_instance_type',
-        help=(
-            'The instance type to use when running the diag instance'),
+        dest='instance_type',
+        help='The instance type to use when launching the wrapped image',
         default='m3.medium'
     )
     aws_args.add_no_validate(parser)
@@ -43,7 +41,9 @@ def setup_diag_args(parser, parsed_config):
     aws_args.add_security_group(parser)
     aws_args.add_subnet(parser)
     aws_args.add_aws_tag(parser)
-
+    aws_args.add_key(parser)
+    # Hide optional sub-command level verbose argument. This should be
+    # removed once this option is removed at the sub-command level
     parser.add_argument(
         '-v',
         '--verbose',
@@ -52,19 +52,12 @@ def setup_diag_args(parser, parsed_config):
         help=argparse.SUPPRESS
     )
 
-    aws_args.add_key(
-        parser,
-        help='ssh keypair name to be used to connect to diag instance.'
-    )
+    # Optional AMI ID that's used to launch the encryptor instance.  This
+    # argument is hidden because it's only used for development.
+    aws_args.add_encryptor_ami(parser)
 
-    # Hide deprecated --tags argument
-    parser.add_argument(
-        '--tag',
-        metavar='KEY=VALUE',
-        dest='tags',
-        action='append',
-        help=argparse.SUPPRESS
-    )
-
+    # Optional arguments for changing the behavior of our retry logic.  We
+    # use these options internally, to avoid intermittent AWS service failures
+    # when running concurrent encryption processes in integration tests.
     aws_args.add_retry_timeout(parser)
     aws_args.add_retry_initial_sleep_seconds(parser)

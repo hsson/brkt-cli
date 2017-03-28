@@ -22,13 +22,18 @@ import os
 import signal
 import hashlib
 import requests
-import boto.s3
-
+import xml.etree.ElementTree
 from functools import wraps
+from operator import attrgetter
 from threading import Thread
+from httplib import BadStatusLine
+
+import boto3
+from botocore.handlers import disable_signing
 from pyVim import connect
 from pyVmomi import vmodl
 from pyVmomi import vim
+
 from brkt_cli.util import (
     retry,
     RetryExceptionChecker
@@ -36,10 +41,12 @@ from brkt_cli.util import (
 from brkt_cli import validate_ssh_pub_key
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 from brkt_cli.validation import ValidationError
-from boto.s3.key import Key
 
 
 log = logging.getLogger(__name__)
+logging.getLogger('boto3').setLevel(logging.FATAL)
+logging.getLogger('botocore').setLevel(logging.FATAL)
+logging.getLogger('s3transfer').setLevel(logging.FATAL)
 
 
 class TimeoutError(Exception):
@@ -88,6 +95,8 @@ class BaseVCenterService(object):
         self.datastore_path = "[" + datastore_name + "] "
         self.esx_host = esx_host
         self.cluster_name = cluster_name
+        if self.esx_host:
+            self.cluster_name = None
         self.no_of_cpus = no_of_cpus
         self.memoryGB = memoryGB
         self.session_id = session_id
@@ -115,11 +124,19 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
+    def validate_connection(self):
+        pass
+
+    @abc.abstractmethod
     def get_session_id(self):
         pass
 
     @abc.abstractmethod
     def get_datastore_path(self, vmdk_name):
+        pass
+
+    @abc.abstractmethod
+    def validate_vcenter_params(self):
         pass
 
     @abc.abstractmethod
@@ -143,7 +160,7 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def create_vm(self, memoryGB=1, numCPUs=1):
+    def create_vm(self, memoryGB=1, numCPUs=1, vm_name=None):
         pass
 
     @abc.abstractmethod
@@ -347,6 +364,24 @@ class VCenterService(BaseVCenterService):
             return False
         return True
 
+    def validate_connection(self):
+        try:
+            content = self.si.RetrieveContent()
+            self.__get_obj(content, [vim.VirtualMachine], None)
+        except BadStatusLine:
+            # Connection has expired, reconnect
+            self.si = None
+            try:
+                log.info("vCenter connection expired, reconnecting")
+                self.connect()
+            except:
+                log.error("vCenter connection expired and failed "
+                          "to reconnect")
+                raise
+        except:
+            log.error("vCenter connection expired and failed to reconnect")
+            raise
+
     def get_session_id(self):
         return self.session_id
 
@@ -378,24 +413,49 @@ class VCenterService(BaseVCenterService):
                 raise Exception('Task failed to finish with error %s' %
                                 task.info.error)
 
+    def validate_vcenter_params(self):
+        content = self.si.RetrieveContent()
+        if self.datacenter_name:
+            datacenter = self.__get_obj(content, [vim.Datacenter],
+                                        self.datacenter_name)
+            if not datacenter:
+                raise ValidationError("Datacenter %s not found",
+                                      self.datacenter_name)
+        if self.datastore_name:
+            datastore = self.__get_obj(content, [vim.Datastore],
+                                       self.datastore_name)
+            if not datastore:
+                raise ValidationError("Datastore %s not found",
+                                      self.datastore_name)
+        if self.cluster_name:
+            cluster = self.__get_obj(content, [vim.ComputeResource],
+                                     self.cluster_name)
+            if not cluster:
+                raise ValidationError("Cluster %s not found",
+                                      self.cluster_name)
+
     def find_vm(self, vm_name):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
         return vm
 
     def power_on(self, vm):
+        self.validate_connection()
         if format(vm.runtime.powerState) == "poweredOn":
             return
         task = vm.PowerOnVM_Task()
         self.__wait_for_task(task)
 
     def power_off(self, vm):
+        self.validate_connection()
         if format(vm.runtime.powerState) != "poweredOn":
             return
         task = vm.PowerOffVM_Task()
         self.__wait_for_task(task)
 
     def destroy_vm(self, vm):
+        self.validate_connection()
         log.info("Destroying VM %s", vm.config.name)
         content = self.si.RetrieveContent()
         f = self.si.content.fileManager
@@ -413,6 +473,7 @@ class VCenterService(BaseVCenterService):
         self.__wait_for_task(task)
 
     def get_ip_address(self, vm):
+        self.validate_connection()
         retry = 0
         while (vm.guest.ipAddress is None):
             if retry > 60:
@@ -421,19 +482,18 @@ class VCenterService(BaseVCenterService):
             retry = retry + 1
         return (vm.guest.ipAddress)
 
-    def create_vm(self, memoryGB=1, numCPUs=1):
+    def create_vm(self, memoryGB=1, numCPUs=1, vm_name=None):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
         vmfolder = datacenter.vmFolder
-        if self.esx_host:
-            cluster = self.__get_obj(content, [vim.ComputeResource], None)
-        else:
-            cluster = self.__get_obj(content, [vim.ClusterComputeResource],
-                                     self.cluster_name)
+        cluster = self.__get_obj(content, [vim.ComputeResource],
+                                 self.cluster_name)
         pool = cluster.resourcePool
         timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
-        vm_name = "VM-" + timestamp
+        if not vm_name:
+            vm_name = "VM-" + timestamp
         vmx_file = vim.vm.FileInfo(logDirectory=None,
                                    snapshotDirectory=None,
                                    suspendDirectory=None,
@@ -475,6 +535,7 @@ class VCenterService(BaseVCenterService):
         return vm
 
     def reconfigure_vm_cpu_ram(self, vm):
+        self.validate_connection()
         vm_name = vm.config.name
         spec = vim.vm.ConfigSpec(name=vm_name,
                                  memoryMB=(1024*int(self.memoryGB)),
@@ -483,6 +544,7 @@ class VCenterService(BaseVCenterService):
         self.__wait_for_task(task)
 
     def add_serial_port_to_file(self, vm, filename):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         spec = vim.vm.ConfigSpec()
         port_spec = vim.vm.device.VirtualDeviceSpec()
@@ -503,6 +565,7 @@ class VCenterService(BaseVCenterService):
         log.info("Console messages will be dumped to file %s", filename)
 
     def delete_serial_port_to_file(self, vm, filename):
+        self.validate_connection()
         delete_device = None
         backing_filename = self.get_datastore_path(filename)
         for device in vm.config.hardware.device:
@@ -525,6 +588,7 @@ class VCenterService(BaseVCenterService):
 
     def add_disk(self, vm, disk_size=12*1024*1024,
                  filename=None, unit_number=0):
+        self.validate_connection()
         spec = vim.vm.ConfigSpec()
         controller = None
         for dev in vm.config.hardware.device:
@@ -562,13 +626,14 @@ class VCenterService(BaseVCenterService):
             log.info("%dKB empty disk added to %s", disk_size, vm.config.name)
 
     def detach_disk(self, vm, unit_number=2):
+        self.validate_connection()
         delete_device = None
         for device in vm.config.hardware.device:
             if (isinstance(device, vim.vm.device.VirtualDisk)):
                 if (device.unitNumber == unit_number):
                     delete_device = device
         if (delete_device is None):
-            log.error("No disk found at %d in VM to detach",
+            log.error("No disk found at %d in VM %s to detach",
                       unit_number, vm.config.name)
             return
         spec = vim.vm.ConfigSpec()
@@ -585,6 +650,7 @@ class VCenterService(BaseVCenterService):
         return delete_device
 
     def clone_disk(self, source_disk, dest_disk=None, dest_disk_name=None):
+        self.validate_connection()
         content = self.si.RetrieveContent()
         source_disk_name = source_disk.backing.fileName
         if (dest_disk_name is None):
@@ -621,6 +687,7 @@ class VCenterService(BaseVCenterService):
         return dest_disk_name
 
     def get_disk(self, vm, unit_number):
+        self.validate_connection()
         for device in vm.config.hardware.device:
             if (isinstance(device, vim.vm.device.VirtualDisk)):
                 if (device.unitNumber == unit_number):
@@ -628,6 +695,7 @@ class VCenterService(BaseVCenterService):
         return None
 
     def get_disk_size(self, vm, unit_number):
+        self.validate_connection()
         for device in vm.config.hardware.device:
             if (isinstance(device, vim.vm.device.VirtualDisk)):
                 if (device.unitNumber == unit_number):
@@ -638,14 +706,16 @@ class VCenterService(BaseVCenterService):
                         (unit_number, vm.config.name))
 
     def clone_vm(self, vm, powerOn=False, vm_name=None, template=False):
+        self.validate_connection()
         if self.esx_host:
             log.error("Cannot create template VM when connected to ESX host")
             return None
+        self.validate_connection()
         content = self.si.RetrieveContent()
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
         destfolder = datacenter.vmFolder
-        cluster = self.__get_obj(content, [vim.ClusterComputeResource],
+        cluster = self.__get_obj(content, [vim.ComputeResource],
                                  self.cluster_name)
         pool = cluster.resourcePool
         datastore = self.__get_obj(content, [vim.Datastore],
@@ -662,6 +732,14 @@ class VCenterService(BaseVCenterService):
             vm_name = "template-vm-" + timestamp
         task = vm.Clone(folder=destfolder, name=vm_name, spec=clonespec)
         self.__wait_for_task(task)
+        try:
+            vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
+            return vm
+        except (BadStatusLine, vmodl.fault.ManagedObjectNotFound) as e:
+            log.debug("VM %s not found with error %s, retrying", vm_name, e)
+            pass
+        self.disconnect()
+        self.connect()
         vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
         return vm
 
@@ -693,6 +771,7 @@ class VCenterService(BaseVCenterService):
             raise
 
     def send_userdata(self, vm, user_data_str):
+        self.validate_connection()
         spec = vim.vm.ConfigSpec()
         option_n = vim.option.OptionValue()
         spec.extraConfig = []
@@ -716,6 +795,7 @@ class VCenterService(BaseVCenterService):
                 return
 
     def export_to_ovf(self, vm, target_path, ovf_name=None):
+        self.validate_connection()
         if (os.path.exists(target_path) is False):
             raise Exception("OVF target path does not exist")
         if (ovf_name is None):
@@ -759,7 +839,7 @@ class VCenterService(BaseVCenterService):
                 size = os.path.getsize(target_file)
                 ovf_file = vim.OvfManager.OvfFile()
                 ovf_file.deviceId = devid
-                ovf_file.path = target_file
+                ovf_file.path = file_name
                 ovf_file.size = size
                 ovf_files.append(ovf_file)
             desc = vim.OvfManager.CreateDescriptorParams()
@@ -808,6 +888,7 @@ class VCenterService(BaseVCenterService):
 
     def upload_ovf_to_vcenter(self, target_path, ovf_name,
                               vm_name=None, validate_mf=True):
+        self.validate_connection()
         vm = None
         content = self.si.RetrieveContent()
         manager = self.si.content.ovfManager
@@ -816,10 +897,18 @@ class VCenterService(BaseVCenterService):
             # Load checksums for each file
             mf_checksum = None
             if ovf_name.endswith('.ovf'):
-                mf_file_name = ovf_name[:ovf_name.find(".ovf")] + ".mf"
+                mf_file_name = ovf_name[:ovf_name.find(".ovf")] + "-brkt.mf"
             else:
-                mf_file_name = ovf_name + '.mf'
+                mf_file_name = ovf_name + '-brkt.mf'
             mf_path = os.path.join(target_path, mf_file_name)
+            # Deprecate this code over time
+            if not os.path.exists(mf_path):
+                if ovf_name.endswith('.ovf'):
+                    mf_file_name = ovf_name[:ovf_name.find(".ovf")] + ".mf"
+                else:
+                    mf_file_name = ovf_name + '.mf'
+                mf_path = os.path.join(target_path, mf_file_name)
+            # end deprecate code
             with open(mf_path, 'r') as mf_file:
                 mf_checksum = json.load(mf_file)
             # Validate ovf file
@@ -830,15 +919,21 @@ class VCenterService(BaseVCenterService):
         # Load the OVF file
         spec_params = vim.OvfManager.CreateImportSpecParams()
         ovfd = self.get_ovf_descriptor(ovf_path)
+        if self.is_esx_host():
+            # Remove property section
+            e = xml.etree.ElementTree.fromstring(ovfd)
+            for child in e:
+                if "VirtualSystem" in child.tag:
+                    for child_2 in child:
+                        if "ProductSection" in child_2.tag:
+                            child.remove(child_2)
+            ovfd = xml.etree.ElementTree.tostring(e)
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
         datastore = self.__get_obj(content, [vim.Datastore],
                                    self.datastore_name)
-        if self.esx_host:
-            cluster = self.__get_obj(content, [vim.ComputeResource], None)
-        else:
-            cluster = self.__get_obj(content, [vim.ClusterComputeResource],
-                                     self.cluster_name)
+        cluster = self.__get_obj(content, [vim.ComputeResource],
+                                 self.cluster_name)
         resource_pool = cluster.resourcePool
         destfolder = datacenter.vmFolder
         import_spec = manager.CreateImportSpec(ovfd,
@@ -959,16 +1054,15 @@ def initialize_vcenter(host, user, password, port,
 
 def need_to_download_from_s3(file_list):
     """ Checks if the necessary files are already downloaded
-       
+
         Returns: True or False to indicate whether the download
-        is required or not and an OVF image name when download
-        is not required
+        is required or not
     """
-    ovf_image = None
-    for item in file_list:
-        file_name = item[item.rfind('/')+1:]
+    fetch_s3_objects = True
+    vmdk_sha = ovf_sha = manifest = False
+    for file_name in file_list:
         if not os.path.exists(file_name):
-            return ovf_image, True
+            break
         if '.mf' in file_name:
             with open(file_name) as manifest_data:
                 manifest = json.load(manifest_data)
@@ -978,73 +1072,81 @@ def need_to_download_from_s3(file_list):
                 f.close()
             vmdk_sha = hashlib.sha1(data).hexdigest()
         if '.ovf' in file_name:
-            ovf_image = file_name
             with open(file_name) as f:
                 data = f.read()
                 f.close()
             ovf_sha = hashlib.sha1(data).hexdigest()
-    if vmdk_sha in manifest.values() and ovf_sha in manifest.values():
-        return ovf_image, False
-    return ovf_image, True
+    if vmdk_sha and ovf_sha and manifest:
+        if vmdk_sha in manifest.values() and ovf_sha in manifest.values():
+            fetch_s3_objects = False
+
+    return fetch_s3_objects
 
 
 def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
-    logging.getLogger('boto').setLevel(logging.FATAL)
     log.info("Fetching Metavisor OVF from S3")
     if bucket_name is None:
         log.error("Bucket-name is unknown, cannot get metavisor OVF")
         raise Exception("Invalid bucket-name")
-    ovf_name = None
-    download_file_list = []
+
     # Normalize image_name for S3 downloads
     if image_name and image_name.endswith('.ovf'):
         image_name = image_name[:image_name.find('.ovf')]
+
     try:
-        anon = not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ))
+        _environ = dict(os.environ)
+
         if proxy:
-            conn = boto.connect_s3(None, None, anon=anon,
-                                   host="s3.amazonaws.com",
-                                   proxy=proxy.host, proxy_port=proxy.port)
+            #TODO(workaround) https://github.com/boto/boto3/issues/338
+            os.environ["HTTP_PROXY"] = "http://%s:%d" % (proxy.host, proxy.port)
+            os.environ["HTTPS_PROXY"] = "https://%s:%d" % (proxy.host, proxy.port)
+
+        s3 = boto3.resource('s3')
+
+        if not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ)):
+            s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
+
+        bucket = s3.Bucket(bucket_name)
+        blist = list(bucket.objects.filter(Prefix="metavisor/"))
+        if not blist:
+            blist = list(bucket.objects.all())
+
+        # Get latest, exact, or partial match of ovfs
+        # No debug for partial match
+        if image_name is None:
+            ovfs = [ o for o in blist if o.key.endswith('.ovf')
+                     and ('latest/' in o.key or 'release-' in o.key)
+                     and not '-debug' in o.key ]
         else:
-            conn = boto.connect_s3(None, None, anon=anon, host="s3.amazonaws.com")
-        bucket = boto.s3.bucket.Bucket(connection=conn, name=bucket_name)
-        if (image_name is None):
-            # Get the last one
-            c_list = list(bucket.list("", "/"))
-            dir_list = []
-            for content in c_list:
-                dir_name = str(content.name)
-                if "release" in dir_name:
-                    dir_list.append(dir_name)
-            image_name = (sorted(dir_list))[len(dir_list)-1]
-            file_list_obj = list(bucket.list(image_name))
+            exact_match = image_name + '.ovf'
+            ovfs = [ o for o in blist if o.key.endswith(exact_match) ]
+            if not ovfs:
+                ovfs = [ o for o in blist if o.key.endswith('.ovf')
+                         and image_name in o.key
+                         and not '-debug' in o.key ]
+
+        if ovfs:
+            ovf_key = sorted(ovfs, key=attrgetter('last_modified'))[-1].key
+            ovf_name = ovf_key[ovf_key.rfind('/')+1:]
+            ovf_prefix = ovf_key[:ovf_key.rfind('/')+1]
+            ovf_filenames = [ o.key[o.key.rfind('/')+1:]
+                              for o in blist if o.key.startswith(ovf_prefix) ]
+            if need_to_download_from_s3(ovf_filenames):
+                for ovf_file in ovf_filenames:
+                    bucket.download_file(os.path.join(ovf_prefix, ovf_file),
+                                         os.path.join('./', ovf_file))
+                log.info("Found OVF image: %s", ovf_name)
+            else:
+                log.info("Using previously downloaded OVF image: %s", ovf_name)
         else:
-            file_list_obj = list(bucket.list(image_name + "/"))
-        if len(file_list_obj) is 0:
-            log.error("Directory %s in bucket %s is empty." % (image_name,
-                     bucket_name))
-            return (None, None)
-        file_list = []
-        for content in file_list_obj:
-            file_list.append(str(content.name))
-        ovf_name, download_required = need_to_download_from_s3(file_list)
-        if download_required:
-            for item in file_list:
-                file_name = item[item.rfind('/')+1:]
-                target_file = os.path.join("./", file_name)
-                certificate = Key(bucket)
-                certificate.key = item
-                certificate.get_contents_to_filename(target_file)
-                if (".ovf" in file_name):
-                    ovf_name = target_file
-                download_file_list.append(target_file)
-        else:
-            log.info("Using previously downloaded OVF image")
-        if ovf_name is None:
-            log.error("No OVF file in directory %s in bucket "
+            log.error("No OVF image found with name %s in bucket "
                      "%s" % (image_name, bucket_name))
-            return (None, None)
-        return (ovf_name, download_file_list)
+            ovf_name = ovf_filenames = None
+
+        os.environ.clear()
+        os.environ.update(_environ)
+
+        return (ovf_name, ovf_filenames)
     except Exception as e:
         log.exception("Exception downloading OVF from S3 %s" % e)
         raise

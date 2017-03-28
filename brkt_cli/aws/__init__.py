@@ -19,6 +19,7 @@ import urllib2
 
 import boto
 from boto.exception import EC2ResponseError, NoAuthHandlerFound
+from brkt_cli import instance_config_args
 
 import brkt_cli
 from brkt_cli import encryptor_service, util
@@ -28,6 +29,8 @@ from brkt_cli.aws import (
     diag_args,
     encrypt_ami,
     encrypt_ami_args,
+    wrap_image,
+    wrap_image_args,
     share_logs,
     share_logs_args,
     update_encrypted_ami_args
@@ -40,6 +43,7 @@ from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_UPDATER_MODE,
+    INSTANCE_METAVISOR_MODE,
 )
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
@@ -192,6 +196,63 @@ def run_share_logs(values):
 
 
 @_handle_aws_errors
+def run_wrap_image(values, config, verbose=False):
+    nonce = util.make_nonce()
+
+    aws_svc = aws_service.AWSService(
+        nonce,
+        retry_timeout=values.retry_timeout,
+        retry_initial_sleep_seconds=values.retry_initial_sleep_seconds
+    )
+    log.debug(
+        'Retry timeout=%.02f, initial sleep seconds=%.02f',
+        aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
+
+    aws_svc.connect(values.region, key_name=values.key_name)
+
+    if values.validate:
+        guest_image = _validate_guest_ami(aws_svc, values.ami)
+    else:
+        guest_image = aws_svc.get_image(values.ami)
+
+    metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
+    if values.validate:
+        values.encrypted_ami_name = None
+        _validate(aws_svc, values, metavisor_ami)
+        brkt_cli.validate_ntp_servers(values.ntp_servers)
+
+    mv_image = aws_svc.get_image(metavisor_ami)
+    # Raise error if it is not a FreeBSD Metavisor
+    if 'metavisor-' not in mv_image.name:
+        raise ValidationError(
+            'Unsupported Bracket image for wrapped guest: %s' %
+            mv_image.name
+        )
+
+    lt = instance_config_args.get_launch_token(values, config)
+    instance_config = instance_config_from_values(
+        values,
+        mode=INSTANCE_METAVISOR_MODE,
+        cli_config=config,
+        launch_token=lt)
+
+    instance_id = wrap_image.launch_wrapped_image(
+        aws_svc=aws_svc,
+        image_id = guest_image.id,
+        metavisor_ami=metavisor_ami,
+        wrapped_instance_name=values.wrapped_instance_name,
+        subnet_id=values.subnet_id,
+        security_group_ids=values.security_group_ids,
+        instance_type=values.instance_type,
+        instance_config=instance_config
+    )
+    # Print the Instance ID to stdout, in case the caller wants to process
+    # the output. Log messages go to stderr
+    print(instance_id)
+    return 0
+
+
+@_handle_aws_errors
 def run_encrypt(values, config, verbose=False):
     session_id = util.make_nonce()
 
@@ -212,9 +273,6 @@ def run_encrypt(values, config, verbose=False):
         # Validate the region before connecting.
         _validate_region(aws_svc, values.region)
 
-        if values.token:
-            brkt_cli.check_jwt_auth(brkt_env, values.token)
-
     aws_svc.connect(values.region, key_name=values.key_name)
 
     if values.validate:
@@ -234,7 +292,7 @@ def run_encrypt(values, config, verbose=False):
 
     mv_image = aws_svc.get_image(encryptor_ami)
     if values.crypto is None:
-        if mv_image.name.startswith('brkt-avatar-freebsd'):
+        if mv_image.name.startswith('metavisor'):
             crypto_policy = CRYPTO_XTS
         elif mv_image.name.startswith('brkt-avatar'):
             crypto_policy = CRYPTO_GCM
@@ -247,14 +305,19 @@ def run_encrypt(values, config, verbose=False):
             crypto_policy = CRYPTO_XTS
     else:
         crypto_policy = values.crypto
-        if crypto_policy == CRYPTO_XTS and not mv_image.name.startswith('brkt-avatar-freebsd'):
+        if crypto_policy == CRYPTO_XTS and not mv_image.name.startswith('metavisor'):
             raise ValidationError(
                 'Unsupported crypto policy %s for encryptor %s' %
                 crypto_policy, mv_image.name
             )
 
+    lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_CREATOR_MODE, cli_config=config)
+        values,
+        mode=INSTANCE_CREATOR_MODE,
+        cli_config=config,
+        launch_token=lt)
+
     if verbose:
         with tempfile.NamedTemporaryFile(
             prefix='user-data-',
@@ -306,9 +369,6 @@ def run_update(values, config, verbose=False):
         # Validate the region before connecting.
         _validate_region(aws_svc, values.region)
 
-        if values.token:
-            brkt_cli.check_jwt_auth(brkt_env, values.token)
-
     aws_svc.connect(values.region, key_name=values.key_name)
     encrypted_image = _validate_ami(aws_svc, values.ami)
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
@@ -358,8 +418,13 @@ def run_update(values, config, verbose=False):
         encrypted_image.id, encryptor_ami
     )
 
+    lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
-        values, mode=INSTANCE_UPDATER_MODE, cli_config=config)
+        values,
+        mode=INSTANCE_UPDATER_MODE,
+        cli_config=config,
+        launch_token=lt
+    )
     if verbose:
         with tempfile.NamedTemporaryFile(
             prefix='user-data-',
@@ -393,6 +458,11 @@ class AWSSubcommand(Subcommand):
         # at ERROR level.
         boto.log.setLevel(logging.FATAL)
 
+    def setup_config(self, config):
+        config.register_option(
+            '%s.region' % self.name(),
+            'The AWS region metavisors will be launched into')
+
     def verbose(self, values):
         return values.aws_verbose
 
@@ -408,7 +478,7 @@ class AWSSubcommand(Subcommand):
         aws_subparsers = aws_parser.add_subparsers(
             dest='aws_subcommand',
             # Hardcode the list, so that we don't expose internal subcommands.
-            metavar='{encrypt,update}'
+            metavar='{encrypt,update,wrap-guest-image}'
         )
 
         diag_parser = aws_subparsers.add_parser(
@@ -420,7 +490,7 @@ class AWSSubcommand(Subcommand):
             ),
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        diag_args.setup_diag_args(diag_parser)
+        diag_args.setup_diag_args(diag_parser, parsed_config)
         diag_parser.set_defaults(aws_subcommand='diag')
 
         encrypt_ami_parser = aws_subparsers.add_parser(
@@ -429,7 +499,8 @@ class AWSSubcommand(Subcommand):
             help='Encrypt an AWS image',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        encrypt_ami_args.setup_encrypt_ami_args(encrypt_ami_parser)
+        encrypt_ami_args.setup_encrypt_ami_args(
+            encrypt_ami_parser, parsed_config)
         setup_instance_config_args(encrypt_ami_parser, parsed_config,
                                    mode=INSTANCE_CREATOR_MODE)
         encrypt_ami_parser.set_defaults(aws_subcommand='encrypt')
@@ -441,7 +512,8 @@ class AWSSubcommand(Subcommand):
             description='Share logs from an existing encrypted instance.',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
-        share_logs_args.setup_share_logs_args(share_logs_parser)
+        share_logs_args.setup_share_logs_args(
+            share_logs_parser, parsed_config)
         share_logs_parser.set_defaults(aws_subcommand='share-logs')
 
         update_encrypted_ami_parser = aws_subparsers.add_parser(
@@ -454,16 +526,32 @@ class AWSSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         update_encrypted_ami_args.setup_update_encrypted_ami(
-            update_encrypted_ami_parser)
+            update_encrypted_ami_parser, parsed_config)
         setup_instance_config_args(update_encrypted_ami_parser,
                                    parsed_config,
                                    mode=INSTANCE_UPDATER_MODE)
         update_encrypted_ami_parser.set_defaults(aws_subcommand='update')
 
+        wrap_parser = aws_subparsers.add_parser(
+            'wrap-guest-image',
+            description=(
+                'Launch guest image wrapped with Bracket Metavsor'
+            ),
+            help='Launch guest image wrapped with Bracket Metavisor'
+        )
+        wrap_image_args.setup_wrap_image_args(wrap_parser, parsed_config)
+        setup_instance_config_args(wrap_parser, parsed_config,
+                                   mode=INSTANCE_CREATOR_MODE)
+        wrap_parser.set_defaults(aws_subcommand='wrap-guest-image')
+
+
     def debug_log_to_temp_file(self, values):
         return values.aws_subcommand in ('encrypt', 'update')
 
     def run(self, values):
+        if not values.region:
+            raise ValidationError(
+                'Specify --region or set the aws.region config key')
         if values.aws_subcommand == 'encrypt':
             verbose = brkt_cli.is_verbose(values, self)
             return run_encrypt(values, self.config, verbose=verbose)
@@ -474,163 +562,13 @@ class AWSSubcommand(Subcommand):
             return run_diag(values)
         if values.aws_subcommand == 'share-logs':
             return run_share_logs(values)
-
-
-class DiagSubcommand(Subcommand):
-    def name(self):
-        return 'diag'
-
-    def init_logging(self, verbose):
-        # Set boto logging to FATAL, since boto logs auth errors and 401s
-        # at ERROR level.
-        boto.log.setLevel(logging.FATAL)
-
-    def verbose(self, values):
-        return values.aws_verbose
-
-    def register(self, subparsers, parsed_config):
-        diag_parser = subparsers.add_parser(
-            'diag',
-            description=(
-                'Create instance to diagnose an existing encrypted instance.'
-            ),
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        diag_args.setup_diag_args(diag_parser)
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use brkt aws '
-            'diag instead.'
-        )
-        return run_diag(values)
-
-
-class ShareLogsSubcommand(Subcommand):
-
-    def name(self):
-        return 'share-logs'
-
-    def init_logging(self, verbose):
-        # Set boto logging to FATAL, since boto logs auth errors and 401s
-        # at ERROR level.
-        boto.log.setLevel(logging.FATAL)
-
-    def verbose(self, values):
-        return values.aws_verbose
-
-    def register(self, subparsers, parsed_config):
-        share_logs_parser = subparsers.add_parser(
-            'share-logs',
-            description='Share logs from an existing encrypted instance.',
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        share_logs_args.setup_share_logs_args(share_logs_parser)
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use '
-            'brkt aws share-logs instead.'
-        )
-        return run_share_logs(values)
-
-
-class EncryptAMISubcommand(Subcommand):
-
-    def name(self):
-        return 'encrypt-ami'
-
-    def init_logging(self, verbose):
-        # Set boto logging to FATAL, since boto logs auth errors and 401s
-        # at ERROR level.
-        boto.log.setLevel(logging.FATAL)
-
-    def verbose(self, values):
-        return values.aws_verbose
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        encrypt_ami_parser = subparsers.add_parser(
-            'encrypt-ami',
-            description='Create an encrypted AMI from an existing AMI.',
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        encrypt_ami_args.setup_encrypt_ami_args(encrypt_ami_parser)
-        setup_instance_config_args(encrypt_ami_parser, parsed_config,
-                                   mode=INSTANCE_CREATOR_MODE)
-
-    def debug_log_to_temp_file(self, values):
-        return True
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use '
-            'brkt aws encrypt instead.'
-        )
-        verbose = brkt_cli.is_verbose(values, self)
-        return run_encrypt(values, self.config, verbose=verbose)
-
-    def exposed(self):
-        return False
-
-
-class UpdateAMISubcommand(Subcommand):
-
-    def name(self):
-        return 'update-encrypted-ami'
-
-    def init_logging(self, verbose):
-        # Set boto logging to FATAL, since boto logs auth errors and 401s
-        # at ERROR level.
-        boto.log.setLevel(logging.FATAL)
-
-    def verbose(self, values):
-        return values.aws_verbose
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        update_encrypted_ami_parser = subparsers.add_parser(
-            'update-encrypted-ami',
-            description=(
-                'Update an encrypted AMI with the latest Metavisor '
-                'release.'
-            ),
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        update_encrypted_ami_args.setup_update_encrypted_ami(
-            update_encrypted_ami_parser)
-        setup_instance_config_args(update_encrypted_ami_parser,
-                                   parsed_config,
-                                   mode=INSTANCE_UPDATER_MODE)
-
-    def debug_log_to_temp_file(self, values):
-        return True
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated.  Please use brkt aws '
-            'update instead.'
-        )
-        verbose = brkt_cli.is_verbose(values, self)
-        return run_update(values, self.config, verbose=verbose)
+        if values.aws_subcommand == 'wrap-guest-image':
+            verbose = brkt_cli.is_verbose(values, self)
+            return run_wrap_image(values, self.config, verbose=verbose)
 
 
 def get_subcommands():
-    return [
-        AWSSubcommand(),
-        DiagSubcommand(),
-        EncryptAMISubcommand(),
-        ShareLogsSubcommand(),
-        UpdateAMISubcommand()]
+    return [AWSSubcommand()]
 
 
 def _validate_subnet_and_security_groups(aws_svc,
@@ -759,7 +697,7 @@ def _validate_encryptor_ami(aws_svc, ami_id):
     :raise ValidationError if validation fails
     """
     image = _validate_ami(aws_svc, ami_id)
-    if 'brkt-avatar' not in image.name:
+    if 'brkt-avatar' not in image.name and 'metavisor' not in image.name:
         raise ValidationError(
             '%s (%s) is not a Bracket Encryptor image' % (ami_id, image.name)
         )

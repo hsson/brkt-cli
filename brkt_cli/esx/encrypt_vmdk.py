@@ -50,7 +50,7 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                                 user_data_str=None, serial_port_file_name=None,
                                 status_port=ENCRYPTOR_STATUS_PORT):
     try:
-        mv_vm_name = None
+        mv_vm_name = vc_swc.get_vm_name(vm)
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(vm)
         # Reconfigure VM with serial port
@@ -76,7 +76,6 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         ip_addr = vc_swc.get_ip_address(vm)
         log.info("VM ip address is %s", ip_addr)
         # disconnect from vcenter
-        mv_vm_name = vc_swc.get_vm_name(vm)
         vc_swc.disconnect()
         # wait for encryption to complete
         host_ips = [ip_addr]
@@ -114,6 +113,8 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                 log.info("Creating the template VM")
                 template_vm = vc_swc.clone_vm(vm, vm_name=vm_name, template=True)
                 print(vc_swc.get_vm_name(template_vm))
+        # Clean up encryptor VM in case of successful encryption
+        vc_swc.set_teardown(False)
     except Exception:
         log.exception("Failed to encrypt the image")
         try:
@@ -166,7 +167,7 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
             log.error("Cannot get metavisor OVF from S3")
             raise Exception("Invalid MV OVF")
         mv_vm_name = None
-        if vc_swc.is_esx_host() is True:
+        if vc_swc.is_esx_host():
             mv_vm_name = vm_name
         vm = launch_mv_vm_from_s3(vc_swc, ovf_name,
                                   download_file_list, mv_vm_name,
@@ -199,9 +200,12 @@ def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
         log.info("Launching VM from local OVF")
         ovf_image_name = ovf_image_name + ".ovf"
         validate_local_mv_ovf(source_image_path, ovf_image_name)
+        mv_vm_name = None
+        if vc_swc.is_esx_host():
+            mv_vm_name = vm_name
         vm = vc_swc.upload_ovf_to_vcenter(source_image_path,
                                           ovf_image_name,
-                                          vm_name=vm_name)
+                                          vm_name=mv_vm_name)
     except Exception as e:
         log.exception("Failed to launch from metavisor OVF (%s)", e)
         if (vm is not None):

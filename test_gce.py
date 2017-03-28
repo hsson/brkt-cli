@@ -5,10 +5,11 @@ import uuid
 
 import test
 from brkt_cli import util
-from brkt_cli.gce import encrypt_gce_image
-from brkt_cli.gce import gce_service
-from brkt_cli.gce import update_gce_image
-from brkt_cli.gce import share_logs
+from brkt_cli.gcp import encrypt_gcp_image
+from brkt_cli.gcp import gcp_service
+from brkt_cli.gcp import update_gcp_image
+from brkt_cli.gcp import share_logs
+from brkt_cli.gcp import wrap_gcp_image
 from brkt_cli.instance_config import InstanceConfig
 from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.test_encryptor_service import (
@@ -29,9 +30,9 @@ def _new_id():
     return uuid.uuid4().hex[:6]
 
 
-class DummyGCEService(gce_service.BaseGCEService):
+class DummyGCPService(gcp_service.BaseGCPService):
     def __init__(self):
-        super(DummyGCEService, self).__init__('testproject', _new_id(), log)
+        super(DummyGCPService, self).__init__('testproject', _new_id(), log)
 
     def cleanup(self, zone, encryptor_image, keep_encryptor=False):
         for disk in self.disks[:]:
@@ -49,12 +50,12 @@ class DummyGCEService(gce_service.BaseGCEService):
 
     class OAC():
         def insert(self, bucket, object, body):
-            oacInserter = DummyGCEService.OACInserter()
+            oacInserter = DummyGCPService.OACInserter()
             return oacInserter
 
     class Storage():
         def objectAccessControls(self):
-            oac = DummyGCEService.OAC()
+            oac = DummyGCPService.OAC()
             return oac
 
     storage = Storage()
@@ -77,7 +78,7 @@ class DummyGCEService(gce_service.BaseGCEService):
     def get_public_image(self):
         return
 
-    def check_bucket_name(self, bucket):
+    def check_bucket_name(self, bucket, project):
         return
 
     def wait_bucket_file(self, bucket, path):
@@ -164,10 +165,10 @@ class DummyGCEService(gce_service.BaseGCEService):
     def create_disk(self, zone, name, size):
         self.disks.append(name)
 
-    def create_gce_image_from_disk(self, zone, image_name, disk_name):
+    def create_gcp_image_from_disk(self, zone, image_name, disk_name):
         return
 
-    def create_gce_image_from_file(self, zone, image_name, file_name, bucket):
+    def create_gcp_image_from_file(self, zone, image_name, file_name, bucket):
         return
 
     def wait_image(self, image_name):
@@ -184,7 +185,7 @@ class DummyGCEService(gce_service.BaseGCEService):
         return {
             'boot': False,
             'autoDelete': False,
-            'source': self.gce_res_uri + source_disk,
+            'source': self.gcp_res_uri + source_disk,
         }
 
     def get_image_file(self, bucket):
@@ -219,7 +220,7 @@ class DummyGCEService(gce_service.BaseGCEService):
         return {
             'boot': False,
             'autoDelete': False,
-            'source': self.gce_res_uri + source_disk,
+            'source': self.gcp_res_uri + source_disk,
         }
 
     def set_tags(self, zone, instance, tags):
@@ -233,40 +234,40 @@ class TestEncryptedImageName(unittest.TestCase):
 
     def test_get_image_name(self):
         image_name = 'test'
-        n1 = gce_service.get_image_name(None, image_name)
-        n2 = gce_service.get_image_name(None, image_name)
+        n1 = gcp_service.get_image_name(None, image_name)
+        n2 = gcp_service.get_image_name(None, image_name)
         self.assertNotEqual(n1, n2)
 
     def test_long_image_name(self):
         image_name = 'test-image-with-long-name-encrypted-so-we-hit-63-char-limit-a'
-        n1 = gce_service.get_image_name(None, image_name)
-        n2 = gce_service.get_image_name(None, image_name)
+        n1 = gcp_service.get_image_name(None, image_name)
+        n2 = gcp_service.get_image_name(None, image_name)
         self.assertNotEqual(n1, n2)
         self.assertTrue('64-char-limit' not in n1 and '64-char-limit' not in n2)
 
     def test_user_supplied_name(self):
         encrypted_image_name = 'something'
         image_name = 'something_else'
-        n1 = gce_service.get_image_name(encrypted_image_name, image_name)
-        n2 = gce_service.get_image_name(encrypted_image_name, None)
+        n1 = gcp_service.get_image_name(encrypted_image_name, image_name)
+        n2 = gcp_service.get_image_name(encrypted_image_name, None)
         self.assertEqual(n1, n2)
         self.assertEqual(n1, encrypted_image_name)
 
     def test_image_name(self):
         encrypted_image_name = 'valid-name'
         self.assertEquals(encrypted_image_name,
-            gce_service.validate_image_name(encrypted_image_name))
+            gcp_service.validate_image_name(encrypted_image_name))
         with self.assertRaises(ValidationError):
-            gce_service.validate_image_name(None)
+            gcp_service.validate_image_name(None)
         with self.assertRaises(ValidationError):
-            gce_service.validate_image_name('Valid-Name')
+            gcp_service.validate_image_name('Valid-Name')
         with self.assertRaises(ValidationError):
-            gce_service.validate_image_name('validname-')
+            gcp_service.validate_image_name('validname-')
         with self.assertRaises(ValidationError):
-            gce_service.validate_image_name('a' * 65)
+            gcp_service.validate_image_name('a' * 65)
         for c in '?!#$%^&*~`{}\|"<>()[]./\'@_':
             with self.assertRaises(ValidationError):
-                gce_service.validate_image_name('valid' + c)
+                gcp_service.validate_image_name('valid' + c)
 
 
 class TestRunEncryption(unittest.TestCase):
@@ -275,9 +276,9 @@ class TestRunEncryption(unittest.TestCase):
         util.SLEEP_ENABLED = False
 
     def test_smoke(self):
-        gce_svc = DummyGCEService()
-        encrypted_image = encrypt_gce_image.encrypt(
-            gce_svc=gce_svc,
+        gcp_svc = DummyGCPService()
+        encrypted_image = encrypt_gcp_image.encrypt(
+            gcp_svc=gcp_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=IGNORE_IMAGE,
             encryptor_image='encryptor-image',
@@ -287,13 +288,13 @@ class TestRunEncryption(unittest.TestCase):
             instance_config=InstanceConfig({'identity_token': TOKEN})
         )
         self.assertIsNotNone(encrypted_image)
-        self.assertEqual(len(gce_svc.disks), 0)
-        self.assertEqual(len(gce_svc.instances), 0)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 0)
 
     def test_cleanup(self):
-        gce_svc = DummyGCEService()
-        encrypt_gce_image.encrypt(
-            gce_svc=gce_svc,
+        gcp_svc = DummyGCPService()
+        encrypt_gcp_image.encrypt(
+            gcp_svc=gcp_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=IGNORE_IMAGE,
             encryptor_image='encryptor-image',
@@ -302,14 +303,14 @@ class TestRunEncryption(unittest.TestCase):
             crypto_policy=CRYPTO_GCM,
             instance_config=InstanceConfig({'identity_token': TOKEN})
         )
-        self.assertEqual(len(gce_svc.disks), 0)
-        self.assertEqual(len(gce_svc.instances), 0)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 0)
 
     def test_cleanup_on_fail(self):
-        gce_svc = DummyGCEService()
+        gcp_svc = DummyGCPService()
         with self.assertRaises(Exception):
-             encrypt_gce_image.encrypt(
-                gce_svc=gce_svc,
+             encrypt_gcp_image.encrypt(
+                gcp_svc=gcp_svc,
                 enc_svc_cls=test.FailedEncryptionService,
                 image_id='test-ubuntu',
                 encryptor_image='encryptor-image',
@@ -317,8 +318,8 @@ class TestRunEncryption(unittest.TestCase):
                 zone='us-central1-a',
                 instance_config=InstanceConfig({'identity_token': TOKEN})
             )
-        self.assertEqual(len(gce_svc.disks), 0)
-        self.assertEqual(len(gce_svc.instances), 0)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 0)
 
 
 class TestImageValidation(unittest.TestCase):
@@ -327,10 +328,10 @@ class TestImageValidation(unittest.TestCase):
         util.SLEEP_ENABLED = False
 
     def test_nonexistant_guest(self):
-        gce_svc = DummyGCEService()
+        gcp_svc = DummyGCPService()
         with self.assertRaises(ValidationError):
-            gce_service.validate_images(
-                gce_svc=gce_svc,
+            gcp_service.validate_images(
+                gcp_svc=gcp_svc,
                 guest_image=NONEXISTANT_IMAGE,
                 encryptor='americium',
                 encrypted_image_name=NONEXISTANT_IMAGE,
@@ -338,10 +339,10 @@ class TestImageValidation(unittest.TestCase):
             )
 
     def test_desired_output_image_exists(self):
-        gce_svc = DummyGCEService()
+        gcp_svc = DummyGCPService()
         with self.assertRaises(ValidationError):
-            gce_service.validate_images(
-                gce_svc=gce_svc,
+            gcp_service.validate_images(
+                gcp_svc=gcp_svc,
                 guest_image='test-ubuntu',
                 encryptor='americium',
                 encrypted_image_name='deuterium',
@@ -349,10 +350,10 @@ class TestImageValidation(unittest.TestCase):
             )
 
     def test_nonexistant_image_project(self):
-        gce_svc = DummyGCEService()
+        gcp_svc = DummyGCPService()
         with self.assertRaises(ValidationError):
-            gce_service.validate_images(
-                gce_svc=gce_svc,
+            gcp_service.validate_images(
+                gcp_svc=gcp_svc,
                 guest_image='test-ubuntu',
                 encryptor='americium',
                 encrypted_image_name='deuterium',
@@ -366,10 +367,10 @@ class TestRunUpdate(unittest.TestCase):
         util.SLEEP_ENABLED = False
 
     def test_cleanup_on_fail(self):
-        gce_svc = DummyGCEService()
+        gcp_svc = DummyGCPService()
         with self.assertRaises(Exception):
-             update_gce_image.update_gce_image(
-                gce_svc=gce_svc,
+             update_gcp_image.update_gcp_image(
+                gcp_svc=gcp_svc,
                 enc_svc_cls=FailedEncryptionService,
                 image_id=IGNORE_IMAGE,
                 encryptor_image='encryptor-image',
@@ -377,13 +378,13 @@ class TestRunUpdate(unittest.TestCase):
                 zone='us-central1-a',
                 instance_config=InstanceConfig({'identity_token': TOKEN})
             )
-        self.assertEqual(len(gce_svc.disks), 0)
-        self.assertEqual(len(gce_svc.instances), 0)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 0)
 
     def test_cleanup(self):
-        gce_svc = DummyGCEService()
-        encrypted_image = update_gce_image.update_gce_image(
-            gce_svc=gce_svc,
+        gcp_svc = DummyGCPService()
+        encrypted_image = update_gcp_image.update_gcp_image(
+            gcp_svc=gcp_svc,
             enc_svc_cls=DummyEncryptorService,
             image_id=IGNORE_IMAGE,
             encryptor_image='encryptor-image',
@@ -393,8 +394,8 @@ class TestRunUpdate(unittest.TestCase):
         )
 
         self.assertIsNotNone(encrypted_image)
-        self.assertEqual(len(gce_svc.disks), 0)
-        self.assertEqual(len(gce_svc.instances), 0)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 0)
 
 
 class ShareLogsValues():
@@ -407,27 +408,22 @@ class ShareLogsValues():
         self.path = 'test-file'
 
 
-class GCEService1(DummyGCEService):
-    def check_bucket_name(self, bucket):
-        raise ValidationError("invalid permisions for bucket")
+class GCPService1(DummyGCPService):
+    def check_bucket_name(self, bucket, project):
+        raise ValidationError()
 
 
-class GCEService2(DummyGCEService):
+class GCPService2(DummyGCPService):
     def check_bucket_file(self, bucket, path):
         raise ValidationError("File already exists")
 
 
-class GCEService3(DummyGCEService):
+class GCPService3(DummyGCPService):
     def check_bucket_file(self, bucket, path):
-        raise ValidationError()
+        raise util.BracketError("Can't upload logs file")
 
 
-class GCEService4(DummyGCEService):
-    def wait_bucket_file(self, bucket, path):
-        return False
-
-
-class GCEService5(gce_service.GCEService):
+class GCPService4(gcp_service.GCPService):
     def __init__(self):
         super
 
@@ -440,45 +436,66 @@ class TestShareLogs(unittest.TestCase):
 
     # Run the program under normal conditions
     def test_normal(self):
-        gce_svc = DummyGCEService()
-        logs = share_logs(self.values, gce_svc)
+        gcp_svc = DummyGCPService()
+        logs = share_logs(self.values, gcp_svc)
         self.assertEqual(logs, 0)
-        self.assertEqual(len(gce_svc.disks), 0)
-        self.assertEqual(len(gce_svc.instances), 0)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 0)
 
     # This tests bucket permission being denied
     def test_bucket_name_exists(self):
-        gce_svc = GCEService1()
+        gcp_svc = GCPService1()
         with self.assertRaises(ValidationError):
-            share_logs(self.values, gce_svc)
-
-    # Tests 6 cases of bucket name being invalid
-    def test_bucket_name_invalid(self):
-        gce_svc = GCEService5()
-        buckets = ['Test-bucket', 'Test.bucket', 'ab',
-        '12345678912345678912345678912345678912345678912345678912345678-65',
-        'google-bucket', '-bucket-']
-        for b in buckets:
-            with self.assertRaises(ValidationError):
-                gce_svc.validate_bucket_name(b)
+            share_logs(self.values, gcp_svc)
 
     # This tests if a file with the same name has already
     # Been uploaded to the bucket
     def test_file_exists(self):
-        gce_svc = GCEService2()
+        gcp_svc = GCPService2()
         with self.assertRaises(ValidationError):
-            share_logs(self.values, gce_svc)
+            share_logs(self.values, gcp_svc)
 
     # This tests 5 cases of object name beind invalid
     def test_file_name_invalid(self):
-        gce_svc = GCEService5()
+        gcp_svc = GCPService4()
         paths = ['object?', '[object', 'object]', '#object', 'obj*ect']
         for p in paths:
             with self.assertRaises(ValidationError):
-                gce_svc.validate_file_name(p)
+                gcp_svc.validate_file_name(p)
 
     # This tests if the file is unable to upload
     def test_file_upload(self):
-        gce_svc = GCEService4()
+        gcp_svc = GCPService3()
         with self.assertRaises(util.BracketError):
-            share_logs(self.values, gce_svc)
+            share_logs(self.values, gcp_svc)
+
+
+class TestWrappedGuest(unittest.TestCase):
+
+    def setUp(self):
+        util.SLEEP_ENABLED = False
+
+    def test_smoke(self):
+        gcp_svc = DummyGCPService()
+        wrapped_instance = wrap_gcp_image.wrap_guest_image(
+            gcp_svc=gcp_svc,
+            image_id=IGNORE_IMAGE,
+            encryptor_image='encryptor-image',
+            zone='us-central1-a',
+            metadata={}
+        )
+        self.assertIsNotNone(wrapped_instance)
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 1)
+
+    def test_cleanup(self):
+        gcp_svc = DummyGCPService()
+        wrap_gcp_image.wrap_guest_image(
+            gcp_svc=gcp_svc,
+            image_id=IGNORE_IMAGE,
+            encryptor_image='encryptor-image',
+            zone='us-central1-a',
+            metadata={}
+        )
+        self.assertEqual(len(gcp_svc.disks), 0)
+        self.assertEqual(len(gcp_svc.instances), 1)

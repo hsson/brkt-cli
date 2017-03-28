@@ -15,15 +15,16 @@
 import argparse
 import logging
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-
 import brkt_cli
 from brkt_cli import (
     add_brkt_env_to_brkt_config,
+    config,
     encryptor_service,
     get_proxy_config
 )
+from brkt_cli import argutil
+from brkt_cli import brkt_jwt
+import brkt_cli.crypto
 from brkt_cli.config import CLIConfig
 from brkt_cli.instance_config import (
     InstanceConfig,
@@ -35,12 +36,11 @@ from brkt_cli.util import (
 )
 from brkt_cli.validation import ValidationError
 
-
 log = logging.getLogger(__name__)
 
 
 def setup_instance_config_args(parser, parsed_config,
-                               mode=INSTANCE_CREATOR_MODE):
+                               mode=INSTANCE_CREATOR_MODE, brkt_tag=True):
     parser.add_argument(
         '--ntp-server',
         metavar='DNS_NAME',
@@ -120,7 +120,8 @@ def setup_instance_config_args(parser, parsed_config,
         help=argparse.SUPPRESS
     )
 
-    parser.add_argument(
+    token_group = parser.add_mutually_exclusive_group()
+    token_group.add_argument(
         '--token',
         help=(
             'Token (JWT) that Metavisor uses to authenticate with the '
@@ -133,15 +134,20 @@ def setup_instance_config_args(parser, parsed_config,
         required=False
     )
 
+    if brkt_tag:
+        argutil.add_brkt_tag(token_group)
+
 
 def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
-                                cli_config=None):
+                                cli_config=None, launch_token=None):
     """ Return an InstanceConfig object, based on options specified on
     the command line and Metavisor mode.
 
     :param values an argparse.Namespace object
     :param mode the mode in which Metavisor is running
     :param cli_config an brkt_cli.config.CLIConfig instance
+    :param launch_token the token that Metavisor will use to authenticate
+    with Yeti.  If not specified, use values.token.
     """
     brkt_config = {}
     if not values:
@@ -175,8 +181,9 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
         )
     add_brkt_env_to_brkt_config(brkt_env, brkt_config)
 
-    if values.token:
-        brkt_config['identity_token'] = values.token
+    launch_token = launch_token or values.token
+    if launch_token:
+        brkt_config['identity_token'] = launch_token
 
     if values.ntp_servers:
         brkt_config['ntp_servers'] = values.ntp_servers
@@ -201,10 +208,8 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
                 ca_cert_data = f.read()
         except IOError as e:
             raise ValidationError(e)
-        try:
-            x509.load_pem_x509_certificate(ca_cert_data, default_backend())
-        except Exception as e:
-            raise ValidationError('Error validating CA cert: %s' % e)
+
+        brkt_cli.crypto.validate_cert(ca_cert_data)
 
         domain = get_domain_from_brkt_env(brkt_env)
 
@@ -215,6 +220,22 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
         ic.add_brkt_file('vpn.yaml', 'fqdn: ' + values.guest_fqdn)
 
     return ic
+
+
+def get_launch_token(values, cli_config):
+    """ Return the launch token either from values.token or from Yeti, in that
+    order.  Assume that the values.token and values.brkt_tags fields exist.
+
+    :raise ValidationError if an error occurs while talking to Yeti
+    """
+    token = values.token
+    if not token:
+        log.debug('Getting launch token from Yeti')
+        y = config.get_yeti_service(cli_config)
+        tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
+        token = y.get_launch_token(tags=tags)
+
+    return token
 
 
 def instance_config_args_to_values(cli_args, mode=INSTANCE_CREATOR_MODE):

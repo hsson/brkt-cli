@@ -62,10 +62,14 @@ class GetPublicKeySubcommand(Subcommand):
         return values.make_private_key_verbose
 
     def run(self, values):
-        crypto = util.read_private_key(values.private_key_path)
+        crypto = brkt_cli.crypto.read_private_key(values.private_key_path)
         util.write_to_file_or_stdout(crypto.public_key_pem, values.out)
         return 0
 
 
 def get_subcommands():
-    return [GetPublicKeySubcommand()]
+    if brkt_cli.crypto.cryptography_library_available:
+        return [GetPublicKeySubcommand()]
+    else:
+        return []
+

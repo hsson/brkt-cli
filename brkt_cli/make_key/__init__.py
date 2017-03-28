@@ -98,4 +98,8 @@ class MakeKeySubcommand(Subcommand):
 
 
 def get_subcommands():
-    return [MakeKeySubcommand()]
+    if brkt_cli.crypto.cryptography_library_available:
+        return [MakeKeySubcommand()]
+    else:
+        return []
+

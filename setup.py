@@ -24,7 +24,7 @@ if python_version != '2.7':
         python_version)
 
 version = ''
-with open('brkt_cli/__init__.py', 'r') as fd:
+with open('brkt_cli/version.py', 'r') as fd:
     version = re.search(r'^VERSION\s*=\s*[\'"]([^\'"]*)[\'"]',
                         fd.read(), re.MULTILINE).group(1)
 
@@ -52,14 +52,14 @@ setup(
         'brkt_cli.config',
         'brkt_cli.crypto',
         'brkt_cli.esx',
-        'brkt_cli.gce',
+        'brkt_cli.gcp',
         'brkt_cli.get_public_key',
         'brkt_cli.make_key',
         'brkt_cli.make_user_data'
     ],
     install_requires=[
         'boto>=2.38.0',
-        'cryptography<1.5,>=1.3.2',
+        'boto3>=1.4.4',
         'google-api-python-client>=1.5.0',
         'iso8601>=0.1.11',
         'oauth2client<3,>= 2.0.0',
@@ -78,5 +78,5 @@ setup(
         ]
     },
     package_dir={'brkt_cli': 'brkt_cli'},
-    test_suite='test test_gce'
+    test_suite='test test_gcp'
 )

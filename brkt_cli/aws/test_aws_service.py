@@ -282,6 +282,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         image.name = name
         image.description = description
         image.virtualization_type = 'hvm'
+        image.root_device_name = '/dev/sda1'
         image.root_device_type = 'ebs'
         image.hypervisor = 'xen'
         self.images[image.id] = image
@@ -374,12 +375,12 @@ def build_aws_service():
     bdm = BlockDeviceMapping()
     bdm['/dev/sda1'] = BlockDeviceType()
     bdm['/dev/sdg'] = BlockDeviceType()
-    id = aws_svc.register_image(name='brkt-avatar', block_device_map=bdm)
+    id = aws_svc.register_image(name='metavisor-0-0-1234', block_device_map=bdm)
     encryptor_image = aws_svc.get_image(id)
 
     # Guest image
     bdm = BlockDeviceMapping()
-    bdm['/dev/sda1'] = BlockDeviceType()
+    bdm['/dev/sda1'] = BlockDeviceType(snapshot_id='snap-12345678')
     id = aws_svc.register_image(name='Guest image', block_device_map=bdm)
     guest_image = aws_svc.get_image(id)
 

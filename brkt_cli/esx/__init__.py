@@ -23,11 +23,13 @@ from brkt_cli.subcommand import Subcommand
 
 from brkt_cli import (
     encryptor_service,
+    instance_config_args,
     util
 )
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
-    INSTANCE_UPDATER_MODE
+    INSTANCE_UPDATER_MODE,
+    INSTANCE_METAVISOR_MODE
 )
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
@@ -45,6 +47,9 @@ from brkt_cli.esx import (
     update_encrypted_vmdk_args,
     encrypt_with_esx_host_args,
     update_with_esx_host_args,
+    wrap_image,
+    wrap_with_vcenter_args,
+    wrap_with_esx_host_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -144,6 +149,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
+    # Validate vCenter parameters
+    vc_swc.validate_vcenter_params()
     # Validate that template does not already exist
     if values.template_vm_name:
         if vc_swc.find_vm(values.template_vm_name):
@@ -168,8 +175,13 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                               "thick-eager-zeroed" % (values.disk_type,))
 
     try:
+        lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
-            values, mode=INSTANCE_CREATOR_MODE, cli_config=parsed_config)
+            values,
+            mode=INSTANCE_CREATOR_MODE,
+            cli_config=parsed_config,
+            launch_token=lt
+        )
         crypto_policy = values.crypto
         if crypto_policy is None:
             crypto_policy = CRYPTO_XTS
@@ -323,13 +335,20 @@ def run_update(values, parsed_config, log, use_esx=False):
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
+    # Validate vCenter parameters
+    vc_swc.validate_vcenter_params()
     if values.template_vm_name:
         if vc_swc.find_vm(values.template_vm_name) is None:
             raise ValidationError("Template VM %s not found" %
                                   values.template_vm_name)
     try:
+        lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
-            values, mode=INSTANCE_UPDATER_MODE, cli_config=parsed_config)
+            values,
+            mode=INSTANCE_UPDATER_MODE,
+            cli_config=parsed_config,
+            launch_token=lt
+        )
         user_data_str = vc_swc.create_userdata_str(instance_config,
             update=True, ssh_key_file=values.ssh_public_key_file)
         if (values.encryptor_vmdk is not None):
@@ -377,6 +396,125 @@ def run_update(values, parsed_config, log, use_esx=False):
         return 0
     except:
         log.error("Failed to update encrypted VMDK");
+        return 1
+
+
+def run_wrap_image(values, parsed_config, log, use_esx=False):
+    session_id = util.make_nonce()
+
+    if not use_esx and values.vm_name is None:
+        raise ValidationError("Missing vm-name for the VM")
+    if (values.source_image_path is not None and values.image_name is None):
+        raise ValidationError("Specify the Metavisor OVF file.")
+    if use_esx:
+        _check_env_vars_set('ESX_USER_NAME')
+    else:
+        _check_env_vars_set('VCENTER_USER_NAME')
+    vcenter_password = _get_vcenter_password(use_esx)
+    brkt_cli.validate_ntp_servers(values.ntp_servers)
+    brkt_env = brkt_cli.brkt_env_from_values(values)
+    if brkt_env is None:
+        _, brkt_env = parsed_config.get_current_env()
+    if not values.token:
+        raise ValidationError('Must provide a token')
+
+    proxy = None
+    if values.http_proxy:
+        proxy = _parse_proxies(values.http_proxy)[0]
+
+    # Download images from S3
+    try:
+        if (values.encryptor_vmdk is None and
+            values.source_image_path is None):
+            (ovf, file_list) = \
+                esx_service.download_ovf_from_s3(
+                    values.bucket_name,
+                    image_name=values.image_name,
+                    proxy=proxy
+                )
+            if ovf is None:
+                raise ValidationError("Did not find MV OVF images")
+    except Exception as e:
+        raise ValidationError("Failed to download MV image from S3: ", e)
+
+    # Connect to vCenter
+    try:
+        vc_swc = esx_service.initialize_vcenter(
+            host=values.vcenter_host,
+            user=os.getenv('ESX_USER_NAME') if use_esx else os.getenv('VCENTER_USER_NAME'),
+            password=vcenter_password,
+            port=values.vcenter_port,
+            datacenter_name=None if use_esx else values.vcenter_datacenter,
+            datastore_name=values.vcenter_datastore,
+            esx_host=use_esx,
+            cluster_name=None if use_esx else values.vcenter_cluster,
+            no_of_cpus=values.no_of_cpus,
+            memory_gb=values.memory_gb,
+            session_id=session_id,
+            network_name=values.network_name,
+            nic_type=values.nic_type,
+            verify=False if use_esx else values.validate,
+        )
+    except Exception as e:
+        raise ValidationError("Failed to connect to vCenter: ", e)
+    # Validate vCenter parameters
+    vc_swc.validate_vcenter_params()
+    # Validate that template does not already exist
+    if values.vm_name:
+        if vc_swc.find_vm(values.vm_name):
+            raise ValidationError("VM with the same name as requested "
+                                  "template VM name %s already exists" %
+                                  values.vm_name)
+    # Set the disk-type
+    if values.disk_type == "thin":
+        vc_swc.set_thin_disk(True)
+        vc_swc.set_eager_scrub(False)
+    elif values.disk_type == "thick-lazy-zeroed":
+        vc_swc.set_thin_disk(False)
+        vc_swc.set_eager_scrub(False)
+    elif values.disk_type == "thick-eager-zeroed":
+        vc_swc.set_thin_disk(False)
+        vc_swc.set_eager_scrub(True)
+    else:
+        raise ValidationError("Disk Type %s not correct. Can only be "
+                              "thin, thick-lazy-zeroed or "
+                              "thick-eager-zeroed" % (values.disk_type,))
+
+    try:
+        lt = instance_config_args.get_launch_token(values, parsed_config)
+        instance_config = instance_config_from_values(
+            values,
+            mode=INSTANCE_METAVISOR_MODE,
+            cli_config=parsed_config,
+            launch_token=lt)
+        instance_config.brkt_config['allow_unencrypted_guest'] = True
+        user_data_str = vc_swc.create_userdata_str(instance_config,
+            update=False, ssh_key_file=values.ssh_public_key_file)
+        if values.encryptor_vmdk is not None:
+            # Create from MV VMDK
+            wrap_image.wrap_from_vmdk(
+                vc_swc, values.vmdk, vm_name=values.vm_name,
+                metavisor_vmdk=values.encryptor_vmdk,
+                user_data_str=user_data_str
+            )
+        elif values.source_image_path is not None:
+            # Create from MV OVF in local directory
+            wrap_image.wrap_from_local_ovf(
+                vc_swc, values.vmdk, vm_name=values.vm_name,
+                source_image_path=values.source_image_path,
+                ovf_image_name=values.image_name,
+                user_data_str=user_data_str
+            )
+        else:
+            # Create from MV OVF in S3
+            wrap_image.wrap_from_s3(
+                vc_swc, values.vmdk, vm_name=values.vm_name,
+                ovf_name=ovf, download_file_list=file_list,
+                user_data_str=user_data_str, cleanup=values.cleanup
+            )
+        return 0
+    except Exception as e:
+        log.error("Failed to wrap the guest VMDK: %s", e)
         return 1
 
 
@@ -438,7 +576,8 @@ class VMwareSubcommand(Subcommand):
             # Hardcode the list, so that we don't expose internal subcommands.
             metavar=(
                 '{encrypt-with-vcenter,encrypt-with-esx-host,'
-                'update-with-vcenter,update-with-esx-host}'
+                'update-with-vcenter,update-with-esx-host,'
+                'wrap-with-vcenter, wrap-with-esx-host}'
             )
         )
 
@@ -490,6 +629,30 @@ class VMwareSubcommand(Subcommand):
             update_with_esx_parser)
         setup_instance_config_args(update_with_esx_parser, parsed_config)
 
+        wrap_with_vcenter_parser = vmware_subparsers.add_parser(
+            'wrap-with-vcenter',
+            description=(
+                'Launch guest image wrapped with Bracket Metavsor using vCenter'
+            ),
+            help='Launch guest image wrapped with Bracket Metavsor using vCenter',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        wrap_with_vcenter_args.setup_wrap_with_vcenter_args(
+            wrap_with_vcenter_parser)
+        setup_instance_config_args(wrap_with_vcenter_parser, parsed_config)
+
+        wrap_with_esx_host_parser = vmware_subparsers.add_parser(
+            'wrap-with-esx-host',
+            description=(
+                'Launch guest image wrapped with Bracket Metavsor on ESX host'
+            ),
+            help='Launch guest image wrapped with Bracket Metavsor on ESX host',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        wrap_with_esx_host_args.setup_wrap_with_esx_host_args(
+            wrap_with_esx_host_parser)
+        setup_instance_config_args(wrap_with_esx_host_parser, parsed_config)
+
         rescue_metavisor_parser = vmware_subparsers.add_parser(
             # Don't specify the help field.  This is an internal command
             # which shouldn't show up in usage output.
@@ -514,92 +677,11 @@ class VMwareSubcommand(Subcommand):
             return run_update(values, self.config, log, use_esx=True)
         if values.vmware_subcommand == 'rescue-metavisor':
             return run_rescue_metavisor(values, self.config, log)
-
-
-class EncryptVMDKSubcommand(Subcommand):
-
-    def name(self):
-        return 'encrypt-vmdk'
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        encrypt_vmdk_parser = subparsers.add_parser(
-            'encrypt-vmdk',
-            description='Create an encrypted VMDK from an existing VMDK',
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        encrypt_vmdk_args.setup_encrypt_vmdk_args(
-            encrypt_vmdk_parser)
-        setup_instance_config_args(encrypt_vmdk_parser, parsed_config)
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated. Please use \"brkt vmware '
-            'encrypt-with-vcenter\" or \"brkt vmware encrypt-with-esx-host '
-            'instead'
-        )
-        return run_encrypt(values, self.config, log, values.esx_host)
-
-
-class UpdateVMDKSubcommand(Subcommand):
-
-    def name(self):
-        return 'update-vmdk'
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        update_encrypted_vmdk_parser = subparsers.add_parser(
-            'update-vmdk',
-            description='Update an encrypted VMDK with the latest Metavisor',
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        update_encrypted_vmdk_args.setup_update_vmdk_args(
-            update_encrypted_vmdk_parser)
-        setup_instance_config_args(update_encrypted_vmdk_parser, parsed_config)
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated. Please use \"brkt vmware '
-            'update-with-vcenter\" or \"brkt vmware udpate-with-esx-host\" '
-            'instead'
-        )
-        return run_update(values, self.config, log, values.esx_host)
-
-class RescueMetavisorSubcommand(Subcommand):
-
-    def name(self):
-        return 'rescue-metavisor'
-
-    def register(self, subparsers, parsed_config):
-        self.config = parsed_config
-        rescue_metavisor_parser = subparsers.add_parser(
-            'rescue-metavisor',
-            description=(
-                'Upload a Metavisor VM cores and diagonstics to an URL'
-            ),
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        rescue_metavisor_args.setup_rescue_metavisor_args(rescue_metavisor_parser)
-
-    def exposed(self):
-        return False
-
-    def run(self, values):
-        log.warn(
-            'This command syntax has been deprecated. Please use brkt vmware '
-            'rescue-metavisor instead'
-        )
-        return rescue_metavisor(values, self.config, log)
+        if values.vmware_subcommand == 'wrap-with-vcenter':
+            return run_wrap_image(values, self.config, log)
+        if values.vmware_subcommand == 'wrap-with-esx-host':
+            return run_wrap_image(values, self.config, log, use_esx=True)
 
 
 def get_subcommands():
-    return [VMwareSubcommand(),
-            EncryptVMDKSubcommand(),
-            UpdateVMDKSubcommand(),
-            RescueMetavisorSubcommand()]
+    return [VMwareSubcommand()]

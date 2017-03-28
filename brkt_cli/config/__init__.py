@@ -14,7 +14,6 @@
 import argparse
 import collections
 import errno
-import getpass
 import logging
 import os
 import os.path
@@ -25,7 +24,6 @@ import tempfile
 import yaml
 
 import brkt_cli
-from brkt_cli import util
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.util import parse_endpoint, render_table_rows
 from brkt_cli.validation import ValidationError
@@ -36,7 +34,7 @@ log = logging.getLogger(__name__)
 CONFIG_DIR = os.path.expanduser('~/.brkt')
 CONFIG_PATH = os.path.join(CONFIG_DIR, 'config')
 
-VERSION = 2
+VERSION = 3
 
 
 class InvalidOptionError(Exception):
@@ -137,6 +135,7 @@ class CLIConfig(object):
             'environments': {},
             'options': {},
             'version': VERSION,
+            'internal': {}
         }
         self._add_prod_env()
         self._registered_options = collections.defaultdict(dict)
@@ -274,12 +273,23 @@ class CLIConfig(object):
         # Clean up any empty sub-sections
         self._remove_empty_dicts(self._config['options'])
 
+    def set_internal_option(self, option, value):
+        self._config['internal'][option] = value
+
+    def get_internal_option(self, option, default=None):
+        return self._config['internal'].get(option, default)
+
     def _migrate_config(self, config):
         """Handle migrating between different config versions"""
         if config['version'] == 1:
             config['environments'] = {}
             config['current-environment'] = None
+            config['version'] = 2
+
+        if config['version'] == 2:
+            config['internal'] = {}
             config['version'] = VERSION
+
         return config
 
     def _add_prod_env(self):
@@ -289,16 +299,20 @@ class CLIConfig(object):
         if self._config.get('current-environment') is None:
             self._config['current-environment'] = BRKT_HOSTED_ENV_NAME
 
-    def read(self):
+    def read(self, f=None):
         """Read the config from disk"""
         try:
-            with open(CONFIG_PATH) as f:
-                config = yaml.safe_load(f)
+            if not f:
+                f = open(CONFIG_PATH)
+            config = yaml.safe_load(f)
             self._config = self._migrate_config(config)
             self._add_prod_env()
         except IOError as e:
             if e.errno != errno.ENOENT:
                 raise
+        finally:
+            if f:
+                f.close()
 
     def write(self, f):
         """Write the config to disk.
@@ -306,18 +320,56 @@ class CLIConfig(object):
         """
         yaml.dump(self._config, f)
 
-
     def save_config(self):
         """Save the current config to disk.
         """
+        try:
+            os.mkdir(CONFIG_DIR, 0755)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
         f = tempfile.NamedTemporaryFile(delete=False, prefix='brkt_cli')
-        yaml.dump(self._config, f)
-        f.close()
+        try:
+            self.write(f)
+            f.close()
+        except:
+            _unlink_noraise(f.name)
+            raise
         try:
             shutil.move(f.name, CONFIG_PATH)
         except:
             _unlink_noraise(f.name)
             raise
+
+
+def _get_yeti_service(parsed_config):
+    _, env = parsed_config.get_current_env()
+    root_url = 'https://%s:%d' % (
+        env.public_api_host, env.public_api_port)
+    token = os.environ.get('BRKT_API_TOKEN')
+    return YetiService(root_url, token=token)
+
+
+def get_yeti_service(parsed_config):
+    """ Return a YetiService object based on the given CLIConfig.
+
+    :raise ValidationError if the API token is not set in config, or if
+    authentication with Yeti fails.
+    """
+    y = _get_yeti_service(parsed_config)
+    if not y.token:
+        raise ValidationError(
+            '$BRKT_API_TOKEN is not set. Run brkt auth to get an API token.')
+
+    try:
+        y.get_customer()
+    except YetiError as e:
+        if e.http_status == 401:
+            raise ValidationError(
+                '$BRKT_API_TOKEN is not authorized to access %s' %
+                y.root_url)
+        raise ValidationError(e.message)
+    return y
 
 
 class ConfigSubcommand(Subcommand):
@@ -373,7 +425,7 @@ class ConfigSubcommand(Subcommand):
             formatter_class=argparse.RawDescriptionHelpFormatter)
         set_parser.add_argument(
             'option',
-            help='The option name (e.g. encrypt-gce-image.project)')
+            help='The option name (e.g. encrypt-gcp-image.project)')
         set_parser.add_argument(
             'value',
             help='The option value')
@@ -387,7 +439,7 @@ class ConfigSubcommand(Subcommand):
             formatter_class=argparse.RawDescriptionHelpFormatter)
         get_parser.add_argument(
             'option',
-            help='The option name (e.g. encrypt-gce-image.project)')
+            help='The option name (e.g. encrypt-gcp-image.project)')
 
         # Unset the value for an option
         unset_parser = config_subparsers.add_parser(
@@ -398,7 +450,7 @@ class ConfigSubcommand(Subcommand):
             formatter_class=argparse.RawDescriptionHelpFormatter)
         unset_parser.add_argument(
             'option',
-            help='The option name (e.g. encrypt-gce-image.project)')
+            help='The option name (e.g. encrypt-gcp-image.project)')
 
         # Define or update an environment
         set_env_parser = config_subparsers.add_parser(
@@ -496,72 +548,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             'env_name',
             help='The environment name')
 
-        # Log in and out.
-        login_parser = config_subparsers.add_parser(
-            'login',
-            # Don't expose until the feature is ready.
-            # help='Log into the Bracket service',
-            description=(
-                'Authenticate with the Bracket service and store the API '
-                'token in config.'
-            )
-        )
-        login_parser.add_argument(
-            '--email',
-            metavar='ADDRESS',
-            help='If not specified, show a prompt'
-        )
-        login_parser.add_argument(
-            '--password',
-            help='If not specified, show a prompt'
-        )
-
-        config_subparsers.add_parser(
-            'logout',
-            # Don't expose until the feature is ready.
-            # help='Log out of the Bracket service',
-            description=(
-                'Delete the API token stored in config.'
-            )
-        )
-
-        whoami_parser = config_subparsers.add_parser(
-            'whoami',
-            # Don't expose until the feature is ready.
-            # help='Show the current user',
-            description=(
-                'Print the email address of the user who was logged in '
-                'with the brkt config login command.'
-            )
-        )
-        whoami_parser.add_argument(
-            '--json',
-            action='store_true',
-            help='Print all user properties in JSON format'
-        )
-
-    def _write_config(self):
-        """Create ~/.brkt if it doesn't exist and safely write out a
-        new config.
-        """
-        try:
-            os.mkdir(CONFIG_DIR, 0755)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-        f = tempfile.NamedTemporaryFile(delete=False, prefix='brkt_cli')
-        try:
-            self.parsed_config.write(f)
-            f.close()
-        except:
-            _unlink_noraise(f.name)
-            raise
-        try:
-            shutil.move(f.name, CONFIG_PATH)
-        except:
-            _unlink_noraise(f.name)
-            raise
-
     def _list_options(self):
         """Display the contents of the config"""
         for opt in sorted(self.parsed_config.registered_options().keys()):
@@ -586,7 +572,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.set_option(opt, val)
         except InvalidOptionError:
             raise ValidationError('Error: unknown option "%s".' % (opt,))
-        self._write_config()
         return 0
 
     def _unset_option(self, opt):
@@ -595,7 +580,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.unset_option(opt)
         except InvalidOptionError:
             raise ValidationError('Error: unknown option "%s".' % (opt,))
-        self._write_config()
         return 0
 
     def _set_env(self, values):
@@ -628,11 +612,10 @@ The leading `*' indicates that the `stage' environment is currently active.
         if values.service_domain is not None:
             env = brkt_cli.brkt_env_from_domain(values.service_domain)
         self.parsed_config.set_env(values.env_name, env)
-        self._write_config()
         return 0
 
     def _use_env(self, values):
-        """Set the active environemnt"""
+        """Set the active environment"""
         try:
             self.parsed_config.set_current_env(values.env_name)
         except UnknownEnvironmentError:
@@ -650,7 +633,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             for attr in e.missing_keys:
                 opts.append(attr_opt[attr])
             raise ValidationError(msg % (values.env_name, ', '.join(opts)))
-        self._write_config()
 
     def _list_envs(self):
         """Display all envs"""
@@ -691,58 +673,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             self.parsed_config.unset_env(values.env_name)
         except UnknownEnvironmentError:
             raise ValidationError('Error: unknown environment ' + values.env_name)
-        self._write_config()
-
-    def _get_yeti_service(self):
-        """Return the YetiService object for the current environment."""
-        _, env = self.parsed_config.get_current_env()
-        root_url = 'https://%s:%d' % (
-            env.public_api_host, env.public_api_port)
-        token = self.parsed_config.get_option('api-token')
-        return YetiService(root_url, token=token)
-
-    def _login(self, values):
-        """ Authenticate with Yeti and store the API token in config. """
-        email = values.email or raw_input('Email: ')
-        password = values.password or getpass.getpass('Password: ')
-        y = self._get_yeti_service()
-
-        try:
-            token = y.auth(email, password)
-        except YetiError as e:
-            raise ValidationError(e.message)
-
-        self.parsed_config.set_option('api-token', token)
-        self._write_config()
-
-        env_name, _ = self.parsed_config.get_current_env()
-        print 'Logged into %s as %s' % (env_name, email)
-
-    def _logout(self):
-        self.parsed_config.unset_option('api-token')
-        self._write_config()
-
-    def _whoami(self, values):
-        env_name, _ = self.parsed_config.get_current_env()
-        log.debug('Current environment: %s', env_name)
-
-        y = self._get_yeti_service()
-        if not y.token:
-            raise ValidationError(
-                'Not logged in.  Please run brkt config login.')
-        try:
-            if values.json:
-                d = y.get_customer_json()
-                print util.pretty_print_json(d)
-            else:
-                cust = y.get_customer()
-                print cust.email
-        except YetiError as e:
-            if e.http_status == 401:
-                raise ValidationError(
-                    'Config API token is not authorized to access %s' %
-                    y.root_url)
-            raise ValidationError(e.message)
 
     def run(self, values):
         subcommand = values.config_subcommand
@@ -750,26 +680,25 @@ The leading `*' indicates that the `stage' environment is currently active.
             self._list_options()
         elif subcommand == 'set':
             self._set_option(values.option, values.value)
+            self.parsed_config.save_config()
         elif subcommand == 'get':
             self._get_option(values.option)
         elif subcommand == 'unset':
             self._unset_option(values.option)
+            self.parsed_config.save_config()
         elif subcommand == 'set-env':
             self._set_env(values)
+            self.parsed_config.save_config()
         elif subcommand == 'use-env':
             self._use_env(values)
+            self.parsed_config.save_config()
         elif subcommand == 'list-envs':
             self._list_envs()
         elif subcommand == 'get-env':
             self._get_env(values)
         elif subcommand == 'unset-env':
             self._unset_env(values)
-        elif subcommand == 'login':
-            self._login(values)
-        elif subcommand == 'logout':
-            self._logout()
-        elif subcommand == 'whoami':
-            self._whoami(values)
+            self.parsed_config.save_config()
         return 0
 
 

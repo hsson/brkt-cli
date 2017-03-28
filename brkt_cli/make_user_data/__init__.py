@@ -12,6 +12,7 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import base64
 import logging
 import os
 import re
@@ -54,11 +55,21 @@ def _add_guest_files_to_instance_config(instance_cfg, guest_files):
         instance_cfg.add_guest_file(guest_file)
         
 
-def make(values):
+def make(values, config):
     """ Generate user-data based on command line options.
     :return the MIME content as a string
     """
-    instance_cfg = instance_config_from_values(values,
+    if values.unencrypted_guest:
+        # Only include Yeti endpoints if this userdata is going to be used to
+        # launch Metavisors with unencrypted guests (i.e., *not* encrypted
+        # instances). Encrypted images/AMIs have the Yeti endpoints
+        # 'baked in', so the endpoints are only needed when launching the
+        # metavisor instance from the 'creator' image/AMI (with the
+        # unencrypted guest root).
+        cli_config = config
+    else:
+        cli_config = None
+    instance_cfg = instance_config_from_values(values, cli_config=cli_config,
                                                mode=INSTANCE_METAVISOR_MODE)
 
     if values.make_user_data_brkt_files:
@@ -90,15 +101,22 @@ def make(values):
             brkt_cli.validate_ssh_pub_key(key_value)
             instance_cfg.brkt_config['ssh-public-key'] = key_value
 
-    return instance_cfg.make_userdata()
-
+    ud = instance_cfg.make_userdata()
+    if values.base64:
+        ud = base64.b64encode(ud)
+    return ud
 
 class MakeUserDataSubcommand(Subcommand):
+
+    def __init__(self):
+        self.config = None
 
     def name(self):
         return 'make-user-data'
 
     def register(self, subparsers, parsed_config):
+        self.config = parsed_config
+
         parser = subparsers.add_parser(
             self.name(),
             description=(
@@ -109,8 +127,15 @@ class MakeUserDataSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
 
+        # Don't add --brkt-tag, since we don't want make-user-data to talk
+        # to Yeti to generate a launch token.  Users can generate a token
+        # and specify tags with the make-token command.
         setup_instance_config_args(
-            parser, parsed_config, mode=INSTANCE_METAVISOR_MODE)
+            parser,
+            parsed_config,
+            mode=INSTANCE_METAVISOR_MODE,
+            brkt_tag=False
+        )
 
         parser.add_argument(
             '-v',
@@ -118,6 +143,12 @@ class MakeUserDataSubcommand(Subcommand):
             dest='make_user_data_verbose',
             action='store_true',
             help=argparse.SUPPRESS
+        )
+        parser.add_argument(
+            '--base64',
+            dest='base64',
+            action='store_true',
+            help='Base64-encode output (needed for instances in ESX)'
         )
         parser.add_argument(
             '--unencrypted-guest',
@@ -166,7 +197,7 @@ class MakeUserDataSubcommand(Subcommand):
         return values.make_user_data_verbose
 
     def run(self, values):
-        mime = make(values)
+        mime = make(values, self.config)
         util.write_to_file_or_stdout(mime, values.out)
         return 0
 
