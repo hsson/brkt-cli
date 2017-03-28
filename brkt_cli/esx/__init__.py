@@ -108,8 +108,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
     brkt_env = brkt_cli.brkt_env_from_values(values)
     if brkt_env is None:
         _, brkt_env = parsed_config.get_current_env()
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, parsed_config)
 
     proxy = None
     if values.http_proxy:
@@ -295,8 +295,8 @@ def run_update(values, parsed_config, log, use_esx=False):
     brkt_env = brkt_cli.brkt_env_from_values(values)
     if brkt_env is None:
         _, brkt_env = parsed_config.get_current_env()
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, parsed_config)
 
     proxy = None
     if values.http_proxy:
@@ -415,8 +415,8 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
     brkt_env = brkt_cli.brkt_env_from_values(values)
     if brkt_env is None:
         _, brkt_env = parsed_config.get_current_env()
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, parsed_config)
 
     proxy = None
     if values.http_proxy:
