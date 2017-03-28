@@ -322,7 +322,6 @@ class YetiServiceTestCase(unittest.TestCase):
 
     def test_get_yeti_service(self):
         cfg = CLIConfig()
-        cfg.register_option('api-token', '')
         y = brkt_cli.config._get_yeti_service(cfg)
         self.assertEqual('https://api.mgmt.brkt.com:443', y.root_url)
         self.assertEqual(self.original_token, y.token)

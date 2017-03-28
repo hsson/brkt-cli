@@ -14,7 +14,6 @@
 import argparse
 import collections
 import errno
-import getpass
 import logging
 import os
 import os.path
@@ -25,7 +24,6 @@ import tempfile
 import yaml
 
 import brkt_cli
-from brkt_cli import util
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.util import parse_endpoint, render_table_rows
 from brkt_cli.validation import ValidationError
@@ -348,10 +346,7 @@ def _get_yeti_service(parsed_config):
     _, env = parsed_config.get_current_env()
     root_url = 'https://%s:%d' % (
         env.public_api_host, env.public_api_port)
-    token = (
-        os.environ.get('BRKT_API_TOKEN') or
-        parsed_config.get_option('api-token')
-    )
+    token = os.environ.get('BRKT_API_TOKEN')
     return YetiService(root_url, token=token)
 
 
@@ -553,50 +548,6 @@ The leading `*' indicates that the `stage' environment is currently active.
             'env_name',
             help='The environment name')
 
-        # Log in and out.
-        login_parser = config_subparsers.add_parser(
-            'login',
-            # Don't expose until the feature is ready.
-            # help='Log into the Bracket service',
-            description=(
-                'Authenticate with the Bracket service and store the API '
-                'token in config.'
-            )
-        )
-        login_parser.add_argument(
-            '--email',
-            metavar='ADDRESS',
-            help='If not specified, show a prompt'
-        )
-        login_parser.add_argument(
-            '--password',
-            help='If not specified, show a prompt'
-        )
-
-        config_subparsers.add_parser(
-            'logout',
-            # Don't expose until the feature is ready.
-            # help='Log out of the Bracket service',
-            description=(
-                'Delete the API token stored in config.'
-            )
-        )
-
-        whoami_parser = config_subparsers.add_parser(
-            'whoami',
-            # Don't expose until the feature is ready.
-            # help='Show the current user',
-            description=(
-                'Print the email address of the user who was logged in '
-                'with the brkt config login command.'
-            )
-        )
-        whoami_parser.add_argument(
-            '--json',
-            action='store_true',
-            help='Print all user properties in JSON format'
-        )
-
     def _list_options(self):
         """Display the contents of the config"""
         for opt in sorted(self.parsed_config.registered_options().keys()):
@@ -723,32 +674,6 @@ The leading `*' indicates that the `stage' environment is currently active.
         except UnknownEnvironmentError:
             raise ValidationError('Error: unknown environment ' + values.env_name)
 
-    def _login(self, values):
-        """ Authenticate with Yeti and store the API token in config. """
-        email = values.email or raw_input('Email: ')
-        password = values.password or getpass.getpass('Password: ')
-        y = _get_yeti_service(self.parsed_config)
-
-        try:
-            token = y.auth(email, password)
-        except YetiError as e:
-            raise ValidationError(e.message)
-
-        self.parsed_config.set_option('api-token', token)
-        return email
-
-    def _whoami(self, values):
-        env_name, _ = self.parsed_config.get_current_env()
-        log.debug('Current environment: %s', env_name)
-
-        y = get_yeti_service(self.parsed_config)
-        if values.json:
-            d = y.get_customer_json()
-            print util.pretty_print_json(d)
-        else:
-            cust = y.get_customer()
-            print cust.email
-
     def run(self, values):
         subcommand = values.config_subcommand
         if subcommand == 'list':
@@ -774,16 +699,6 @@ The leading `*' indicates that the `stage' environment is currently active.
         elif subcommand == 'unset-env':
             self._unset_env(values)
             self.parsed_config.save_config()
-        elif subcommand == 'login':
-            email = self._login(values)
-            self.parsed_config.save_config()
-            env_name, _ = self.parsed_config.get_current_env()
-            print 'Logged into %s as %s' % (env_name, email)
-        elif subcommand == 'logout':
-            self.parsed_config.unset_option('api-token')
-            self.parsed_config.save_config()
-        elif subcommand == 'whoami':
-            self._whoami(values)
         return 0
 
 
