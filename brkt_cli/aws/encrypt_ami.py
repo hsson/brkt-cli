@@ -952,14 +952,6 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
 
         net_sriov_attr = aws_svc.get_instance_attribute(guest_instance.id,
                                                         "sriovNetSupport")
-        if (guest_image.virtualization_type == 'hvm' and
-            'metavisor' not in mv_image.name):
-            if net_sriov_attr.get("sriovNetSupport") == "simple":
-                log.warn("Guest Operating System license information will not "
-                         "be preserved because guest has sriovNetSupport "
-                         "enabled and metavisor does not support sriovNet")
-                legacy = True
-
         encryptor_instance, temp_sg_id = _run_encryptor_instance(
             aws_svc=aws_svc,
             encryptor_image_id=encryptor_ami,
@@ -989,8 +981,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
                 vol_type=vol_type, iops=iops, legacy=legacy,
                 save_encryptor_logs=save_encryptor_logs, status_port=status_port)
 
-        if 'metavisor' in mv_image.name and \
-            net_sriov_attr.get("sriovNetSupport") != "simple":
+        if net_sriov_attr.get("sriovNetSupport") != "simple":
             log.info('Enabling sriovNetSupport for guest instance %s',
                       guest_instance.id)
             try:

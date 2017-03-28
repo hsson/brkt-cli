@@ -16,14 +16,14 @@ def wrap_guest_image(gcp_svc, image_id, encryptor_image,
     try:
         keep_encryptor = True
         if not encryptor_image:
-            log.info('Retrieving encryptor image from GCE bucket')
+            log.info('Retrieving encryptor image from GCP bucket')
             try:
                 encryptor_image = gcp_svc.get_latest_encryptor_image(zone,
                     image_bucket, image_file=image_file)
                 keep_encryptor = False
             except errors.HttpError as e:
                 encryptor_image = None
-                log.exception('GCE API call to retrieve image failed')
+                log.exception('GCP API call to retrieve image failed')
                 return
 
         if not instance_name:
@@ -57,7 +57,7 @@ def wrap_guest_image(gcp_svc, image_id, encryptor_image,
         log.info("Instance %s (%s) launched successfully" % (instance_name,
             gcp_svc.get_instance_ip(instance_name, zone)))
     except errors.HttpError as e:
-        log.exception('GCE API request failed: {}'.format(e.message))
+        log.exception('GCP API request failed: {}'.format(e.message))
     finally:
         if not cleanup:
             log.info("Not cleaning up")
