@@ -454,8 +454,8 @@ def check_args(values, gcp_svc, cli_config):
         if values.bucket != 'prod':
             raise ValidationError(
                 "Please provide either an encryptor image or an image bucket")
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, cli_config)
 
     if values.validate:
         if not gcp_svc.project_exists(values.project):
