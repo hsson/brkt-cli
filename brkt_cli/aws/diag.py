@@ -23,7 +23,8 @@ from boto.ec2.blockdevicemapping import (
     EBSBlockDeviceType,
 )
 
-from brkt_cli.aws.share_logs import snapshot_log_volume
+#from brkt_cli.aws.share_logs import snapshot_log_volume
+from brkt_cli.aws.encrypt_ami import (snapshot_log_volume)
 from brkt_cli.util import make_nonce
 
 # Security group names

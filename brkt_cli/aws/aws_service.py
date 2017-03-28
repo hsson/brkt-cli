@@ -16,6 +16,7 @@ import abc
 import logging
 import re
 import ssl
+import time
 
 import boto
 import boto.sts
@@ -256,6 +257,11 @@ class AWSService(BaseAWSService):
         self.key_name = key_name
         self.conn = boto.vpc.connect_to_region(region)
 
+    def s3_connect(self, region, key_name=None):
+        self.region = region
+        self.key_name = key_name
+        self.s3 = boto.connect_s3()
+
     def connect_as(self, role, region, session_name):
         sts_conn = boto.sts.connect_to_region(region)
         creds = sts_conn.assume_role(role, session_name)
@@ -324,6 +330,29 @@ class AWSService(BaseAWSService):
         instances = get_only_instances([instance_id])
         return _get_first_element(instances, 'InvalidInstanceID.NotFound')
 
+    def wait_instance(self, instance):
+        for i in range(25):
+            if instance.state != 'running':
+                print instance.state
+                time.sleep(5)
+                instance.update()
+            else:
+                print 'Instance Launched!'
+                return
+        print "Instance did not launch"
+        return
+
+    def wait_bucket_file(self):
+        #self.retry(self.conn.create_bucket('voll-bucket2'))
+        print self.s3.create_bucket('voll-bucket2')
+        print 'it worked'
+        return
+
+    def make_bucket(self, bucket_name):
+        print self.s3.create_bucket(bucket_name)
+        return
+
+
     def create_tags(self, resource_id, name=None, description=None):
         tags = dict(self.default_tags)
         if name:
@@ -374,6 +403,18 @@ class AWSService(BaseAWSService):
         snapshot = create_snapshot(volume_id, description)
         self.create_tags(snapshot.id, name=name)
         return snapshot
+
+    def wait_snapshot(self, snapshot):
+        for i in range(20):
+            if snapshot.status != 'completed':
+                print 'Snap Status=', snapshot.status
+                time.sleep(5)
+                snapshot.update()
+            else:
+                print 'Snapshot Created!'
+                return
+        print 'Snap not created'
+        return
 
     def create_volume(self,
                       size,
