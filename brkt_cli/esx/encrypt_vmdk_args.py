@@ -94,6 +94,42 @@ def setup_encrypt_vmdk_args(parser):
         required=False
     )
     parser.add_argument(
+        '--static-ip-address',
+        metavar='IP',
+        dest='static_ip',
+        help='Specify the static IP address of the encryptor VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-subnet-mask',
+        metavar='IP',
+        dest='static_mask',
+        help='Specify the static subnet mask of the encryptor VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-default-router',
+        metavar='IP',
+        dest='static_gw',
+        help='Specify the static default router of the encryptor VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-dns-domain',
+        metavar='DNS_NAME',
+        dest='static_dns_domain',
+        help='Specify the static DNS domain of the encryptor VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-dns-server',
+        metavar='DNS_NAME',
+        dest='static_dns',
+        action='append',
+        help='Specify the static DNS servers of the encryptor VM',
+        required=False
+    )
+    parser.add_argument(
         '--no-verify-cert',
         dest='validate',
         action='store_false',
