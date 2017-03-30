@@ -36,7 +36,8 @@ log = logging.getLogger(__name__)
 
 def wrap_from_s3(vc_swc, guest_vmdk, vm_name=None,
                  ovf_name=None, download_file_list=None,
-                 user_data_str=None, cleanup=True):
+                 user_data_str=None, cleanup=True,
+                 static_ip=None):
     vm = None
     try:
         if (ovf_name is None or download_file_list is None):
@@ -49,6 +50,8 @@ def wrap_from_s3(vc_swc, guest_vmdk, vm_name=None,
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=1)
         if user_data_str:
             vc_swc.send_userdata(vm, user_data_str)
+        if static_ip:
+            vc_swc.configure_static_ip(vm, static_ip)
         vc_swc.power_on(vm)
         ip_addr = vc_swc.get_ip_address(vm)
         log.info("VM ip address is %s", ip_addr)
@@ -61,7 +64,7 @@ def wrap_from_s3(vc_swc, guest_vmdk, vm_name=None,
 
 def wrap_from_local_ovf(vc_swc, guest_vmdk, vm_name=None,
                         source_image_path=None, ovf_image_name=None,
-                        user_data_str=None):
+                        user_data_str=None, static_ip=None):
     vm = None
     try:
         if ((source_image_path is None) or
@@ -79,6 +82,8 @@ def wrap_from_local_ovf(vc_swc, guest_vmdk, vm_name=None,
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=1)
         if user_data_str:
             vc_swc.send_userdata(vm, user_data_str)
+        if static_ip:
+            vc_swc.configure_static_ip(vm, static_ip)
         vc_swc.power_on(vm)
         ip_addr = vc_swc.get_ip_address(vm)
         log.info("VM ip address is %s", ip_addr)
@@ -90,7 +95,8 @@ def wrap_from_local_ovf(vc_swc, guest_vmdk, vm_name=None,
 
 
 def wrap_from_vmdk(vc_swc, guest_vmdk, vm_name=None,
-                   metavisor_vmdk=None, user_data_str=None):
+                   metavisor_vmdk=None, user_data_str=None,
+                   static_ip=None):
     try:
         vm = None
         if (metavisor_vmdk is None):
@@ -107,6 +113,8 @@ def wrap_from_vmdk(vc_swc, guest_vmdk, vm_name=None,
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=1)
         if user_data_str:
             vc_swc.send_userdata(vm, user_data_str)
+        if static_ip:
+            vc_swc.configure_static_ip(vm, static_ip)
         vc_swc.power_on(vm)
         ip_addr = vc_swc.get_ip_address(vm)
         log.info("VM ip address is %s", ip_addr)

@@ -22,6 +22,8 @@ import os
 import signal
 import hashlib
 import requests
+import socket
+import struct
 import xml.etree.ElementTree
 from functools import wraps
 from operator import attrgetter
@@ -36,7 +38,9 @@ from pyVmomi import vim
 
 from brkt_cli.util import (
     retry,
-    RetryExceptionChecker
+    RetryExceptionChecker,
+    validate_ip_address,
+    validate_dns_name_ip_address
 )
 from brkt_cli import validate_ssh_pub_key
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
@@ -77,6 +81,53 @@ def compute_sha1_of_file(filename):
         for chunk in iter(lambda: f.read(4096), b""):
             hash_sha1.update(chunk)
     return hash_sha1.hexdigest()
+
+
+class StaticIPConfiguration(object):
+    def __init__(self, ip, mask, gw, dns, dns_domain):
+        self.ip = ip
+        self.mask = mask
+        self.gw = gw
+        self.dns = dns
+        self.dns_domain = dns_domain
+
+    def validate(self):
+        if not self.ip:
+            raise ValidationError("VM IP address for static IP not provided")
+        if not self.mask:
+            raise ValidationError("Subnet mask for static IP not provided")
+        if not self.gw:
+            raise ValidationError("Default router for static IP not provided")
+        if not self.dns:
+            raise ValidationError("DNS servers for static IP not provided")
+        if not self.dns_domain:
+            raise ValidationError("DNS domain for static IP not provided")
+        if not validate_ip_address(self.ip):
+            raise ValidationError("IP address %s is not in IP address format",
+                                  self.ip)
+        if not validate_ip_address(self.mask):
+            raise ValidationError("Subnet mask %s is not in IP address format",
+                                  self.mask)
+        if self.mask == '255.255.255.255':
+            raise ValidationError("Subnet mask cannot be /32")
+        if not validate_ip_address(self.gw):
+            raise ValidationError("Default router %s is not in IP address "
+                                  "format", self.gw)
+        for server in self.dns:
+            if not validate_ip_address(server):
+                raise ValidationError("DNS server %s is not in IP address "
+                                      "format", server)
+        if not validate_dns_name_ip_address(self.dns_domain):
+            raise ValidationError("DNS domain %s is invalid ",
+                                  self.dns_domain)
+        # check both ip and default router in same subnet
+        if ((struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.ip))[0] &
+           struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.mask))[0])
+           !=
+           (struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.gw))[0] &
+           struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.mask))[0])):
+            raise ValidationError("Default router %s and IP address %s not in "
+                                  "the same subnet", self.gw, self.ip)
 
 
 class BaseVCenterService(object):
@@ -254,7 +305,8 @@ class VmodlExceptionChecker(RetryExceptionChecker):
         if isinstance(exception, ssl.SSLError):
             log.info("SSL error, trying again")
             return True
-        if isinstance(exception, requests.exceptions.ConnectionError):
+        if isinstance(exception, requests.exceptions.ConnectionError) or \
+           isinstance(exception, vim.fault.HostConnectFault):
             if ("10060" in str(exception)):
                 # 10060 corresponds to Connection timed out in Windows
                 log.info("Connection timeout error, retrying")
@@ -543,6 +595,27 @@ class VCenterService(BaseVCenterService):
         task = vm.ReconfigVM_Task(spec=spec)
         self.__wait_for_task(task)
 
+    def configure_static_ip(self, vm, static_ip):
+        self.validate_connection()
+        adaptermap = vim.vm.customization.AdapterMapping()
+        globalip = vim.vm.customization.GlobalIPSettings()
+        adaptermap.adapter = vim.vm.customization.IPSettings()
+        adaptermap.adapter.ip = vim.vm.customization.FixedIp()
+        adaptermap.adapter.ip.ipAddress = static_ip.ip
+        adaptermap.adapter.subnetMask = static_ip.mask
+        adaptermap.adapter.gateway = static_ip.gw
+        globalip.dnsServerList = static_ip.dns
+        adaptermap.adapter.dnsDomain = static_ip.dns_domain
+        ident = vim.vm.customization.LinuxPrep(
+            domain=static_ip.dns_domain,
+            hostName=vim.vm.customization.FixedName(name=vm.config.name))
+        customspec = vim.vm.customization.Specification()
+        customspec.identity = ident
+        customspec.nicSettingMap = [adaptermap]
+        customspec.globalIPSettings = globalip
+        task = vm.Customize(spec=customspec)
+        self.__wait_for_task(task)
+
     def add_serial_port_to_file(self, vm, filename):
         self.validate_connection()
         content = self.si.RetrieveContent()
@@ -785,9 +858,13 @@ class VCenterService(BaseVCenterService):
         while(True):
             time.sleep(5)
             try:
+                if self.upload_ovf_complete:
+                    return
                 # Choosing arbitrary percentage to keep the lease alive.
                 lease.HttpNfcLeaseProgress(50)
                 if (lease.state == vim.HttpNfcLease.State.done):
+                    return
+                if (lease.state == vim.HttpNfcLease.State.error):
                     return
                 # If the lease is released, we get an exception.
                 # Returning to kill the thread.
@@ -817,6 +894,7 @@ class VCenterService(BaseVCenterService):
         lease_info.leaseTimeout = 10000
         dev_urls = lease_info.deviceUrl
         ovf_files = []
+        self.upload_ovf_complete = False
         try:
             for url in dev_urls:
                 devid = url.key
@@ -853,6 +931,7 @@ class VCenterService(BaseVCenterService):
             log.error("Exception while creating OVF %s" % e)
             raise
         finally:
+            self.upload_ovf_complete = True
             lease.HttpNfcLeaseComplete()
         return ovf_path
 
@@ -973,6 +1052,7 @@ class VCenterService(BaseVCenterService):
                 if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
                     device.device.backing.deviceName = self.network_name
         lease = resource_pool.ImportVApp(import_spec.importSpec, destfolder)
+        self.upload_ovf_complete = False
         while (True):
             hls = lease.state
             if (hls == vim.HttpNfcLease.State.ready):
@@ -1030,8 +1110,8 @@ class VCenterService(BaseVCenterService):
                 self.destroy_vm(vm)
             raise
         finally:
-            if (lease.state != vim.HttpNfcLease.State.done):
-                lease.HttpNfcLeaseComplete()
+            self.upload_ovf_complete = True
+            lease.HttpNfcLeaseComplete()
         return vm
 
     def get_vm_name(self, vm):
