@@ -381,6 +381,9 @@ def build_aws_service():
     # Guest image
     bdm = BlockDeviceMapping()
     bdm['/dev/sda1'] = BlockDeviceType(snapshot_id='snap-12345678')
+    snapshot = Snapshot()
+    snapshot.id = 'snap-12345678'
+    aws_svc.snapshots[snapshot.id] = snapshot
     id = aws_svc.register_image(name='Guest image', block_device_map=bdm)
     guest_image = aws_svc.get_image(id)
 
