@@ -129,6 +129,21 @@ def make_nonce():
     return str(uuid.uuid4()).split('-')[0]
 
 
+def validate_ip_address(ip_addr):
+    try:
+        a = ip_addr.split('.')
+        if len(a) != 4:
+            return False
+        for d in a:
+            if not d.isdigit():
+                return False
+            if int(d) > 255 or int(d) < 0:
+                return False
+        return True
+    except:
+        return False
+
+
 def validate_dns_name_ip_address(hostname):
     """ Verifies that the input hostname is indeed a valid
     host name or ip address

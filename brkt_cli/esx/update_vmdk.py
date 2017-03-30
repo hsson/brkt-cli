@@ -31,10 +31,12 @@ log = logging.getLogger(__name__)
 def update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
                            template_vm_name, target_path, ovf_name,
                            ova_name, ovftool_path, user_data_str,
-                           status_port=ENCRYPTOR_STATUS_PORT):
+                           status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     try:
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(mv_vm)
+        if static_ip:
+            vc_swc.configure_static_ip(mv_vm, static_ip)
         # Power on the MV VM and wait for encryption
         vc_swc.power_on(mv_vm)
         # Send user data
@@ -131,7 +133,8 @@ def update_from_s3(vc_swc, enc_svc_cls, template_vm_name=None,
                    target_path=None, ovf_name=None, ova_name=None,
                    ovftool_path=None, mv_ovf_name=None,
                    download_file_list=None, user_data_str=None,
-                   status_port=ENCRYPTOR_STATUS_PORT, cleanup=True):
+                   status_port=ENCRYPTOR_STATUS_PORT, cleanup=True,
+                   static_ip=None):
     guest_vm = None
     mv_vm = None
     try:
@@ -158,14 +161,15 @@ def update_from_s3(vc_swc, enc_svc_cls, template_vm_name=None,
         raise
     update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
                            template_vm_name, target_path, ovf_name,
-                           ova_name, ovftool_path, user_data_str, status_port)
+                           ova_name, ovftool_path, user_data_str, status_port,
+                           static_ip)
 
 
 def update_from_local_ovf(vc_swc, enc_svc_cls, template_vm_name=None,
                           target_path=None, ovf_name=None, ova_name=None,
                           ovftool_path=None, source_image_path=None,
                           ovf_image_name=None, user_data_str=None,
-                          status_port=ENCRYPTOR_STATUS_PORT):
+                          status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     guest_vm = None
     mv_vm = None
     if ((source_image_path is None) or
@@ -195,13 +199,15 @@ def update_from_local_ovf(vc_swc, enc_svc_cls, template_vm_name=None,
         raise
     update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
                            template_vm_name, target_path, ovf_name,
-                           ova_name, ovftool_path, user_data_str, status_port)
+                           ova_name, ovftool_path, user_data_str, status_port,
+                           static_ip)
 
 
 def update_from_vmdk(vc_swc, enc_svc_cls, template_vm_name=None,
                      target_path=None, ovf_name=None, ova_name=None,
                      ovftool_path=None, metavisor_vmdk=None,
-                     user_data_str=None, status_port=ENCRYPTOR_STATUS_PORT):
+                     user_data_str=None, status_port=ENCRYPTOR_STATUS_PORT,
+                     static_ip=None):
     guest_vm = None
     mv_vm = None
     if (metavisor_vmdk is None):
@@ -231,4 +237,5 @@ def update_from_vmdk(vc_swc, enc_svc_cls, template_vm_name=None,
         raise
     update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
                            template_vm_name, target_path, ovf_name,
-                           ova_name, ovftool_path, user_data_str, status_port)
+                           ova_name, ovftool_path, user_data_str, status_port,
+                           static_ip)

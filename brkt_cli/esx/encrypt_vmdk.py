@@ -48,7 +48,7 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                                 create_ova=False, target_path=None,
                                 image_name=None, ovftool_path=None,
                                 user_data_str=None, serial_port_file_name=None,
-                                status_port=ENCRYPTOR_STATUS_PORT):
+                                status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     try:
         mv_vm_name = vc_swc.get_vm_name(vm)
         # Reconfigure VM with more CPUs and memory
@@ -69,6 +69,9 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         else:
             encrypted_guest_size = (2 * size) + (1024*1024)
         vc_swc.add_disk(vm, disk_size=encrypted_guest_size, unit_number=1)
+        # Configure Static IP for the encryptor VM
+        if static_ip:
+            vc_swc.configure_static_ip(vm, static_ip)
         # Power on the VM and wait for encryption
         vc_swc.power_on(vm)
         # Send user data
@@ -160,7 +163,7 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                     target_path=None, image_name=None, ovftool_path=None,
                     ovf_name=None, download_file_list=None,
                     user_data_str=None, serial_port_file_name=None,
-                    status_port=ENCRYPTOR_STATUS_PORT, cleanup=True):
+                    status_port=ENCRYPTOR_STATUS_PORT, cleanup=True, static_ip=None):
     vm = None
     try:
         if (ovf_name is None or download_file_list is None):
@@ -181,7 +184,7 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                                 guest_vmdk, crypto_policy, vm_name,
                                 create_ovf, create_ova, target_path,
                                 image_name, ovftool_path, user_data_str,
-                                serial_port_file_name, status_port)
+                                serial_port_file_name, status_port, static_ip)
 
 
 def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
@@ -189,7 +192,7 @@ def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                             target_path=None, image_name=None, ovftool_path=None,
                            source_image_path=None, ovf_image_name=None,
                            user_data_str=None, serial_port_file_name=None,
-                           status_port=ENCRYPTOR_STATUS_PORT):
+                           status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     vm = None
     try:
         if ((source_image_path is None) or
@@ -216,7 +219,7 @@ def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                                 create_ovf, create_ova, target_path,
                                 image_name, ovftool_path,
                                 user_data_str, serial_port_file_name,
-                                status_port)
+                                status_port, static_ip)
 
 
 def encrypt_from_vmdk(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
@@ -224,7 +227,7 @@ def encrypt_from_vmdk(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                       target_path=None, image_name=None, ovftool_path=None,
                       metavisor_vmdk=None, user_data_str=None,
                       serial_port_file_name=None,
-                      status_port=ENCRYPTOR_STATUS_PORT):
+                      status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     try:
         vm = None
         if (metavisor_vmdk is None):
@@ -246,4 +249,4 @@ def encrypt_from_vmdk(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                                 create_ovf, create_ova, target_path,
                                 image_name, ovftool_path,
                                 user_data_str, serial_port_file_name,
-                                status_port)
+                                status_port, static_ip)
