@@ -305,7 +305,8 @@ class VmodlExceptionChecker(RetryExceptionChecker):
         if isinstance(exception, ssl.SSLError):
             log.info("SSL error, trying again")
             return True
-        if isinstance(exception, requests.exceptions.ConnectionError):
+        if isinstance(exception, requests.exceptions.ConnectionError) or \
+           isinstance(exception, vim.fault.HostConnectFault):
             if ("10060" in str(exception)):
                 # 10060 corresponds to Connection timed out in Windows
                 log.info("Connection timeout error, retrying")
