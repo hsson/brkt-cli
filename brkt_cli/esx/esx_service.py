@@ -785,9 +785,13 @@ class VCenterService(BaseVCenterService):
         while(True):
             time.sleep(5)
             try:
+                if self.upload_ovf_complete:
+                    return
                 # Choosing arbitrary percentage to keep the lease alive.
                 lease.HttpNfcLeaseProgress(50)
                 if (lease.state == vim.HttpNfcLease.State.done):
+                    return
+                if (lease.state == vim.HttpNfcLease.State.error):
                     return
                 # If the lease is released, we get an exception.
                 # Returning to kill the thread.
@@ -817,6 +821,7 @@ class VCenterService(BaseVCenterService):
         lease_info.leaseTimeout = 10000
         dev_urls = lease_info.deviceUrl
         ovf_files = []
+        self.upload_ovf_complete = False
         try:
             for url in dev_urls:
                 devid = url.key
@@ -853,6 +858,7 @@ class VCenterService(BaseVCenterService):
             log.error("Exception while creating OVF %s" % e)
             raise
         finally:
+            self.upload_ovf_complete = True
             lease.HttpNfcLeaseComplete()
         return ovf_path
 
@@ -973,6 +979,7 @@ class VCenterService(BaseVCenterService):
                 if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
                     device.device.backing.deviceName = self.network_name
         lease = resource_pool.ImportVApp(import_spec.importSpec, destfolder)
+        self.upload_ovf_complete = False
         while (True):
             hls = lease.state
             if (hls == vim.HttpNfcLease.State.ready):
@@ -1030,8 +1037,8 @@ class VCenterService(BaseVCenterService):
                 self.destroy_vm(vm)
             raise
         finally:
-            if (lease.state != vim.HttpNfcLease.State.done):
-                lease.HttpNfcLeaseComplete()
+            self.upload_ovf_complete = True
+            lease.HttpNfcLeaseComplete()
         return vm
 
     def get_vm_name(self, vm):
