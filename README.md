@@ -11,8 +11,8 @@ the encryption process.
 and generating a JSON Web Token (JWT) that is used to authenticate with
 The Bracket Computing service.
 
-The latest release of **brkt-cli** is [1.0.6]
-(https://github.com/brkt/brkt-cli/releases/tag/brkt-cli-1.0.6).
+The latest release of **brkt-cli** is [1.0.8]
+(https://github.com/brkt/brkt-cli/releases/tag/brkt-cli-1.0.8).
 
 ## Requirements
 
@@ -28,39 +28,6 @@ by the operating system.  If you're not familiar with virtualenv, check out the
 [Virtual Environments](http://docs.python-guide.org/en/latest/dev/virtualenvs/)
 section of _The Hitchhiker's Guide to Python_.
 
-You can also run **brkt-cli** in a [Docker container](#docker).
-
-#### Windows and OS X
-
-Windows and OS X users need to use [pip 8](https://pip.pypa.io/).  pip 8
-supports Python Wheels, which include the binary portion of the
-[cryptography](https://cryptography.io/) library.  To
-[upgrade pip](https://pip.pypa.io/en/stable/installing/#upgrading-pip)
-to the latest version, run
-
-```
-$ pip install --upgrade pip
-```
-
-#### Linux
-
-Linux users need to install several packages, which allow you to compile
-the cryptography library.  Ubuntu users need to run
-
-```
-$ sudo apt-get install build-essential libssl-dev libffi-dev python-dev
-```
-
-before installing **brkt-cli**.  RHEL and CentOS users need to run
-
-```
-$ sudo yum install gcc libffi-devel python-devel openssl-devel
-```
-
-For more details, see the
-[installation section](https://cryptography.io/en/latest/installation/) of
-the cryptography library documentation.
-
 ## Installation
 
 Use pip to install **brkt-cli** and its dependencies:
@@ -75,39 +42,32 @@ To install the most recent **brkt-cli** code from the tip of the master branch, 
 $ pip install --upgrade git+https://github.com/brkt/brkt-cli.git
 ```
 
-The master branch has the latest features and bug fixes, but is not as thoroughly tested as the official release.
+The master branch has the latest features and bug fixes, but is not as thoroughly
+tested as the official release.
+
+You can also run **brkt-cli** in a [Docker container](#docker).
+
+If you need to [manage your own keys and tokens](cryptography.md),
+you'll need to install the Python [cryptography](https://cryptography.io/)
+library.
 
 ## Authentication
 
-The Encryptor and Metavisor use a [JSON Web Token](https://jwt.io/)
-(JWT) to authenticate with the Bracket Service. The token is derived
-from an ECDSA 384 private key in PEM format. 
-
-The process works like this:
-
-1. Run `brkt make-key` to create a public/private key pair.
-1. Register the public key with the Bracket Service (see **Token
-Verification Keys** in the **Settings** section of the admin UI.
-1. Run `brkt make-token` and pass your private key to generate a
-token.
-1. Pass the token to the encryption or update subcommand via the
-`--token` option.
-
-**brkt-cli** will then pass the token to the Encryptor or Updater,
-to allow it to authenticate with the Bracket service. The token will
-also be embedded into the encrypted image. This allows the encrypted
-instance to authenticate with the Bracket service on startup.
-
-#### Sample usage
+Many **brkt-cli** commands require an API token.  The
+`brkt auth` command gets an API token from the Bracket service based
+on your email and password, and prints the token to stdout:
 
 ```
-$ brkt make-key --public-out public.pem > private.pem
-Passphrase:
-Reenter passphrase:
+$ brkt auth
+Email: me@example.com
+Password:
+eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2V...
+```
 
-$ brkt make-token --signing-key private.pem
-Encrypted private key password:
-eyJhbGciOiJFUzM4NCIsInR5cCI6IkpXVCIsImtpZC...
+After authenticating, set the `$BRKT_API_TOKEN` environment variable:
+
+```
+$ export BRKT_API_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2V...
 ```
 
 ## Encrypting an image
