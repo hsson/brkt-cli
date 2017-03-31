@@ -1,8 +1,8 @@
 **brkt-cli** is a command-line interface to the
 [Bracket Computing](http://www.brkt.com) service. It produces an
 encrypted version of an operating system image that runs on
-[Amazon Web Services](aws.md) (AWS), [Google Compute Engine](gce.md)
-(GCE), or [VMware ESX](esx.md). The resulting encrypted image can then
+[Amazon Web Services](aws.md) (AWS), [Google Compute Platform](gce.md)
+(GCP), or [VMware ESX](esx.md). The resulting encrypted image can then
 be launched in the same manner as the original.  Please see the
 links above for cloud-provider specific details and an overview of
 the encryption process.
@@ -71,7 +71,7 @@ $ export BRKT_API_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2V...
 
 ## Encrypting an image
 
-See the [AWS](aws.md), [GCE](gce.md) or [VMware](esx.md) pages for
+See the [AWS](aws.md), [GCP](gce.md) or [VMware](esx.md) pages for
 platform-specific documentation on encrypting and updating an image.
 
 ## <a name="docker"/>Running in a Docker container
