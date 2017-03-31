@@ -5,13 +5,13 @@ The `vmware` subcommand provides all VMware related operations for encrypting an
 ```
 $ brkt vmware --help
 usage: brkt vmware [-h]
-                   {encrypt-with-vcenter,encrypt-with-esx-host,update-with-vcenter,update-with-esx-host,rescue-metavisor}
-                   ...
+                   {encrypt-with-vcenter,encrypt-with-esx-host,update-with-vcenter,update-with-esx-host,wrap-with-vcenter,
+                   wrap-with-esx-host} ...
 
 VMware operations
 
 positional arguments:
-  {encrypt-with-vcenter,encrypt-with-esx-host,update-with-vcenter,update-with-esx-host,rescue-metavisor}
+  {encrypt-with-vcenter,encrypt-with-esx-host,update-with-vcenter,update-with-esx-host,wrap-with-vcenter, wrap-with-esx-host}
     encrypt-with-vcenter
                         Encrypt a VMDK using vCenter
     encrypt-with-esx-host
@@ -20,7 +20,10 @@ positional arguments:
                         Update an encrypted VMDK using vCenter
     update-with-esx-host
                         Update an encrypted VMDK on an ESX host
-    rescue-metavisor    Upload Metavisor VM cores to URL
+    wrap-with-vcenter   Launch guest image wrapped with Bracket Metavsor using
+                        vCenter
+    wrap-with-esx-host  Launch guest image wrapped with Bracket Metavsor on
+                        ESX host
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -86,7 +89,8 @@ usage: brkt vmware encrypt-with-vcenter [-h] --vcenter-host DNS_NAME
                                         [--disk-type TYPE]
                                         [--ntp-server DNS_NAME]
                                         [--proxy HOST:PORT | --proxy-config-file PATH]
-                                        [--status-port PORT] [--token TOKEN]
+                                        [--status-port PORT]
+                                        [--token TOKEN | --brkt-tag NAME=VALUE]
                                         VMDK-NAME
 
 Create an encrypted VMDK from an existing VMDK using vCenter
@@ -95,6 +99,11 @@ positional arguments:
   VMDK-NAME             The Guest VMDK that will be encrypted
 
 optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --console-file-name NAME
                         File name to dump console messages to (default: None)
   --cpu-count N         Number of CPUs to assign to Encryptor VM (default: 8)
@@ -169,11 +178,17 @@ usage: brkt vmware update-with-vcenter [-h] --vcenter-host DNS_NAME
                                        [--use-esx-host]
                                        [--ntp-server DNS_NAME]
                                        [--proxy HOST:PORT | --proxy-config-file PATH]
-                                       [--status-port PORT] [--token TOKEN]
+                                       [--status-port PORT]
+                                       [--token TOKEN --brkt-tag NAME=VALUE]
 
 Update an encrypted VMDK with the latest Metavisor using vCenter
 
 optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --cpu-count N         Number of CPUs to assign to Encryptor VM (default: 8)
   --encrypted-image-directory NAME
                         Directory to fetch the encrypted OVF/OVA image
@@ -224,6 +239,78 @@ optional arguments:
   --vcenter-port N      Port Number of the vCenter Server (default: 443)
   -h, --help            show this help message and exit
 ```
+
+The `vmware wrap-with-vcenter` subcommand creates an encrypted VM with the latest
+version of the Metavisor wrapping the unencrypted guest root disk using vCenter.
+
+```
+usage: brkt vmware wrap-with-vcenter [-h] --vcenter-host DNS_NAME
+                                     [--vcenter-port N]
+                                     [--vcenter-datacenter NAME]
+                                     [--vcenter-datastore NAME]
+                                     [--vcenter-cluster NAME]
+                                     [--vcenter-network-name NAME]
+                                     [--cpu-count N] [--memory GB]
+                                     [--vm-name NAME] [--no-verify-cert]
+                                     [--ovf-source-directory PATH]
+                                     [--metavisor-ovf-image-name NAME]
+                                     [--disk-type TYPE]
+                                     [--ntp-server DNS_NAME]
+                                     [--proxy HOST:PORT | --proxy-config-file PATH]
+                                     [--status-port PORT]
+                                     [--token TOKEN | --brkt-tag NAME=VALUE]
+                                     VMDK-NAME
+
+Launch guest image wrapped with Bracket Metavsor using vCenter
+
+positional arguments:
+  VMDK-NAME             The Guest VMDK path (in the datastore) that will be
+                        encrypted
+
+optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
+  --cpu-count N         Number of CPUs to assign to Encryptor VM (default: 8)
+  --disk-type TYPE      thin/thick-lazy-zeroed/thick-eager-zeroed (default:
+                        thin) (default: thin)
+  --memory GB           Memory to assign to Encryptor VM (default: 32)
+  --metavisor-ovf-image-name NAME
+                        Metavisor OVF name (default: None)
+  --no-verify-cert      Don't validate vCenter certificate
+  --ntp-server DNS_NAME
+                        Optional NTP server to sync Metavisor clock. May be
+                        specified multiple times. (default: None)
+  --ovf-source-directory PATH
+                        Local path to the Metavisor OVF directory (default:
+                        None)
+  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
+                        specified multiple times. (default: None)
+  --proxy-config-file PATH
+                        Path to proxy.yaml file that will be used during
+                        encryption (default: None)
+  --status-port PORT    Specify the port to receive http status of encryptor.
+                        Any port in range 1-65535 can be used except for port
+                        81. (default: 80)
+  --token TOKEN         Token that the encrypted instance will use to
+                        authenticate with the Bracket service. Use the make-
+                        token subcommand to generate a token. (default: None)
+  --vcenter-cluster NAME
+                        vCenter cluster to use (default: None)
+  --vcenter-datacenter NAME
+                        vCenter Datacenter to use (default: None)
+  --vcenter-datastore NAME
+                        vCenter datastore to use (default: None)
+  --vcenter-host DNS_NAME
+                        IP address/DNS Name of the vCenter host (default:
+                        None)
+  --vcenter-network-name NAME
+                        vCenter network name to use (default: VM Network)
+  --vcenter-port N      Port Number of the vCenter Server (default: 443)
+  --vm-name NAME        Specify the name of the launched VM
+  -h, --help            show this help message and exit
 
 ## Configuration
 
@@ -299,6 +386,22 @@ encrypt-vmdk-test
 When the process completes, the VMDK specified in the `--template-vm-name` argument
 is updated with the latest Metavisor.
 
+## Wrap a guest VMDK with the Bracket Metavisor
+
+Run **brkt vmware wrap-with-vcenter** to wrap an guest VMDK with the latest
+Metavisor using vCenter:
+
+```
+$ brkt vmware wrap-with-vcenter --token <token> --vcenter-host <vcenter_host> --vm-name wrap-vmdk-test  --vcenter-datacenter <datacenter_name> --vcenter-datastore <datastore_name> --vcenter-cluster <cluster_name> centos66/centos66.vmdk
+02:58:07 Fetching Metavisor OVF from S3
+03:00:17 Launching VM from OVF metavisor-1-0-100-gcaf72844f.ovf
+/usr/local/lib/python2.7/dist-packages/requests/packages/urllib3/connectionpool.py:852: InsecureRequestWarning: Unverified HTTPS request is being made. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
+InsecureRequestWarning)
+03:09:21 [ssd-218-datastore] centos66.vmdk disk added to VM wrap-vmdk-test
+03:10:03 VM ip address is 10.9.1.90
+03:10:03 vmware returned 0
+```
+
 # Encrypting images using an ESX host
 
 The `vmware encrypt-with-esx-host` subcommand performs the following steps to create
@@ -336,7 +439,8 @@ usage: brkt vmware encrypt-with-esx-host [-h] --esx-host DNS_NAME
                                          [--disk-type TYPE]
                                          [--ntp-server DNS_NAME]
                                          [--proxy HOST:PORT | --proxy-config-file PATH]
-                                         [--status-port PORT] [--token TOKEN]
+                                         [--status-port PORT]
+                                         [--token TOKEN | --brkt-tag NAME=VALUE]
                                          VMDK-NAME
 
 Create an encrypted VMDK from an existing VMDK on an ESX host
@@ -345,6 +449,11 @@ positional arguments:
   VMDK-NAME             The Guest VMDK that will be encrypted
 
 optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --console-file-name NAME
                         File name to dump console messages to (default: None)
   --cpu-count N         Number of CPUs to assign to Encryptor VM (default: 8)
@@ -407,7 +516,8 @@ usage: brkt vmware update-with-esx-host [-h] --esx-host DNS_NAME
                                         [--disk-type TYPE]
                                         [--ntp-server DNS_NAME]
                                         [--proxy HOST:PORT | --proxy-config-file PATH]
-                                        [--status-port PORT] [--token TOKEN]
+                                        [--status-port PORT]
+                                        [--token TOKEN | --brkt-tag NAME=VALUE]
                                         VMDK-NAME
 
 Update an encrypted VMDK with the latest Metavisor on an ESX host
@@ -416,6 +526,11 @@ positional arguments:
   VMDK-NAME             The Guest VMDK that will be encrypted
 
 optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --console-file-name NAME
                         File name to dump console messages to (default: None)
   --cpu-count N         Number of CPUs to assign to Encryptor VM (default: 8)
@@ -456,6 +571,67 @@ optional arguments:
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
                         token subcommand to generate a token. (default: None)
+  -h, --help            show this help message and exit
+```
+
+The `vmware wrap-with-esx-host` subcommand creates an encrypted VM with the latest
+version of the Metavisor wrapping the unencrypted guest root disk on an ESX host.
+
+```
+usage: brkt vmware wrap-with-esx-host [-h] --esx-host DNS_NAME [--esx-port N]
+                                      [--esx-datastore NAME]
+                                      [--esx-network-name NAME]
+                                      [--cpu-count N] [--memory GB]
+                                      [--vm-name NAME]
+                                      [--ovf-source-directory PATH]
+                                      [--metavisor-ovf-image-name NAME]
+                                      [--disk-type TYPE]
+                                      [--ntp-server DNS_NAME]
+                                      [--proxy HOST:PORT | --proxy-config-file PATH]
+                                      [--status-port PORT]
+                                      [--token TOKEN | --brkt-tag NAME=VALUE]
+                                      VMDK-NAME
+
+Launch guest image wrapped with Bracket Metavsor on ESX host
+
+positional arguments:
+  VMDK-NAME             The Guest VMDK path (in the datastore) that will be
+                        encrypted
+
+optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
+  --cpu-count N         Number of CPUs to assign to Encryptor VM (default: 8)
+  --disk-type TYPE      thin/thick-lazy-zeroed/thick-eager-zeroed (default:
+                        thin) (default: thin)
+  --esx-datastore NAME  ESX datastore to use (default: None)
+  --esx-host DNS_NAME   IP address/DNS Name of the ESX host (default: None)
+  --esx-network-name NAME
+                        ESX network name to use (default: VM Network)
+  --esx-port N          Port Number of the ESX Server (default: 443)
+  --memory GB           Memory to assign to Encryptor VM (default: 32)
+  --metavisor-ovf-image-name NAME
+                        Metavisor OVF name (default: None)
+  --ntp-server DNS_NAME
+                        Optional NTP server to sync Metavisor clock. May be
+                        specified multiple times. (default: None)
+  --ovf-source-directory PATH
+                        Local path to the OVF directory (default: None)
+  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
+                        specified multiple times. (default: None)
+  --proxy-config-file PATH
+                        Path to proxy.yaml file that will be used during
+                        encryption (default: None)
+  --status-port PORT    Specify the port to receive http status of encryptor.
+                        Any port in range 1-65535 can be used except for port
+                        81. (default: 80)
+  --token TOKEN         Token that the encrypted instance will use to
+                        authenticate with the Bracket service. Use the make-
+                        token subcommand to generate a token. (default: None)
+  --vm-name NAME        Specify the name of the launched VM
   -h, --help            show this help message and exit
 ```
 
@@ -531,3 +707,21 @@ $ brkt vmware encrypt-with-esx-host --token <token> --esx-host <HOST> --esx-data
 ```
 
 When the command completes, it creates an OVF file identified by the `--encrypted-image-name` argument under the path specified by the `--encrypted-image-directory` argument. The same command can be used to create an OVA by using the `--create-ova` argument instead of `--create-ovf`.
+
+## Creating an encrypted instance on an OVF host
+
+Run **brkt vmware wrap-with-esx-host** to launch an encrypted instance which wraps
+the unencrypted guest image (VMDK)
+
+```
+$ brkt vmware wrap-with-esx-host --token <token> --esx-host <HOST> --esx-datastore <datastore> --vm-name test-wrap-image centos66/centos66.vmdk
+22:56:47 Fetching Metavisor OVF from S3
+22:57:03 Launching VM from OVF metavisor-1-0-80-g14a5ec1a0.ovf
+/usr/local/lib/python2.7/dist-packages/requests/packages/urllib3/connectionpool.py:852: InsecureRequestWarning: Unverified HTTPS request is being made. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
+InsecureRequestWarning)
+22:57:21 [ssd-218-datastore] centos66.vmdk disk added to VM test-wrap-image
+22:57:52 VM ip address is 10.9.1.141
+22:57:52 vmware returned 0
+```
+
+When the command completes, it creates a running encrypted VM with the (optional) specified name and also prints its IP address.
