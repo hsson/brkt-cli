@@ -73,7 +73,9 @@ def wrap_from_local_ovf(vc_swc, guest_vmdk, vm_name=None,
             return
         # Launch OVF
         log.info("Launching VM from local OVF")
-        ovf_image_name = ovf_image_name + ".ovf"
+        # Normalize image name if required
+        if not ovf_image_name.endswith('.ovf'):
+            ovf_image_name = ovf_image_name + ".ovf"
         validate_local_mv_ovf(source_image_path, ovf_image_name)
         vm = vc_swc.upload_ovf_to_vcenter(source_image_path,
                                           ovf_image_name,

@@ -201,7 +201,9 @@ def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
             return
         # Launch OVF
         log.info("Launching VM from local OVF")
-        ovf_image_name = ovf_image_name + ".ovf"
+        # Normalize image name if required
+        if not ovf_image_name.endswith('.ovf'):
+            ovf_image_name = ovf_image_name + ".ovf"
         validate_local_mv_ovf(source_image_path, ovf_image_name)
         mv_vm_name = None
         if vc_swc.is_esx_host():
