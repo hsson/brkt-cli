@@ -219,6 +219,10 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
+    def rename_vm(self, vm, new_name):
+        pass
+
+    @abc.abstractmethod
     def add_disk(self, vm, disk_size=12*1024*1024,
                  filename=None, unit_number=0):
         pass
@@ -614,6 +618,27 @@ class VCenterService(BaseVCenterService):
         customspec.nicSettingMap = [adaptermap]
         customspec.globalIPSettings = globalip
         task = vm.Customize(spec=customspec)
+        self.__wait_for_task(task)
+
+    def rename_vm(self, vm, new_name):
+        if self.esx_host:
+            raise Exception("Cannot rename VM on ESX host")
+        self.validate_connection()
+        vm_disk_name = vm.config.name.replace(':', '_')
+        vm_disk_name = self.datastore_path + vm_disk_name
+        vm_new_name = new_name.replace(':', '_')
+        dest_disk_name = self.datastore_path + vm_new_name
+        # first rename the VM
+        spec = vim.vm.ConfigSpec(name=new_name)
+        task = vm.ReconfigVM_Task(spec=spec)
+        self.__wait_for_task(task)
+        # now move the files
+        content = self.si.RetrieveContent()
+        f = self.si.content.fileManager
+        datacenter = self.__get_obj(content, [vim.Datacenter],
+                                    self.datacenter_name)
+        task = f.MoveDatastoreFile_Task(vm_disk_name, datacenter,
+                                        dest_disk_name, datacenter)
         self.__wait_for_task(task)
 
     def add_serial_port_to_file(self, vm, filename):
