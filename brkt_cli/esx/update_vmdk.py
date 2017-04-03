@@ -90,15 +90,24 @@ def update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
                 print(ovf)
         else:
             # delete the old vm template
-            log.info("Deleting the old template")
             template_vm = vc_swc.find_vm(template_vm_name)
-            if (template_vm):
-                vc_swc.destroy_vm(template_vm)
+            old_template_vm_name = None
+            if template_vm:
+                old_template_vm_name = template_vm_name + "-" + \
+                                       vc_swc.session_id
+                log.info("Renaming the old template to %s",
+                         old_template_vm_name)
+                vc_swc.rename_vm(template_vm, old_template_vm_name)
             # clone the vm to create template
             log.info("Creating the template VM")
             template_vm = vc_swc.clone_vm(guest_vm, vm_name=template_vm_name,
                                           template=True)
             print(vc_swc.get_vm_name(template_vm))
+            if old_template_vm_name:
+                old_template = vc_swc.find_vm(old_template_vm_name)
+                if old_template:
+                    log.info("Deleting the old template")
+                    vc_swc.destroy_vm(old_template)
     except Exception as e:
         log.exception("Failed to update the image with error %s", e)
         raise
