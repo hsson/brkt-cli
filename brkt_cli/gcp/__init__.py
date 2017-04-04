@@ -223,6 +223,7 @@ def run_wrap_image(values, config):
         image_project=values.image_project,
         image_file=values.image_file,
         image_bucket=values.bucket,
+        instance_type=values.instance_type,
         network=values.network,
         subnet=values.subnetwork,
         cleanup=values.cleanup,

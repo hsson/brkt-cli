@@ -8,11 +8,11 @@ from googleapiclient import errors
 log = logging.getLogger(__name__)
 
 
-def wrap_guest_image(gcp_svc, image_id, encryptor_image,
-                     zone, metadata, instance_name=None,
-                     image_project=None, image_file=None,
-                     image_bucket=None, network=None, subnet=None,
-                     cleanup=True, ssd_disks=0, gcp_tags=None):
+def wrap_guest_image(gcp_svc, image_id, encryptor_image, zone,
+                     metadata, instance_name=None, image_project=None,
+                     image_file=None, image_bucket=None,
+                     instance_type='n1-standard-4', network=None,
+                     subnet=None, cleanup=True, ssd_disks=0, gcp_tags=None):
     try:
         keep_encryptor = True
         if not encryptor_image:
@@ -47,6 +47,7 @@ def wrap_guest_image(gcp_svc, image_id, encryptor_image,
         gcp_svc.run_instance(zone=zone,
                              name=instance_name,
                              image=encryptor_image,
+                             instance_type=instance_type,
                              network=network,
                              subnet=subnet,
                              disks=disks,
