@@ -14,6 +14,7 @@
 import ssl
 import unittest
 import uuid
+import re
 
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from boto.ec2.image import Image
@@ -162,6 +163,39 @@ class DummyAWSService(aws_service.BaseAWSService):
                 # Transition to running next time.
                 self.transition_to_running[instance_id] = True
         return instance
+
+    def make_bucket(self, bucket, region):
+        return
+
+    def s3_connect(self, region):
+        return
+
+    def check_bucket_file(self, bucket, region, file, permissions=True):
+        # Check if users owns a bucket matching input
+        if bucket == "matching":
+            # Make sure regions match
+            if region == "matching":
+                pass
+            else:
+                raise ValidationError("Bucket must be in correct region")
+            # check for a matching file in bucket
+            if file:
+                raise ValidationError("File already exists, delete and retry")
+            # check that everyone has write access to bucket
+            if permissions is True:
+                    return 1
+            raise ValidationError("Bucket permissions invalid:"
+                "Everyone must have 'Write' object access")
+        return 0
+
+    def validate_file_name(self, path):
+        m = re.match(r'[A-Za-z0-9()\!._/\-\'\*]+$', path)
+        if not m:
+            raise ValidationError(
+                "path may only contain letters, numbers, "
+                "and the following characters: !-_.*'()"
+            )
+        return 0
 
     def create_tags(self, resource_id, name=None, description=None):
         if self.create_tags_callback:
