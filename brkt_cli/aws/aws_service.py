@@ -16,14 +16,24 @@ import abc
 import logging
 import re
 import ssl
+import string
+import tempfile
+import time
+from datetime import datetime
 
 import boto
 import boto.sts
 import boto.vpc
 from boto.exception import EC2ResponseError, BotoServerError
 
-from brkt_cli import util
-from brkt_cli.util import Deadline, BracketError
+from brkt_cli import util, encryptor_service
+from brkt_cli.aws.aws_constants import (
+    NAME_ENCRYPTOR_SECURITY_GROUP,
+    DESCRIPTION_ENCRYPTOR_SECURITY_GROUP, NAME_GUEST_CREATOR,
+    DESCRIPTION_GUEST_CREATOR, NAME_LOG_SNAPSHOT, DESCRIPTION_LOG_SNAPSHOT,
+    NAME_ORIGINAL_VOLUME, NAME_ORIGINAL_SNAPSHOT,
+    DESCRIPTION_ORIGINAL_SNAPSHOT)
+from brkt_cli.util import Deadline, BracketError, sleep, make_nonce
 from brkt_cli.validation import ValidationError
 
 log = logging.getLogger(__name__)
@@ -615,3 +625,422 @@ def wait_for_volume(aws_svc, volume_id, timeout=600.0, state='available'):
         'Timed out waiting for %s to be in the %s state' %
         (volume_id, state)
     )
+
+
+class SnapshotError(BracketError):
+    pass
+
+
+class InstanceError(BracketError):
+    pass
+
+
+def wait_for_instance(
+        aws_svc, instance_id, timeout=600, state='running'):
+    """ Wait for up to timeout seconds for an instance to be in the
+    given state.  Sleep for 2 seconds between checks.
+
+    :return: The Instance object
+    :raises InstanceError if a timeout occurs or the instance unexpectedly
+        goes into an error or terminated state
+    """
+
+    log.debug(
+        'Waiting for %s, timeout=%d, state=%s',
+        instance_id, timeout, state)
+
+    deadline = Deadline(timeout)
+    while not deadline.is_expired():
+        instance = aws_svc.get_instance(instance_id)
+        log.debug('Instance %s state=%s', instance.id, instance.state)
+        if instance.state == state:
+            return instance
+        if instance.state == 'error':
+            raise InstanceError(
+                'Instance %s is in an error state.  Cannot proceed.' %
+                instance_id
+            )
+        if state != 'terminated' and instance.state == 'terminated':
+            raise InstanceError(
+                'Instance %s was unexpectedly terminated.' % instance_id
+            )
+        sleep(2)
+    raise InstanceError(
+        'Timed out waiting for %s to be in the %s state' %
+        (instance_id, state)
+    )
+
+
+def stop_and_wait(aws_svc, instance_id):
+    """ Stop the given instance and wait for it to be in the stopped state.
+    If an exception is thrown, log the error and return.
+    """
+    try:
+        aws_svc.stop_instance(instance_id)
+        wait_for_instance(aws_svc, instance_id, state='stopped')
+    except:
+        log.exception(
+            'Error while waiting for instance %s to stop', instance_id)
+
+
+def wait_for_image(aws_svc, image_id):
+    log.debug('Waiting for %s to become available.', image_id)
+    for i in range(180):
+        sleep(5)
+        try:
+            image = aws_svc.get_image(image_id)
+        except EC2ResponseError, e:
+            if e.error_code == 'InvalidAMIID.NotFound':
+                log.debug('AWS threw a NotFound, ignoring')
+                continue
+            else:
+                log.warn('Unknown AWS error: %s', e)
+        # These two attributes are optional in the response and only
+        # show up sometimes. So we have to getattr them.
+        reason = repr(getattr(image, 'stateReason', None))
+        code = repr(getattr(image, 'code', None))
+        log.debug("%s: %s reason: %s code: %s",
+                  image.id, image.state, reason, code)
+        if image.state == 'available':
+            break
+        if image.state == 'failed':
+            raise BracketError('Image state became failed')
+    else:
+        raise BracketError(
+            'Image failed to become available (%s)' % (image.state,))
+
+
+def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=\
+                                    encryptor_service.ENCRYPTOR_STATUS_PORT):
+    sg_name = NAME_ENCRYPTOR_SECURITY_GROUP % {'nonce': make_nonce()}
+    sg_desc = DESCRIPTION_ENCRYPTOR_SECURITY_GROUP
+    sg = aws_svc.create_security_group(sg_name, sg_desc, vpc_id=vpc_id)
+    log.info('Created temporary security group with id %s', sg.id)
+    try:
+        aws_svc.add_security_group_rule(
+            sg.id, ip_protocol='tcp',
+            from_port=status_port,
+            to_port=status_port,
+            cidr_ip='0.0.0.0/0')
+    except Exception as e:
+        log.error('Failed adding security group rule to %s: %s', sg.id, e)
+        try:
+            log.info('Cleaning up temporary security group %s', sg.id)
+            aws_svc.delete_security_group(sg.id)
+        except Exception as e2:
+            log.warn('Failed deleting temporary security group: %s', e2)
+        raise
+
+    aws_svc.create_tags(sg.id)
+    return sg
+
+
+def run_guest_instance(aws_svc, image_id, subnet_id=None,
+                       instance_type='m3.medium'):
+    instance = None
+
+    try:
+        instance = aws_svc.run_instance(
+            image_id, subnet_id=subnet_id,
+            instance_type=instance_type, ebs_optimized=False)
+        log.info(
+            'Launching instance %s to snapshot root disk for %s',
+            instance.id, image_id)
+        aws_svc.create_tags(
+            instance.id,
+            name=NAME_GUEST_CREATOR,
+            description=DESCRIPTION_GUEST_CREATOR % {'image_id': image_id}
+        )
+    except:
+        if instance:
+            clean_up(aws_svc, instance_ids=[instance.id])
+        raise
+
+    return instance
+
+
+def clean_up(aws_svc, instance_ids=None, volume_ids=None,
+              snapshot_ids=None, security_group_ids=None):
+    """ Clean up any resources that were created by the encryption process.
+    Handle and log exceptions, to ensure that the script doesn't exit during
+    cleanup.
+    """
+    instance_ids = instance_ids or []
+    volume_ids = volume_ids or []
+    snapshot_ids = snapshot_ids or []
+    security_group_ids = security_group_ids or []
+
+    # Delete instances and snapshots.
+    terminated_instance_ids = set()
+    for instance_id in instance_ids:
+        try:
+            log.info('Terminating instance %s', instance_id)
+            aws_svc.terminate_instance(instance_id)
+            terminated_instance_ids.add(instance_id)
+        except EC2ResponseError as e:
+            log.warn('Unable to terminate instance %s: %s', instance_id, e)
+        except:
+            log.exception('Unable to terminate instance %s', instance_id)
+
+    for snapshot_id in snapshot_ids:
+        try:
+            log.info('Deleting snapshot %s', snapshot_id)
+            aws_svc.delete_snapshot(snapshot_id)
+        except EC2ResponseError as e:
+            log.warn('Unable to delete snapshot %s: %s', snapshot_id, e)
+        except:
+            log.exception('Unable to delete snapshot %s', snapshot_id)
+
+    # Wait for instances to terminate before deleting security groups and
+    # volumes, to avoid dependency errors.
+    for id in terminated_instance_ids:
+        log.info('Waiting for instance %s to terminate.', id)
+        try:
+            wait_for_instance(aws_svc, id, state='terminated')
+        except (EC2ResponseError, InstanceError) as e:
+            log.warn(
+                'An error occurred while waiting for instance to '
+                'terminate: %s', e)
+        except:
+            log.exception(
+                'An error occurred while waiting for instance '
+                'to terminate'
+            )
+
+    # Delete volumes and security groups.
+    for volume_id in volume_ids:
+        try:
+            log.info('Deleting volume %s', volume_id)
+            aws_svc.delete_volume(volume_id)
+        except EC2ResponseError as e:
+            log.warn('Unable to delete volume %s: %s', volume_id, e)
+        except:
+            log.exception('Unable to delete volume %s', volume_id)
+
+    for sg_id in security_group_ids:
+        try:
+            log.info('Deleting security group %s', sg_id)
+            aws_svc.delete_security_group(sg_id)
+        except EC2ResponseError as e:
+            log.warn('Unable to delete security group %s: %s', sg_id, e)
+        except:
+            log.exception('Unable to delete security group %s', sg_id)
+
+
+def log_exception_console(aws_svc, e, id):
+    log.error(
+        'Encryption failed.  Check console output of instance %s '
+        'for details.',
+        id
+    )
+
+    e.console_output_file = _write_console_output(aws_svc, id)
+    if e.console_output_file:
+        log.error(
+            'Wrote console output for instance %s to %s',
+            id, e.console_output_file.name
+        )
+    else:
+        log.error(
+            'Encryptor console output is not currently available.  '
+            'Wait a minute and check the console output for '
+            'instance %s in the EC2 Management '
+            'Console.',
+            id
+        )
+
+
+def snapshot_log_volume(aws_svc, instance_id):
+    """ Snapshot the log volume of the given instance.
+
+    :except SnapshotError if the snapshot goes into an error state
+    """
+
+    # Snapshot root volume.
+    instance = aws_svc.get_instance(instance_id)
+    bdm = instance.block_device_mapping
+
+    log_vol = bdm["/dev/sda1"]
+    vol = aws_svc.get_volume(log_vol.volume_id)
+    image = aws_svc.get_image(instance.image_id)
+    snapshot = aws_svc.create_snapshot(
+        vol.id,
+        name=NAME_LOG_SNAPSHOT % {'instance_id': instance_id},
+        description=DESCRIPTION_LOG_SNAPSHOT % {
+            'instance_id': instance_id,
+            'aws_account': image.owner_id,
+            'timestamp': datetime.utcnow().strftime('%b %d %Y %I:%M%p UTC')
+        }
+    )
+    log.info(
+        'Creating snapshot %s of log volume for instance %s',
+        snapshot.id, instance_id
+    )
+
+    try:
+        wait_for_snapshots(aws_svc, snapshot.id)
+    except:
+        clean_up(aws_svc, snapshot_ids=[snapshot.id])
+        raise
+    return snapshot
+
+
+def wait_for_volume_attached(aws_svc, instance_id, device):
+    """ Wait until the device appears in the block device mapping of the
+    given instance.
+    :return: the Instance object
+    """
+    # Wait for attachment to complete.
+    log.debug(
+        'Waiting for %s in block device mapping of %s.',
+        device,
+        instance_id
+    )
+
+    found = False
+    instance = None
+
+    for _ in xrange(20):
+        instance = aws_svc.get_instance(instance_id)
+        bdm = instance.block_device_mapping
+        log.debug('Found devices: %s', bdm.keys())
+        if device in bdm:
+            found = True
+            break
+        else:
+            sleep(5)
+
+    if not found:
+        raise BracketError(
+            'Timed out waiting for %s to attach to %s' %
+            (device, instance_id)
+        )
+
+    return instance
+
+
+def _write_console_output(aws_svc, instance_id):
+
+    try:
+        console_output = aws_svc.get_console_output(instance_id)
+        if console_output.output:
+            prefix = instance_id + '-'
+            with tempfile.NamedTemporaryFile(
+                    prefix=prefix, suffix='-console.txt', delete=False) as t:
+                t.write(console_output.output)
+            return t
+    except:
+        log.exception('Unable to write console output')
+
+    return None
+
+
+def wait_for_snapshots(aws_svc, *snapshot_ids):
+    log.debug('Waiting for status "completed" for %s', str(snapshot_ids))
+    last_progress_log = time.time()
+
+    # Give AWS some time to propagate the snapshot creation.
+    # If we create and get immediately, AWS may return 400.
+    sleep(20)
+
+    while True:
+        snapshots = aws_svc.get_snapshots(*snapshot_ids)
+        log.debug('%s', {s.id: s.status for s in snapshots})
+
+        done = True
+        error_ids = []
+        for snapshot in snapshots:
+            if snapshot.status == 'error':
+                error_ids.append(snapshot.id)
+            if snapshot.status != 'completed':
+                done = False
+
+        if error_ids:
+            # Get rid of unicode markers in error the message.
+            error_ids = [str(id) for id in error_ids]
+            raise SnapshotError(
+                'Snapshots in error state: %s.  Cannot continue.' %
+                str(error_ids)
+            )
+        if done:
+            return
+
+        # Log progress if necessary.
+        now = time.time()
+        if now - last_progress_log > 60:
+            log.info(_get_snapshot_progress_text(snapshots))
+            last_progress_log = now
+
+        sleep(5)
+
+
+def _get_snapshot_progress_text(snapshots):
+    elements = [
+        '%s: %s' % (str(s.id), str(s.progress))
+        for s in snapshots
+    ]
+    return ', '.join(elements)
+
+
+def snapshot_root_volume(aws_svc, instance, image_id):
+    """ Snapshot the root volume of the given AMI.
+
+    :except SnapshotError if the snapshot goes into an error state
+    """
+    log.info(
+        'Stopping instance %s in order to create snapshot', instance.id)
+    aws_svc.stop_instance(instance.id)
+    wait_for_instance(aws_svc, instance.id, state='stopped')
+
+    # Snapshot root volume.
+    instance = aws_svc.get_instance(instance.id)
+    root_dev = instance.root_device_name
+    bdm = instance.block_device_mapping
+
+    if root_dev not in bdm:
+        # try stripping partition id
+        root_dev = string.rstrip(root_dev, string.digits)
+    root_vol = bdm[root_dev]
+    vol = aws_svc.get_volume(root_vol.volume_id)
+    aws_svc.create_tags(
+        root_vol.volume_id,
+        name=NAME_ORIGINAL_VOLUME % {'image_id': image_id}
+    )
+
+    snapshot = aws_svc.create_snapshot(
+        vol.id,
+        name=NAME_ORIGINAL_SNAPSHOT,
+        description=DESCRIPTION_ORIGINAL_SNAPSHOT % {'image_id': image_id}
+    )
+    log.info(
+        'Creating snapshot %s of root volume for instance %s',
+        snapshot.id, instance.id
+    )
+
+    try:
+        wait_for_snapshots(aws_svc, snapshot.id)
+
+        # Now try to detach the root volume.
+        log.info('Detaching root volume %s from %s',
+                 root_vol.volume_id, instance.id)
+        aws_svc.detach_volume(
+            root_vol.volume_id,
+            instance_id=instance.id,
+            force=True
+        )
+        wait_for_volume(aws_svc, root_vol.volume_id)
+        # And now delete it
+        log.info('Deleting root volume %s', root_vol.volume_id)
+        aws_svc.delete_volume(root_vol.volume_id)
+    except:
+        clean_up(aws_svc, snapshot_ids=[snapshot.id])
+        raise
+
+    iops = None
+    if vol.type == 'io1':
+        iops = vol.iops
+
+    ret_values = (
+        snapshot.id, root_dev, vol.size, vol.type, iops)
+    log.debug('Returning %s', str(ret_values))
+    return ret_values

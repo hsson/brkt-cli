@@ -14,16 +14,13 @@
 
 import logging
 import time
-from brkt_cli.aws.encrypt_ami import (
-    wait_for_instance,
-)
+from brkt_cli.aws.aws_service import wait_for_instance, snapshot_log_volume
 
 from boto.ec2.blockdevicemapping import (
     BlockDeviceMapping,
     EBSBlockDeviceType,
 )
 
-from brkt_cli.aws.share_logs import snapshot_log_volume
 from brkt_cli.util import make_nonce
 
 # Security group names

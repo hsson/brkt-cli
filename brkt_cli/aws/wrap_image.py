@@ -41,17 +41,10 @@ from boto.ec2.blockdevicemapping import (
 
 from brkt_cli.user_data import gzip_user_data
 from brkt_cli.instance_config import InstanceConfig
-from brkt_cli.aws.aws_service import EBS_OPTIMIZED_INSTANCES
-from brkt_cli.aws.encrypt_ami import (
-    run_guest_instance,
-    wait_for_instance,
-    _snapshot_root_volume,
-    clean_up
-)
-from brkt_cli.util import (
-    make_nonce,
-    append_suffix,
-)
+from brkt_cli.aws.aws_service import (
+    EBS_OPTIMIZED_INSTANCES, wait_for_instance, run_guest_instance, clean_up,
+    snapshot_root_volume)
+from brkt_cli.util import make_nonce, append_suffix
 
 # End user-visible terminology.  These are resource names and descriptions
 # that the user will see in his or her EC2 console.
@@ -132,8 +125,8 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
                 guest_instance = run_guest_instance(aws_svc, image_id,
                     subnet_id=subnet_id, instance_type=instance_type)
                 wait_for_instance(aws_svc, guest_instance.id)
-                guest_snapshot, _, _, _, _ = _snapshot_root_volume(aws_svc,
-                    guest_instance, image_id)
+                guest_snapshot, _, _, _, _ = snapshot_root_volume(
+                    aws_svc, guest_instance, image_id)
             finally:
                 if guest_instance:
                     clean_up(aws_svc, instance_ids=[guest_instance.id])

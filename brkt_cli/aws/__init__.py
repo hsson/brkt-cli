@@ -35,10 +35,9 @@ from brkt_cli.aws import (
     share_logs_args,
     update_encrypted_ami_args
 )
-from brkt_cli.aws.encrypt_ami import (
-    TAG_ENCRYPTOR,
-    TAG_ENCRYPTOR_AMI,
-    TAG_ENCRYPTOR_SESSION_ID)
+from brkt_cli.aws.aws_constants import (
+    TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
+)
 from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,

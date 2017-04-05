@@ -25,8 +25,12 @@ import json
 import logging
 import os
 
-import encrypt_ami
 from brkt_cli import encryptor_service
+from brkt_cli.aws.aws_service import (
+    wait_for_instance, stop_and_wait,
+    wait_for_image, create_encryptor_security_group, clean_up,
+    log_exception_console, wait_for_volume_attached
+)
 from brkt_cli.encryptor_service import (
     wait_for_encryptor_up,
     wait_for_encryption,
@@ -37,18 +41,10 @@ from brkt_cli.instance_config import (
 )
 from brkt_cli.user_data import gzip_user_data
 from brkt_cli.util import Deadline
-from encrypt_ami import (
-    clean_up,
-    create_encryptor_security_group,
-    log_exception_console,
-    wait_for_instance,
-    wait_for_image,
-    DESCRIPTION_GUEST_CREATOR,
-    DESCRIPTION_METAVISOR_UPDATER,
-    NAME_GUEST_CREATOR,
-    NAME_METAVISOR_UPDATER,
-    NAME_ENCRYPTED_ROOT_SNAPSHOT,
-    NAME_METAVISOR_ROOT_SNAPSHOT,
+from brkt_cli.aws.aws_constants import (
+    NAME_GUEST_CREATOR, DESCRIPTION_GUEST_CREATOR, NAME_METAVISOR_UPDATER,
+    DESCRIPTION_METAVISOR_UPDATER, NAME_ENCRYPTED_ROOT_SNAPSHOT,
+    NAME_METAVISOR_ROOT_SNAPSHOT
 )
 
 log = logging.getLogger(__name__)
@@ -158,8 +154,7 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             wait_for_encryption(enc_svc)
         except Exception as e:
             # Stop the updater instance, to make the console log available.
-            encrypt_ami.stop_and_wait(aws_svc, updater.id)
-
+            stop_and_wait(aws_svc, updater.id)
             log_exception_console(aws_svc, e, updater.id)
             raise
 
@@ -211,7 +206,7 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             (mv_root_id, encrypted_guest.id)
         )
         aws_svc.attach_volume(mv_root_id, encrypted_guest.id, root_device_name)
-        encrypted_guest = encrypt_ami.wait_for_volume_attached(
+        encrypted_guest = wait_for_volume_attached(
             aws_svc, encrypted_guest.id, root_device_name)
         guest_bdm[root_device_name] = \
             encrypted_guest.block_device_mapping[root_device_name]
