@@ -130,10 +130,11 @@ def run_share_logs(values):
                 (values.region, ', '.join(region_names)))
 
     aws_svc.connect(values.region)
-    aws_svc.s3_connect(values.region)
+    logs_svc = share_logs.SharelogsService()
 
     share_logs.share(
         aws_svc,
+        logs_svc,
         instance_id=values.instance_id,
         snapshot_id=values.snapshot_id,
         region=values.region,

@@ -20,7 +20,6 @@ import time
 
 import string
 import tempfile
-import time
 from datetime import datetime
 
 import boto
@@ -285,10 +284,6 @@ class AWSService(BaseAWSService):
         self.key_name = key_name
         self.conn = boto.vpc.connect_to_region(region)
 
-    def s3_connect(self, region):
-        self.region = region
-        self.s3 = boto.connect_s3()
-
     def connect_as(self, role, region, session_name):
         sts_conn = boto.sts.connect_to_region(region)
         creds = sts_conn.assume_role(role, session_name)
@@ -357,78 +352,6 @@ class AWSService(BaseAWSService):
         instances = get_only_instances([instance_id])
         return _get_first_element(instances, 'InvalidInstanceID.NotFound')
 
-    def wait_instance(self, instance):
-        for i in range(30):
-            if instance.state != 'running':
-                log.info("Instance state=%s", instance.state)
-                time.sleep(5)
-                instance.update()
-            else:
-                log.info('Instance Launched!')
-                return
-        raise util.BracketError("Instance did not launch")
-
-    def wait_bucket_file(self, bucket, path, region):
-        bucket = self.s3.get_bucket(bucket)
-        for i in range(40):
-            if bucket.get_key(path):
-                log.info('Logs available at https://s3-%s.amazonaws.com/%s/%s'
-                    % (region, bucket.name, path))
-                return
-            else:
-                log.info('Waiting for file to upload')
-                time.sleep(7)
-        raise util.BracketError("Can't upload logs file")
-
-    def make_bucket(self, bucket, region):
-        # Since bucket isn't owned, create it
-        return self.s3.create_bucket(bucket, location=region)
-
-    def check_bucket_file(self, bucket, path, region):
-        # go through all owned buckets
-        for b in self.s3.get_all_buckets():
-            # Check if users owns a bucket matching input
-            if bucket == b.name:
-                try:
-                    bucket = self.s3.get_bucket(bucket)
-                except boto.exception.S3ResponseError as e:
-                    code = e.status
-                    # If bucket is owned, but in wrong region
-                    if code == 400:
-                        raise ValidationError("Bucket must be in %s" % region)
-                    raise
-                file = bucket.get_key(path)
-                # check for a matching file in bucket
-                if file:
-                    raise ValidationError(
-                        "File already exists, delete and retry")
-                # check that everyone has write access to bucket
-                acp = bucket.get_acl()
-                for grant in acp.acl.grants:
-                    perm = grant.permission
-                    uri = grant.uri
-                    if perm == 'WRITE' and uri == 'http:' + \
-                    '//acs.amazonaws.com/groups/global/AllUsers':
-                        # check that file name is valid
-                        self.validate_file_name(path)
-                        return True
-                raise ValidationError("Bucket permissions invalid:" +
-                    "Everyone must have 'Write' object access")
-        return False
-
-    def validate_file_name(self, path):
-        """
-        Verify that the name is a valid object key name.
-        :raises ValidationError if the name is invalid
-        """
-        m = re.match(r'[A-Za-z0-9()\!._/\-\'\*]+$', path)
-        if not m:
-            raise ValidationError(
-                "path may only contain letters, numbers, "
-                "and the following characters: !-_.*'()"
-            )
-        return
-
     def create_tags(self, resource_id, name=None, description=None):
         tags = dict(self.default_tags)
         if name:
@@ -479,17 +402,6 @@ class AWSService(BaseAWSService):
         snapshot = create_snapshot(volume_id, description)
         self.create_tags(snapshot.id, name=name)
         return snapshot
-
-    def wait_snapshot(self, snapshot):
-        for i in range(30):
-            if snapshot.status != 'completed':
-                log.info('Snap Status=%s', snapshot.status)
-                time.sleep(7)
-                snapshot.update()
-            else:
-                log.info('Snapshot Created')
-                return
-        raise util.BracketError("Failed creating snapshot")
 
     def create_volume(self,
                       size,

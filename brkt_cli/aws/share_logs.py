@@ -14,29 +14,35 @@
 
 import logging
 import os
+import boto
+import re
+import time
+
 from boto.ec2.blockdevicemapping import (
     BlockDeviceMapping,
     EBSBlockDeviceType,
 )
-from brkt_cli.aws.aws_service import snapshot_log_volume
+from brkt_cli.validation import ValidationError
+from brkt_cli import util
 
 log = logging.getLogger(__name__)
 
 
-def share(aws_svc=None, instance_id=None,
-          region=None, snapshot_id=None, bucket=None, path=None):
+def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
+          snapshot_id=None, bucket=None, path=None):
 
     log.info('Sharing logs')
     try:
+        s3 = logs_svc.s3_connect()
         # Check bucket for file and bucket permissions
-        bucket_exists = aws_svc.check_bucket_file(bucket, path, region)
+        bucket_exists = logs_svc.check_bucket_file(bucket, path, region, s3)
 
         if bucket_exists is False:
             log.info('Creating new bucket')
             # If bucket isn't already owned create new one
-            new_bucket = aws_svc.make_bucket(bucket, region)
+            new_bucket = logs_svc.make_bucket(bucket, region, s3)
             # Reconnect with updated bucket list
-            aws_svc.s3_connect(region)
+            s3 = logs_svc.s3_connect()
             # Allow public write access to new bucket
             new_bucket.set_acl('public-read-write')
 
@@ -52,7 +58,7 @@ def share(aws_svc=None, instance_id=None,
             snapshot = aws_svc.create_snapshot(
                 volume_id=vol_id, name="temp-logs-snapshot")
             # Wait for snapshot to post
-            aws_svc.wait_snapshot(snapshot)
+            logs_svc.wait_snapshot(snapshot)
 
         else:  # Taking logs from a snapshot
             snapshot = aws_svc.get_snapshot(snapshot_id)
@@ -60,7 +66,7 @@ def share(aws_svc=None, instance_id=None,
         # Split path name into path and file
         os.path.split(path)
         file = os.path.basename(path)
-        
+
         # Updates ACL on logs file object
         acl = '--no-sign-request --acl public-read-write'
         # Startup script for new instance
@@ -102,10 +108,10 @@ def share(aws_svc=None, instance_id=None,
             user_data=amzn, ebs_optimized=False)
 
         # wait for instance to launch
-        aws_svc.wait_instance(new_instance)
+        logs_svc.wait_instance(new_instance)
 
         # wait for file to upload
-        aws_svc.wait_bucket_file(bucket, path, region)
+        logs_svc.wait_bucket_file(bucket, path, region, s3)
         log.info('Deleting new snapshot and instance')
 
     finally:
@@ -114,3 +120,91 @@ def share(aws_svc=None, instance_id=None,
             aws_svc.terminate_instance(new_instance.id)
         except Exception as e:
             log.warn("Failed during cleanup: %s", e)
+
+
+class SharelogsService():
+
+    def wait_instance(self, instance):
+        for i in range(30):
+            if instance.state != 'running':
+                log.info("Instance state=%s", instance.state)
+                time.sleep(5)
+                instance.update()
+            else:
+                log.info('Instance Launched')
+                return
+        raise util.BracketError("Instance did not launch")
+
+    def wait_bucket_file(self, bucket, path, region, s3):
+        bucket = s3.get_bucket(bucket)
+        for i in range(40):
+            if bucket.get_key(path):
+                log.info('Logs available at https://s3-%s.amazonaws.com/%s/%s'
+                    % (region, bucket.name, path))
+                return
+            else:
+                log.info('Waiting for file to upload')
+                time.sleep(7)
+        raise util.BracketError("Can't upload logs file")
+
+    def make_bucket(self, bucket, region, s3):
+        # Since bucket isn't owned, create it
+        return s3.create_bucket(bucket, location=region)
+
+    def check_bucket_file(self, bucket, path, region, s3):
+        # go through all owned buckets
+        for b in s3.get_all_buckets():
+            # Check if users owns a bucket matching input
+            if bucket == b.name:
+                try:
+                    bucket = s3.get_bucket(bucket)
+                except boto.exception.S3ResponseError as e:
+                    code = e.status
+                    # If bucket is owned, but in wrong region
+                    if code == 400:
+                        raise ValidationError("Bucket must be in %s" % region)
+                    raise
+                file = bucket.get_key(path)
+                # check for a matching file in bucket
+                if file:
+                    raise ValidationError(
+                        "File already exists, delete and retry")
+                # check that everyone has write access to bucket
+                acp = bucket.get_acl()
+                for grant in acp.acl.grants:
+                    perm = grant.permission
+                    uri = grant.uri
+                    if perm == 'WRITE' and uri == 'http:' + \
+                        '//acs.amazonaws.com/groups/global/AllUsers':
+                        # check that file name is valid
+                        self.validate_file_name(path)
+                        return True
+                raise ValidationError("Bucket permissions invalid:" +
+                    "Everyone must have 'Write' object access")
+        return False
+
+    def validate_file_name(self, path):
+        """
+        Verify that the name is a valid object key name.
+        :raises ValidationError if the name is invalid
+        """
+        m = re.match(r'[A-Za-z0-9()\!._/\-\'\*]+$', path)
+        if not m:
+            raise ValidationError(
+                "path may only contain letters, numbers, "
+                "and the following characters: !-_.*'()"
+            )
+
+    def wait_snapshot(self, snapshot):
+        for i in range(30):
+            if snapshot.status != 'completed':
+                log.info('Snap Status=%s', snapshot.status)
+                time.sleep(7)
+                snapshot.update()
+            else:
+                log.info('Snapshot Created')
+                return
+        raise util.BracketError("Failed creating snapshot")
+
+    def s3_connect(self):
+        return boto.connect_s3()

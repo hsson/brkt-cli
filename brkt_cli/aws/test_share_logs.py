@@ -26,8 +26,10 @@ class AWSService1(test_aws_service.DummyAWSService):
 
         def volume_size():
             return
+    def s3_connect(self):
+        return
 
-    def check_bucket_file(self, bucket, region, file, permissions=True):
+    def check_bucket_file(self, bucket, region, file, s3, permissions=True):
         return True
 
     def get_snapshot(self, snapshot_id):
@@ -44,7 +46,7 @@ class AWSService1(test_aws_service.DummyAWSService):
     def wait_instance(self, instance):
         return
 
-    def wait_bucket_file(self, bucket, path, region):
+    def wait_bucket_file(self, bucket, path, region, s3):
         return
 
 
@@ -83,11 +85,12 @@ class TestShareLogs(unittest.TestCase):
 
     def test_normal(self):
         aws_svc = AWSService1()
+        logs_svc = AWSService1()
         instance = 'test-instance'
         snapshot_id = 'test-snapshot'
         region = 'us-west-2'
         bucket = 'test-bucket'
         path = 'test/path'
 
-        share_logs.share(aws_svc, instance_id=instance,
+        share_logs.share(aws_svc, logs_svc, instance_id=instance,
             snapshot_id=snapshot_id, region=region, bucket=bucket, path=path)
