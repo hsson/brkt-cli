@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import logging
-from brkt_cli.aws.encrypt_ami import (
-    snapshot_log_volume
-)
+from brkt_cli.aws.aws_service import snapshot_log_volume
 
 log = logging.getLogger(__name__)
 

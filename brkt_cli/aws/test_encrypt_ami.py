@@ -17,7 +17,6 @@ import os
 import unittest
 import zlib
 
-from boto.ec2.snapshot import Snapshot
 from boto.ec2.volume import Volume
 from boto.exception import EC2ResponseError
 from boto.vpc import Subnet
@@ -26,14 +25,15 @@ import brkt_cli
 import brkt_cli.aws
 import brkt_cli.util
 from brkt_cli import ValidationError, encryptor_service
-from brkt_cli.aws import aws_service, encrypt_ami, update_ami
-from brkt_cli.aws import test_aws_service
+from brkt_cli.aws import (
+    aws_service, encrypt_ami, update_ami, test_aws_service
+)
+from brkt_cli.aws.aws_constants import TAG_ENCRYPTOR_SESSION_ID
 from brkt_cli.aws.test_aws_service import build_aws_service
 from brkt_cli.instance_config import (
     BRKT_CONFIG_CONTENT_TYPE,
     INSTANCE_UPDATER_MODE,
 )
-from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.instance_config_args import (
     instance_config_args_to_values,
     instance_config_from_values
@@ -42,30 +42,7 @@ from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
 )
-
-
-
-class TestSnapshotProgress(unittest.TestCase):
-
-    def test_snapshot_progress_text(self):
-        # One snapshot.
-        s1 = Snapshot()
-        s1.id = '1'
-        s1.progress = u'25%'
-        self.assertEqual(
-            '1: 25%',
-            encrypt_ami._get_snapshot_progress_text([s1])
-        )
-
-        # Two snapshots.
-        s2 = Snapshot()
-        s2.id = '2'
-        s2.progress = u'50%'
-
-        self.assertEqual(
-            '1: 25%, 2: 50%',
-            encrypt_ami._get_snapshot_progress_text([s1, s2])
-        )
+from brkt_cli.util import CRYPTO_GCM
 
 
 class TestEncryptedImageName(unittest.TestCase):
@@ -189,7 +166,7 @@ class TestRunEncryption(unittest.TestCase):
         self.assertEqual(
             [volume],
             aws_svc.get_volumes(
-                tag_key=encrypt_ami.TAG_ENCRYPTOR_SESSION_ID, tag_value='123')
+                tag_key=TAG_ENCRYPTOR_SESSION_ID, tag_value='123')
         )
 
         encrypt_ami.encrypt(
@@ -364,7 +341,7 @@ class TestRunEncryption(unittest.TestCase):
         guest_instance = aws_svc.run_instance(guest_image.id)
         mv_bdm = encryptor_instance.block_device_mapping
         mv_root_volume_id = mv_bdm['/dev/sda1'].volume_id
-        encrypt_ami.register_ami(
+        encrypt_ami._register_ami(
             aws_svc,
             encryptor_instance,
             encryptor_image,
@@ -402,7 +379,7 @@ class TestRunEncryption(unittest.TestCase):
         aws_svc.delete_snapshot_callback = delete_snapshot_callback
 
         with self.assertRaises(TestException):
-            encrypt_ami._snapshot_root_volume(
+            aws_service.snapshot_root_volume(
                 aws_svc, guest_instance, guest_image.id)
         self.assertTrue(self.snapshot_was_deleted)
 
