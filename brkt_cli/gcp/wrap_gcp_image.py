@@ -8,22 +8,22 @@ from googleapiclient import errors
 log = logging.getLogger(__name__)
 
 
-def wrap_guest_image(gcp_svc, image_id, encryptor_image,
-                     zone, metadata, instance_name=None,
-                     image_project=None, image_file=None,
-                     image_bucket=None, network=None, subnet=None,
-                     cleanup=True, ssd_disks=0, gcp_tags=None):
+def wrap_guest_image(gcp_svc, image_id, encryptor_image, zone,
+                     metadata, instance_name=None, image_project=None,
+                     image_file=None, image_bucket=None,
+                     instance_type='n1-standard-4', network=None,
+                     subnet=None, cleanup=True, ssd_disks=0, gcp_tags=None):
     try:
         keep_encryptor = True
         if not encryptor_image:
-            log.info('Retrieving encryptor image from GCE bucket')
+            log.info('Retrieving encryptor image from GCP bucket')
             try:
                 encryptor_image = gcp_svc.get_latest_encryptor_image(zone,
                     image_bucket, image_file=image_file)
                 keep_encryptor = False
             except errors.HttpError as e:
                 encryptor_image = None
-                log.exception('GCE API call to retrieve image failed')
+                log.exception('GCP API call to retrieve image failed')
                 return
 
         if not instance_name:
@@ -47,6 +47,7 @@ def wrap_guest_image(gcp_svc, image_id, encryptor_image,
         gcp_svc.run_instance(zone=zone,
                              name=instance_name,
                              image=encryptor_image,
+                             instance_type=instance_type,
                              network=network,
                              subnet=subnet,
                              disks=disks,
@@ -57,7 +58,7 @@ def wrap_guest_image(gcp_svc, image_id, encryptor_image,
         log.info("Instance %s (%s) launched successfully" % (instance_name,
             gcp_svc.get_instance_ip(instance_name, zone)))
     except errors.HttpError as e:
-        log.exception('GCE API request failed: {}'.format(e.message))
+        log.exception('GCP API request failed: {}'.format(e.message))
     finally:
         if not cleanup:
             log.info("Not cleaning up")

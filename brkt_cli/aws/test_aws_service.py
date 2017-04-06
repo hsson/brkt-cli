@@ -26,12 +26,12 @@ from boto.ec2.volume import Volume
 from boto.exception import EC2ResponseError
 from boto.regioninfo import RegionInfo
 from boto.vpc import VPC
-from brkt_cli.validation import ValidationError
 
 import brkt_cli
 import brkt_cli.aws
 import brkt_cli.util
-from brkt_cli.aws import aws_service, encrypt_ami
+from brkt_cli.aws import aws_service
+from brkt_cli.validation import ValidationError
 
 CONSOLE_OUTPUT_TEXT = 'Starting up.\nAll systems go!\n'
 
@@ -415,6 +415,9 @@ def build_aws_service():
     # Guest image
     bdm = BlockDeviceMapping()
     bdm['/dev/sda1'] = BlockDeviceType(snapshot_id='snap-12345678')
+    snapshot = Snapshot()
+    snapshot.id = 'snap-12345678'
+    aws_svc.snapshots[snapshot.id] = snapshot
     id = aws_svc.register_image(name='Guest image', block_device_map=bdm)
     guest_image = aws_svc.get_image(id)
 
@@ -499,7 +502,7 @@ class TestInstance(unittest.TestCase):
         aws_svc, encryptor_image, guest_image = build_aws_service()
         instance = aws_svc.run_instance(guest_image.id)
         aws_svc.terminate_instance(instance.id)
-        result = encrypt_ami.wait_for_instance(
+        result = aws_service.wait_for_instance(
             aws_svc, instance.id, state='terminated', timeout=100)
         self.assertEquals(instance, result)
 
@@ -511,8 +514,8 @@ class TestInstance(unittest.TestCase):
         instance = aws_svc.run_instance(guest_image.id)
         instance._state.name = 'error'
         try:
-            encrypt_ami.wait_for_instance(aws_svc, instance.id, timeout=100)
-        except encrypt_ami.InstanceError as e:
+            aws_service.wait_for_instance(aws_svc, instance.id, timeout=100)
+        except aws_service.InstanceError as e:
             self.assertTrue('error state' in e.message)
 
     def test_wait_for_instance_unexpectedly_terminated(self):
@@ -523,9 +526,9 @@ class TestInstance(unittest.TestCase):
         instance = aws_svc.run_instance(guest_image.id)
         aws_svc.terminate_instance(instance.id)
         try:
-            encrypt_ami.wait_for_instance(
+            aws_service.wait_for_instance(
                 aws_svc, instance.id, state='running', timeout=100)
-        except encrypt_ami.InstanceError as e:
+        except aws_service.InstanceError as e:
             self.assertTrue('unexpectedly terminated' in e.message)
 
 
@@ -576,3 +579,26 @@ class TestVolume(unittest.TestCase):
         aws_svc.get_volume_callback = transition_to_available
         result = aws_service.wait_for_volume(aws_svc, volume.id)
         self.assertEqual(volume, result)
+
+
+class TestSnapshotProgress(unittest.TestCase):
+
+    def test_snapshot_progress_text(self):
+        # One snapshot.
+        s1 = Snapshot()
+        s1.id = '1'
+        s1.progress = u'25%'
+        self.assertEqual(
+            '1: 25%',
+            aws_service._get_snapshot_progress_text([s1])
+        )
+
+        # Two snapshots.
+        s2 = Snapshot()
+        s2.id = '2'
+        s2.progress = u'50%'
+
+        self.assertEqual(
+            '1: 25%, 2: 50%',
+            aws_service._get_snapshot_progress_text([s1, s2])
+        )

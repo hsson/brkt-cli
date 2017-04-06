@@ -64,7 +64,7 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         self.connection = False
         super(DummyVCenterService, self).__init__(
             'testhost', 'testuser', 'testpass', 'testport', 'testdcname',
-            'testdsname', False, 'testclustername', 1, 1024, 123,
+            'testdsname', False, 'testclustername', 1, 1024, "123",
             'VM Network', 'Port')
 
     def connect(self):
@@ -117,6 +117,22 @@ class DummyVCenterService(esx_service.BaseVCenterService):
     def reconfigure_vm_cpu_ram(self, vm):
         vm.cpu = self.no_of_cpus
         vm.memory = self.memoryGB
+
+    def rename_vm(self, vm, new_name):
+        del self.vms[vm.name]
+        vm.name = new_name
+        self.vms[new_name] = vm
+        disk_list = vm.disks.keys()
+        for c_unit in disk_list:
+            c_disk = vm.disks.get(c_unit)
+            name = c_disk.filename
+            size = c_disk.size
+            new_d_name = new_name + name
+            self.disks.pop(name)
+            vm.disks.pop(c_unit)
+            new_disk = DummyDisk(size, new_d_name)
+            self.disks[new_d_name] = new_disk
+            vm.add_disk(new_disk, c_unit)
 
     def add_disk(self, vm, disk_size=12*1024*1024,
                  filename=None, unit_number=0):

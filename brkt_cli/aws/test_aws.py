@@ -11,7 +11,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import inspect
 import unittest
 
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
@@ -20,13 +19,14 @@ from boto.vpc import Subnet
 
 import brkt_cli
 import brkt_cli.aws
-import brkt_cli.util
-from brkt_cli.aws import (
-    encrypt_ami, test_aws_service
+from brkt_cli.aws.aws_constants import (
+    TAG_ENCRYPTOR, TAG_ENCRYPTOR_AMI, TAG_ENCRYPTOR_SESSION_ID
 )
+import brkt_cli.util
+from brkt_cli.aws import test_aws_service
 from brkt_cli.aws.test_aws_service import build_aws_service, new_id
-from brkt_cli.validation import ValidationError
 from brkt_cli.util import CRYPTO_GCM
+from brkt_cli.validation import ValidationError
 
 
 class DummyValues(object):
@@ -130,7 +130,7 @@ class TestValidation(unittest.TestCase):
 
         # Make the guest image look like it was already encrypted and
         # make sure that validation fails.
-        guest_image.tags[encrypt_ami.TAG_ENCRYPTOR] = 'ami-' + new_id()
+        guest_image.tags[TAG_ENCRYPTOR] = 'ami-' + new_id()
         with self.assertRaises(ValidationError):
             brkt_cli.aws._validate_guest_ami(aws_svc, id)
 
@@ -141,8 +141,8 @@ class TestValidation(unittest.TestCase):
         image.id = new_id()
         old_encryptor_id = new_id()
         new_encryptor_id = new_id()
-        image.tags[encrypt_ami.TAG_ENCRYPTOR] = 'True'
-        image.tags[encrypt_ami.TAG_ENCRYPTOR_AMI] = old_encryptor_id
+        image.tags[TAG_ENCRYPTOR] = 'True'
+        image.tags[TAG_ENCRYPTOR_AMI] = old_encryptor_id
 
         aws_svc = test_aws_service.DummyAWSService()
         aws_svc.images[image.id] = image
@@ -153,7 +153,7 @@ class TestValidation(unittest.TestCase):
                 aws_svc, image.id, new_encryptor_id)
 
         # No missing tag.
-        image.tags[encrypt_ami.TAG_ENCRYPTOR_SESSION_ID] = new_id()
+        image.tags[TAG_ENCRYPTOR_SESSION_ID] = new_id()
         result = brkt_cli.aws._validate_guest_encrypted_ami(
             aws_svc, image.id, new_encryptor_id)
         self.assertEquals(image, result)
@@ -263,50 +263,3 @@ class TestValidation(unittest.TestCase):
         # Bogus region.
         with self.assertRaises(ValidationError):
             brkt_cli.aws._validate_region(aws_svc, 'foobar')
-
-
-class TestEncryptAMIBackwardsCompatibility(unittest.TestCase):
-
-    def test_attributes(self):
-        required_attributes = (
-            'AMI_NAME_MAX_LENGTH',
-            'DESCRIPTION_SNAPSHOT',
-            'NAME_ENCRYPTOR',
-            'NAME_METAVISOR_ROOT_VOLUME'
-        )
-        for attr in required_attributes:
-            self.assertTrue(
-                hasattr(encrypt_ami, attr),
-                'Did not find attribute encrypt_ami.%s' % attr
-            )
-
-    def test_method_signatures(self):
-        required_method_signatures = (
-            ('append_suffix',
-             ['name', 'suffix', 'max_length']),
-            ('clean_up',
-             ['aws_svc', 'instance_ids', 'security_group_ids']),
-            ('get_encrypted_suffix', []),
-            ('snapshot_encrypted_instance',
-             ['aws_svc', 'enc_svc_cls', 'encryptor_instance',
-              'encryptor_image', 'legacy']),
-            ('register_ami',
-             ['aws_svc', 'encryptor_instance', 'encryptor_image', 'name',
-              'description', 'mv_bdm', 'legacy', 'mv_root_id']),
-            ('wait_for_instance',
-             ['aws_svc', 'instance_id']),
-            ('create_encryptor_security_group', ['aws_svc'])
-        )
-        for mthd, args in required_method_signatures:
-            self.assertTrue(
-                hasattr(encrypt_ami, mthd),
-                'Did not find method encrypt_ami.%s' % mthd
-            )
-            method_ref = encrypt_ami.__dict__[mthd]
-            method_args = inspect.getargspec(method_ref)[0]
-            for arg in args:
-                self.assertIn(
-                    arg, method_args,
-                    'Did not find argument "%s" for method encrypt_ami.%s' % (
-                        arg, mthd)
-                )

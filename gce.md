@@ -1,26 +1,28 @@
-# GCE operations
+# GCP operations
 
-The `gce` subcommand provides all GCE related operations for encrypting, updating and launching images.
+The `gcp` subcommand provides all GCP related operations for encrypting, updating and launching images.
 
 ```
-$ brkt gce --help
-usage: brkt gce [-h] {encrypt,update,launch} ...
+$ brkt gcp --help
+usage: brkt gcp [-h] {encrypt,update,launch,wrap-guest-image,share-logs} ...
 
-GCE operations
+GCP operations
 
 positional arguments:
-  {encrypt,update,launch}
-    encrypt             Encrypt a GCE image
-    update              Update an encrypted GCE image
-    launch              Launch a GCE image
+  {encrypt,update,launch,wrap-guest-image,share-logs}
+    encrypt             Encrypt a GCP image
+    update              Update an encrypted GCP image
+    launch              Launch a GCP image
+    wrap-guest-image    Launch guest image wrapped with Bracket Metavisor
+    share-logs          Upload logs file to google bucket
 
 optional arguments:
   -h, --help            show this help message and exit
 ```
 
-# Encrypting images in GCE
+# Encrypting images in GCP
 
-The `gce encrypt` subcommand performs the following steps to create an
+The `gcp encrypt` subcommand performs the following steps to create an
 encrypted image:
 
 1. Get the latest Metavisor image named `latest.image.tar.gz` from 
@@ -52,43 +54,47 @@ order to do this, port 443 must be accessible on the following hosts:
   * 52.88.55.6
 * brkt-cli talks to `api.mgmt.brkt.com` on port 443.
 
-# Encrypting a GCE image
+# Encrypting a GCP image
 
-Run **gce encrypt** to create an encrypted image based on an existing
+Run **gcp encrypt** to create an encrypted image based on an existing
 image.
 
 ```
-$ brkt gce encrypt --help
-usage: brkt gce encrypt [-h] [--encrypted-image-name NAME] --zone ZONE
+$ brkt gcp encrypt --help
+usage: brkt gcp encrypt [-h] [--encrypted-image-name NAME] --zone ZONE
                         [--no-validate] --project PROJECT
-                        [--image-project NAME]
-                        [--encryptor-image ENCRYPTOR_IMAGE]
-                        [--network NETWORK] [--subnetwork SUBNETWORK]
-                        [--gce-tag VALUE] [--ntp-server DNS_NAME]
+                        [--image-project NAME] [--network NETWORK]
+                        [--subnetwork SUBNETWORK] [--gcp-tag VALUE]
+                        [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
-                        [--status-port PORT] [--token TOKEN]
+                        [--status-port PORT]
+                        [--token TOKEN | --brkt-tag NAME=VALUE]
                         ID
 
-Create an encrypted GCE image from an existing image
+Create an encrypted GCP image from an existing image
 
 positional arguments:
   ID                    The image that will be encrypted
 
 optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --encrypted-image-name NAME
                         Specify the name of the generated encrypted image
                         (default: None)
-  --encryptor-image ENCRYPTOR_IMAGE
-  --gce-tag             Set a GCE tag on the encryptor instance. May be
+  --gcp-tag             Set a GCP tag on the encryptor instance. May be
                         specified multiple times.
-  --image-project NAME  GCE project name which owns the image (e.g. centos-
+  --image-project NAME  GCP project name which owns the image (e.g. centos-
                         cloud) (default: None)
   --network NETWORK
   --no-validate         Don't validate images or token (default: True)
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
-  --project PROJECT     GCE project name (default: None)
+  --project PROJECT     GCP project name (default: None)
   --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
                         specified multiple times. (default: None)
   --proxy-config-file PATH
@@ -101,42 +107,46 @@ optional arguments:
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
                         token subcommand to generate a token. (default: None)
-  --zone ZONE           GCE zone to operate in (default: None)
+  --zone ZONE           GCP zone to operate in (default: None)
   -h, --help            show this help message and exit
 ```
 
-  The `gce update` subcommand updates an encrypted
+  The `gcp update` subcommand updates an encrypted
 image with the latest version of the Metavisor code.
 
 ```
-$ brkt gce update --help
-usage: brkt gce update [-h] [--encrypted-image-name NAME] --zone ZONE
-                       --project PROJECT [--no-validate]
-                       [--encryptor-image ENCRYPTOR_IMAGE] [--network NETWORK]
-                       [--subnetwork SUBNETWORK] [--gce-tag VALUE]
+$ brkt gcp update --help
+usage: brkt gcp update [-h] [--encrypted-image-name NAME] --zone ZONE
+                       --project PROJECT [--no-validate] [--network NETWORK]
+                       [--subnetwork SUBNETWORK] [--gcp-tag VALUE]
                        [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
-                       [--status-port PORT] [--token TOKEN]
+                       [--status-port PORT]
+                       [--token TOKEN | --brkt-tag NAME=VALUE]
                        ID
 
-Update an encrypted GCE image with the latest Metavisor release
+Update an encrypted GCP image with the latest Metavisor release
 
 positional arguments:
   ID                    The image that will be updated
 
 optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --encrypted-image-name NAME
                         Specify the name of the generated encrypted Image
                         (default: None)
-  --encryptor-image ENCRYPTOR_IMAGE
-  --gce-tag             Set a GCE tag on the updater instance. May be
+  --gcp-tag             Set a GCP tag on the updater instance. May be
                         specified multiple times.
   --network NETWORK
   --no-validate         Don't validate images or token (default: True)
   --ntp-server DNS Name
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
-  --project PROJECT     GCE project name (default: None)
+  --project PROJECT     GCP project name (default: None)
   --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
                         specified multiple times. (default: None)
   --proxy-config-file PATH
@@ -149,31 +159,31 @@ optional arguments:
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
                         token subcommand to generate a token. (default: None)
-  --zone ZONE           GCE zone to operate in (default: us-central1-a)
+  --zone ZONE           GCP zone to operate in (default: us-central1-a)
   -h, --help            show this help message and exit
 ```
 
-The `gce launch` subcommand launches an encrypted GCE image.
+The `gcp launch` subcommand launches an encrypted GCP image.
 
 ```
-$ brkt gce launch --help
-usage: brkt gce launch [-h] [--instance-name NAME]
+$ brkt gcp launch --help
+usage: brkt gcp launch [-h] [--instance-name NAME]
                        [--instance-type INSTANCE_TYPE] [--zone ZONE]
                        [--no-delete-boot] --project PROJECT
-                       [--network NETWORK] [--gce-tag VALUE]
+                       [--network NETWORK] [--gcp-tag VALUE]
                        [--subnetwork NAME] [--ssd-scracth-disks N]
                        [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
                        [--token TOKEN]
                        ID
 
-Launch a GCE image
+Launch a GCP image
 
 positional arguments:
   ID                    The image that will be launched
 
 optional arguments:
-  --gce-tag             Set a GCE tag on the encrypted instance being
+  --gcp-tag             Set a GCP tag on the encrypted instance being
                         launched. May be specified multiple times.
   --instance-name NAME  Name of the instance
   --instance-type INSTANCE_TYPE
@@ -184,7 +194,7 @@ optional arguments:
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
-  --project PROJECT     GCE project name (default: None)
+  --project PROJECT     GCP project name (default: None)
   --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
                         specified multiple times. (default: None)
   --proxy-config-file PATH
@@ -197,22 +207,80 @@ optional arguments:
   --token TOKEN         Token that the encrypted instance will use to
                         authenticate with the Bracket service. Use the make-
                         token subcommand to generate a token. (default: None)
-  --zone ZONE           GCE zone to operate in (default: us-central1-a)
+  --zone ZONE           GCP zone to operate in (default: us-central1-a)
+  -h, --help            show this help message and exit
+```
+
+The `gcp wrap-guest-image` subcommand launches an encrypted GCP instance
+without the guest root volume being encrypted.
+
+```
+$ brkt gcp launch --help
+usage: brkt gcp launch [-h] [--instance-name NAME]
+                       [--instance-type INSTANCE_TYPE] --zone ZONE
+                       [--no-delete-boot] --project PROJECT
+                       [--image-project NAME] [--network NETWORK]
+                       [--gcp-tag VALUE] [--subnetwork NAME]
+                       [--ssd-scracth-disks N]
+                       [--ntp-server DNS_NAME]
+                       [--proxy HOST:PORT | --proxy-config-file PATH]
+                       [--token TOKEN | --brkt-tag NAME=VALUE]
+                       ID
+
+Launch guest image wrapped with Bracket Metavisor
+
+positional arguments:
+  ID                    The image that will be wrapped with the Bracket
+                        Metavisor
+
+optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.]
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
+  --gcp-tag             Set a GCP tag on the encrypted instance being
+                        launched. May be specified multiple times.
+  --image-project NAME  GCP project name which owns the image (e.g. centos-
+                        cloud)
+  --instance-name NAME  Name of the instance
+  --instance-type INSTANCE_TYPE
+                        Instance type (default: n1-standard-1)
+  --network NETWORK
+  --no-delete-boot      Delete boot disk when instance is deleted (default:
+                        False)
+  --ntp-server DNS_NAME
+                        Optional NTP server to sync Metavisor clock. May be
+                        specified multiple times. (default: None)
+  --project PROJECT     GCP project name (default: None)
+  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
+                        specified multiple times. (default: None)
+  --proxy-config-file PATH
+                        Path to proxy.yaml file that will be used during
+                        encryption (default: None)
+  --ssd-scratch-disks N
+                        Number of SSD scratch disks to be attached (max. 8)
+                        (default: 0)
+  --subnetwork NAME     Launch instance in this subnetwork (default: None)
+  --token TOKEN         Token that the encrypted instance will use to
+                        authenticate with the Bracket service. Use the make-
+                        token subcommand to generate a token. (default: None)
+  --zone ZONE           GCP zone to operate in (default: us-central1-a)
   -h, --help            show this help message and exit
 ```
 
 ## Configuration
 
-Before running the GCE commands in **brkt-cli**, you will  need to install
+Before running the GCP commands in **brkt-cli**, you will  need to install
 [gcloud](https://cloud.google.com/sdk/gcloud/) and configure it to work 
 with your Google account and GCP project. Make sure that your Google 
 account has `Editor` permissions within the selected Google project.
 
 You can use the `--network` option to launch the encryptor instance in
-a specific GCE network. Additionally if you created this network using
+a specific GCP network. Additionally if you created this network using
 custom subnetworks, then you **must** specify the corresponding subnetwork
 using the `--subnetwork` option. In the absence of the `--network` option,
-the encryptor is launched in the `default` GCE network.
+the encryptor is launched in the `default` GCP network.
 
 You will also need to add a firewall rule that allows inbound access
 to the Encryptor or Updater instance on port **80**, or the port that
@@ -221,10 +289,10 @@ you specify with the **--status-port** option in the default network
 
 ## Encrypting an image
 
-Run **gce encrypt** to encrypt an image:
+Run **gcp encrypt** to encrypt an image:
 
 ```
-$ brkt gce encrypt --zone us-central1-a --project brkt-dev --token <token> --image-project ubuntu-os-cloud ubuntu-1404-trusty-v20160627
+$ brkt gcp encrypt --zone us-central1-a --project brkt-dev --token <token> --image-project ubuntu-os-cloud ubuntu-1404-trusty-v20160627
 ...
 14:30:23 Starting encryptor session 59e3b3a7
 ...
@@ -247,11 +315,11 @@ ubuntu-1404-trusty-v20160627-encrypted-a1fe1069
 
 ## Updating an image
 
-Run **gce update** to update an encrypted image with the latest
+Run **gcp update** to update an encrypted image with the latest
 Metavisor code:
 
 ```
-$ brkt gce update --zone us-central1-a --project brkt-dev --token <token> ubuntu-1404-trusty-v20160627-encrypted-ee521b31
+$ brkt gcp update --zone us-central1-a --project brkt-dev --token <token> ubuntu-1404-trusty-v20160627-encrypted-ee521b31
 ...
 15:50:04 Starting updater session 80985e58
 ...
@@ -269,10 +337,10 @@ ubuntu-1404-trusty-v20160627-encrypted-63e57e6e
 
 ## Launching an image
 
-Run **gce launch** to launch an encrypted GCE image
+Run **gcp launch** to launch an encrypted GCP image
 
 ```
-$ brkt gce launch --instance-name brkt-test-instance --project <project> --token <token> --zone us-central1-c centos-6-v20160921-encrypted-30fccdeb
+$ brkt gcp launch --instance-name brkt-test-instance --project <project> --token <token> --zone us-central1-c centos-6-v20160921-encrypted-30fccdeb
 18:13:54 Creating guest root disk from snapshot
 18:13:54 Attempting refresh to obtain initial access_token
 18:13:54 Refreshing access_token
@@ -290,4 +358,34 @@ $ brkt gce launch --instance-name brkt-test-instance --project <project> --token
 18:15:59 Waiting for brkt-test-instance to become ready
 18:16:10 Instance brkt-test-instance (104.198.44.8) launched successfully
 brkt-test-instance
+```
+
+## Launching a wrapped instance
+
+Run **gcp wrap-guest-image** to launch a guest image wrapped with the Bracket
+Metavisor
+
+```
+$ brkt gcp wrap-guest-image --project <project> --token <token> --zone us-central1-c centos-6-v20170327
+19:44:47 Retrieving encryptor image from GCP bucket
+19:44:47 Attempting refresh to obtain initial access_token
+19:44:47 Refreshing access_token
+19:46:40 Waiting for guest root disk to become ready
+19:46:40 Disk detach successful
+19:46:40 Launching wrapped guest image
+19:46:46 Waiting for brkt-guest-e37b3894 to become ready
+19:46:51 Waiting for brkt-guest-e37b3894 to become ready
+19:46:57 Waiting for brkt-guest-e37b3894 to become ready
+19:47:02 Waiting for brkt-guest-e37b3894 to become ready
+19:47:07 Waiting for brkt-guest-e37b3894 to become ready
+19:47:15 Waiting for brkt-guest-e37b3894 to become ready
+19:47:20 Waiting for brkt-guest-e37b3894 to become ready
+19:47:25 Waiting for brkt-guest-e37b3894 to become ready
+19:47:31 Waiting for brkt-guest-e37b3894 to become ready
+19:47:36 Waiting for brkt-guest-e37b3894 to become ready
+19:47:42 Waiting for brkt-guest-e37b3894 to become ready
+19:47:48 Waiting for brkt-guest-e37b3894 to become ready
+19:48:00 Instance brkt-guest-e37b3894 (35.184.91.87) launched successfully
+19:48:00 Deleting encryptor image encryptor-e37b3894
+brkt-guest-e37b3894
 ```

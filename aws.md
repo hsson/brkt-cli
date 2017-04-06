@@ -4,19 +4,18 @@ The `aws` subcommand provides all AWS related operations for encrypting and upda
 
 ```
 $ brkt aws --help
-usage: brkt aws [-h] {diag,encrypt,share-logs,update} ...
+usage: brkt aws [-h] {encrypt,update,wrap-guest-image} ...
 
 AWS operations
 
 positional arguments:
-  {diag,encrypt,share-logs,update}
-    diag                Diagnose an encrypted instance
+  {encrypt,update,wrap-guest-image}
     encrypt             Encrypt an AWS image
-    share-logs          Share logs
     update              Update an encrypted AWS image
+    wrap-guest-image    Launch guest image wrapped with Bracket Metavisor
 
 optional arguments:
-  -h, --help            show this help message and exit
+ -h, --help            show this help message and exit
 ```
 
 ## Encrypting images in AWS
@@ -93,6 +92,23 @@ ami-63733e09
 When the process completes, the new AMI id is written to stdout.  Log
 messages are written to stderr.
 
+## Wrapping guest AMI
+
+Run **brkt aws wrap-guest-image** to wrap a guest image with a Bracket
+image. This generates an encrypted instance, without the guest root
+volume being encrypted.
+
+```
+$ brkt aws wrap-guest-image --region us-east-1 --token <token> ami-72094e18
+18:50:33 Created security group with id sg-d821d2a3
+18:50:34 Launching wrapped guest instance i-039dba15316de37a0
+18:50:53 Done.
+Instance:i-039dba15316de37a0
+```
+
+When the process completes, it leaves a Bracket instance running with the
+guest root image attached.
+
 ## Configuration
 
 Before running the **brkt** command, make sure that you've set your AWS
@@ -128,7 +144,8 @@ usage: brkt aws encrypt [-h] [--encrypted-ami-name NAME]
                         NAME [--security-group ID] [--subnet ID]
                         [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
-                        [--status-port PORT] [--token TOKEN]
+                        [--status-port PORT]
+                        [--token TOKEN  | --brkt-tag NAME=VALUE]
                         ID
 
 Create an encrypted AMI from an existing AMI.
@@ -139,6 +156,11 @@ positional arguments:
 optional arguments:
   --aws-tag KEY=VALUE   Set an AWS tag on resources created during encryption.
                         May be specified multiple times.
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --encrypted-ami-name NAME
                         Specify the name of the generated encrypted AMI
   --guest-instance-type TYPE
@@ -153,7 +175,7 @@ optional arguments:
   --proxy-config-file PATH
                         proxy.yaml file that defines the proxy configuration
                         that metavisor uses to talk to the Bracket service
-  --region NAME         AWS region (e.g. us-west-2)
+  --region NAME         The AWS region metavisors will be launched into
   --security-group ID   Use this security group when running the encryptor
                         instance. May be specified multiple times.
   --status-port PORT    Specify the port to receive http status of encryptor.
@@ -173,10 +195,11 @@ version of the Metavisor code.
 usage: brkt aws update [-h] [--encrypted-ami-name NAME]
                        [--guest-instance-type TYPE]
                        [--updater-instance-type TYPE] [--no-validate] --region
-                       REGION [--security-group ID] [--subnet ID]
+                       NAME [--security-group ID] [--subnet ID]
                        [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
-                       [--status-port PORT] [--token TOKEN]
+                       [--status-port PORT]
+                       [--token TOKEN | --brkt-tag NAME=VALUE]
                        ID
 
 Update an encrypted AMI with the latest Metavisor release.
@@ -187,6 +210,11 @@ positional arguments:
 optional arguments:
   --aws-tag KEY=VALUE   Set an AWS tag on resources created during update. May
                         be specified multiple times.
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
   --encrypted-ami-name NAME
                         Specify the name of the generated encrypted AMI
   --guest-instance-type TYPE
@@ -202,7 +230,7 @@ optional arguments:
   --proxy-config-file PATH
                         proxy.yaml file that defines the proxy configuration
                         that metavisor uses to talk to the Bracket service
-  --region REGION       AWS region (e.g. us-west-2)
+  --region NAME         The AWS region metavisors will be launched into
   --security-group ID   Use this security group when running the encryptor
                         instance. May be specified multiple times.
   --status-port PORT    Specify the port to receive http status of encryptor.
@@ -216,4 +244,58 @@ optional arguments:
                         The instance type to use when running the updater
                         instance. Default: m3.medium (default: m3.medium)
   -h, --help            show this help message and exit
+```
+
+The `aws wrap-guest-image` subcommand creates an encrypted instance with the latest
+version of the Metavisor code.
+
+```
+usage: brkt aws wrap-guest-image [-h] [--wrapped-instance-name NAME]
+                                 [--instance-type TYPE] [--no-validate] --region
+                                 NAME [--security-group ID] [--subnet ID]
+                                 [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
+                                 [--proxy HOST:PORT | --proxy-config-file PATH]
+                                 [--status-port PORT]
+                                 [--token TOKEN | --brkt-tag NAME=VALUE]
+                                 ID
+
+Launch guest image wrapped with Bracket Metavso
+
+positional arguments:
+  ID                    The guest AMI that will be launched as a wrapped
+                        Bracket instance
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --wrapped-instance-name NAME
+                        Specify the name of the wrapped Bracket instance
+  --instance-type TYPE  The instance type to use when launching the wrapped
+                        image
+  --no-validate         Don't validate AMIs, snapshots, subnet, or security
+                        groups
+  --region NAME         The AWS region metavisors will be launched into
+  --security-group ID   Use this security group when running the encryptor
+                        instance. May be specified multiple times.
+  --subnet ID           Launch instances in this subnet
+  --aws-tag KEY=VALUE   Set an AWS tag on resources created during update. May
+                        be specified multiple times.
+  --ntp-server DNS_NAME
+                        NTP server to sync Metavisor clock. May be specified
+                        multiple times.
+  --proxy HOST:PORT     Proxy that Metavisor uses to talk to the Bracket
+                        service
+  --proxy-config-file PATH
+                        proxy.yaml file that defines the proxy configuration
+                        that metavisor uses to talk to the Bracket service
+  --status-port PORT    Specify the port to receive http status of encryptor.
+                        Any port in range 1-65535 can be used except for port
+                        81. (default: 80)
+  --token TOKEN         Token (JWT) that Metavisor uses to authenticate with
+                        the Bracket service. Use the make-token subcommand to
+                        generate a token.
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
 ```

@@ -55,6 +55,42 @@ def setup_update_vmdk_args(parser):
         default="VM Network",
         required=False)
     parser.add_argument(
+        '--static-ip-address',
+        metavar='IP',
+        dest='static_ip',
+        help='Specify the static IP address of the updater VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-subnet-mask',
+        metavar='IP',
+        dest='static_mask',
+        help='Specify the static subnet mask of the updater VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-default-router',
+        metavar='IP',
+        dest='static_gw',
+        help='Specify the static default router of the updater VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-dns-domain',
+        metavar='DNS_NAME',
+        dest='static_dns_domain',
+        help='Specify the static DNS domain of the updater VM',
+        required=False
+    )
+    parser.add_argument(
+        '--static-dns-server',
+        metavar='DNS_NAME',
+        dest='static_dns',
+        action='append',
+        help='Specify the static DNS servers of the updater VM',
+        required=False
+    )
+    parser.add_argument(
         "--cpu-count",
         help="Number of CPUs to assign to Encryptor VM",
         metavar='N',

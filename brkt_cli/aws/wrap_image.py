@@ -18,6 +18,8 @@ Create an Bracket wrapped based on an existing unencrypted AMI.
 Overview of the process:
     * Obtain the Bracket (metavisor) image to be used
     * Obtain the root volume snapshot of the guest image
+    * When lacking "create volume" permissions on the guest image
+        create a local snapshot of the guest image
     * Configure the Bracket image to be launched with the guest
         root volume attached at /dev/sdf
     * Pass appropriate user-data to the Bracket image to indicate
@@ -31,6 +33,7 @@ running the AWS command line utility.
 
 import logging
 
+from boto.exception import EC2ResponseError
 from boto.ec2.blockdevicemapping import (
     BlockDeviceMapping,
     EBSBlockDeviceType,
@@ -38,12 +41,10 @@ from boto.ec2.blockdevicemapping import (
 
 from brkt_cli.user_data import gzip_user_data
 from brkt_cli.instance_config import InstanceConfig
-from brkt_cli.aws.aws_service import EBS_OPTIMIZED_INSTANCES
-from brkt_cli.aws.encrypt_ami import wait_for_instance, clean_up
-from brkt_cli.util import (
-    make_nonce,
-    append_suffix,
-)
+from brkt_cli.aws.aws_service import (
+    EBS_OPTIMIZED_INSTANCES, wait_for_instance, run_guest_instance, clean_up,
+    snapshot_root_volume)
+from brkt_cli.util import make_nonce, append_suffix
 
 # End user-visible terminology.  These are resource names and descriptions
 # that the user will see in his or her EC2 console.
@@ -114,12 +115,33 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
     else:
         instance_name = get_name_from_image(guest_image)
 
+    try:
+        aws_svc.get_snapshot(guest_snapshot)
+    except EC2ResponseError as e:
+        if e.error_code == 'InvalidSnapshot.NotFound':
+            log.info("Insufficient permission to launch guest image. " +  e.error_message)
+            guest_instance = None
+            try:
+                guest_instance = run_guest_instance(aws_svc, image_id,
+                    subnet_id=subnet_id, instance_type=instance_type)
+                wait_for_instance(aws_svc, guest_instance.id)
+                guest_snapshot, _, _, _, _ = snapshot_root_volume(
+                    aws_svc, guest_instance, image_id)
+            finally:
+                if guest_instance:
+                    clean_up(aws_svc, instance_ids=[guest_instance.id])
+        else:
+            log.error("Unable to wrap guest image", e.error_message)
+            raise
+
     bdm = BlockDeviceMapping()
     guest_unencrypted_root = EBSBlockDeviceType(
         volume_type='gp2',
         snapshot_id=guest_snapshot,
         delete_on_termination=True)
     bdm['/dev/sdf'] = guest_unencrypted_root
+    # Clean up the Metavisor root volume on termination
+    bdm['/dev/sda1'] = EBSBlockDeviceType(delete_on_termination=True)
     if instance_config is None:
         instance_config = InstanceConfig()
     instance_config.brkt_config['allow_unencrypted_guest'] = True

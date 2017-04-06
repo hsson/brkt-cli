@@ -108,12 +108,22 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
     brkt_env = brkt_cli.brkt_env_from_values(values)
     if brkt_env is None:
         _, brkt_env = parsed_config.get_current_env()
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, parsed_config)
 
     proxy = None
     if values.http_proxy:
         proxy = _parse_proxies(values.http_proxy)[0]
+
+    # static ip configuration
+    static_ip = None
+    if not use_esx:
+        if values.static_ip or values.static_gw or values.static_mask or \
+           values.static_dns or values.static_dns_domain:
+            static_ip = esx_service.StaticIPConfiguration(
+                values.static_ip, values.static_mask, values.static_gw,
+                values.static_dns, values.static_dns_domain)
+            static_ip.validate()
 
     # Download images from S3
     try:
@@ -203,6 +213,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                 user_data_str=user_data_str,
                 serial_port_file_name=values.serial_port_file_name,
                 status_port=values.status_port,
+                static_ip=static_ip
             )
         elif (values.source_image_path is not None):
             # Create from MV OVF in local directory
@@ -220,6 +231,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                 user_data_str=user_data_str,
                 serial_port_file_name=values.serial_port_file_name,
                 status_port=values.status_port,
+                static_ip=static_ip
             )
         else:
             # Create from MV OVF in S3
@@ -238,6 +250,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                 serial_port_file_name=values.serial_port_file_name,
                 status_port=values.status_port,
                 cleanup=values.cleanup,
+                static_ip=static_ip
             )
         return 0
     except Exception as e:
@@ -295,12 +308,23 @@ def run_update(values, parsed_config, log, use_esx=False):
     brkt_env = brkt_cli.brkt_env_from_values(values)
     if brkt_env is None:
         _, brkt_env = parsed_config.get_current_env()
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, parsed_config)
 
     proxy = None
     if values.http_proxy:
         proxy = _parse_proxies(values.http_proxy)[0]
+
+    # static ip configuration
+    static_ip = None
+    if not use_esx:
+        if values.static_ip or values.static_gw or values.static_mask or \
+           values.static_dns or values.static_dns_domain:
+            static_ip = esx_service.StaticIPConfiguration(
+                values.static_ip, values.static_mask, values.static_gw,
+                values.static_dns, values.static_dns_domain)
+            static_ip.validate()
+
     # Download images from S3
     try:
         if (values.encryptor_vmdk is None and
@@ -363,6 +387,7 @@ def run_update(values, parsed_config, log, use_esx=False):
                 metavisor_vmdk=values.encryptor_vmdk,
                 user_data_str=user_data_str,
                 status_port=values.status_port,
+                static_ip=static_ip
             )
         elif (values.source_image_path is not None):
             # Create from MV OVF in local directory
@@ -377,6 +402,7 @@ def run_update(values, parsed_config, log, use_esx=False):
                 ovf_image_name=values.image_name,
                 user_data_str=user_data_str,
                 status_port=values.status_port,
+                static_ip=static_ip
             )
         else:
             # Create from MV OVF in S3
@@ -392,6 +418,7 @@ def run_update(values, parsed_config, log, use_esx=False):
                 user_data_str=user_data_str,
                 status_port=values.status_port,
                 cleanup=values.cleanup,
+                static_ip=static_ip
             )
         return 0
     except:
@@ -415,12 +442,22 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
     brkt_env = brkt_cli.brkt_env_from_values(values)
     if brkt_env is None:
         _, brkt_env = parsed_config.get_current_env()
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, parsed_config)
 
     proxy = None
     if values.http_proxy:
         proxy = _parse_proxies(values.http_proxy)[0]
+
+    # static ip configuration
+    static_ip = None
+    if not use_esx:
+        if values.static_ip or values.static_gw or values.static_mask or \
+           values.static_dns or values.static_dns_domain:
+            static_ip = esx_service.StaticIPConfiguration(
+                values.static_ip, values.static_mask, values.static_gw,
+                values.static_dns, values.static_dns_domain)
+            static_ip.validate()
 
     # Download images from S3
     try:
@@ -495,7 +532,8 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
             wrap_image.wrap_from_vmdk(
                 vc_swc, values.vmdk, vm_name=values.vm_name,
                 metavisor_vmdk=values.encryptor_vmdk,
-                user_data_str=user_data_str
+                user_data_str=user_data_str,
+                static_ip=static_ip
             )
         elif values.source_image_path is not None:
             # Create from MV OVF in local directory
@@ -503,14 +541,16 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
                 vc_swc, values.vmdk, vm_name=values.vm_name,
                 source_image_path=values.source_image_path,
                 ovf_image_name=values.image_name,
-                user_data_str=user_data_str
+                user_data_str=user_data_str,
+                static_ip=static_ip
             )
         else:
             # Create from MV OVF in S3
             wrap_image.wrap_from_s3(
                 vc_swc, values.vmdk, vm_name=values.vm_name,
                 ovf_name=ovf, download_file_list=file_list,
-                user_data_str=user_data_str, cleanup=values.cleanup
+                user_data_str=user_data_str, cleanup=values.cleanup,
+                static_ip=static_ip
             )
         return 0
     except Exception as e:

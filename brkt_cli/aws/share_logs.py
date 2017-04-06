@@ -18,6 +18,7 @@ from boto.ec2.blockdevicemapping import (
     BlockDeviceMapping,
     EBSBlockDeviceType,
 )
+from brkt_cli.aws.aws_service import snapshot_log_volume
 
 log = logging.getLogger(__name__)
 

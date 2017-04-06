@@ -33,10 +33,9 @@ from brkt_cli.aws import (
     share_logs_args,
     update_encrypted_ami_args
 )
-from brkt_cli.aws.encrypt_ami import (
-    TAG_ENCRYPTOR,
-    TAG_ENCRYPTOR_AMI,
-    TAG_ENCRYPTOR_SESSION_ID)
+from brkt_cli.aws.aws_constants import (
+    TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
+)
 from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
@@ -169,14 +168,6 @@ def run_wrap_image(values, config, verbose=False):
         values.encrypted_ami_name = None
         _validate(aws_svc, values, metavisor_ami)
         brkt_cli.validate_ntp_servers(values.ntp_servers)
-
-    mv_image = aws_svc.get_image(metavisor_ami)
-    # Raise error if it is not a FreeBSD Metavisor
-    if 'metavisor-' not in mv_image.name:
-        raise ValidationError(
-            'Unsupported Bracket image for wrapped guest: %s' %
-            mv_image.name
-        )
 
     lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(

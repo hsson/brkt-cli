@@ -223,6 +223,7 @@ def run_wrap_image(values, config):
         image_project=values.image_project,
         image_file=values.image_file,
         image_bucket=values.bucket,
+        instance_type=values.instance_type,
         network=values.network,
         subnet=values.subnetwork,
         cleanup=values.cleanup,
@@ -284,9 +285,9 @@ def share_logs(values, gcp_svc):
         cmds = '#!/bin/bash\n' + \
             'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/sdb4 /mnt ||\n' + \
             'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb5 /mnt\n' + \
-            'sudo tar czvf /tmp/%s -C /mnt .\n' % (file)+ \
+            'sudo tar czvf /tmp/%s -C /mnt ./log ./crash\n' % (file) + \
             'sudo gsutil cp /tmp/%s gs://%s/%s/\n' % (file, values.bucket, path)
-
+            
         metadata = {
             "items": [
                 {
@@ -454,8 +455,8 @@ def check_args(values, gcp_svc, cli_config):
         if values.bucket != 'prod':
             raise ValidationError(
                 "Please provide either an encryptor image or an image bucket")
-    if not values.token:
-        raise ValidationError('Must provide a token')
+    # Verify we have a valid launch token
+    instance_config_args.get_launch_token(values, cli_config)
 
     if values.validate:
         if not gcp_svc.project_exists(values.project):
