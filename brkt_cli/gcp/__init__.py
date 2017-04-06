@@ -285,9 +285,9 @@ def share_logs(values, gcp_svc):
         cmds = '#!/bin/bash\n' + \
             'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/sdb4 /mnt ||\n' + \
             'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb5 /mnt\n' + \
-            'sudo tar czvf /tmp/%s -C /mnt .\n' % (file)+ \
+            'sudo tar czvf /tmp/%s -C /mnt ./log ./crash\n' % (file) + \
             'sudo gsutil cp /tmp/%s gs://%s/%s/\n' % (file, values.bucket, path)
-
+            
         metadata = {
             "items": [
                 {
