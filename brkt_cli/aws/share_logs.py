@@ -66,8 +66,8 @@ def share(aws_svc=None, instance_id=None,
         # This creates logs file and copys to bucket
         amzn = '#!/bin/bash\n' + \
         'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/xvdg4 /mnt\n' + \
-        'sudo tar czvf /tmp/%s -C /mnt .\n' % (file) + \
-        'sudo aws s3 cp /tmp/%s s3://%s/%s %s\n' % (file, bucket, path, acl) 
+        'sudo tar czvf /tmp/%s -C /mnt ./log ./crash\n' % (file) + \
+        'sudo aws s3 cp /tmp/%s s3://%s/%s %s\n' % (file, bucket, path, acl)
 
         # Specifies volume to be attached to instance
         bdm = BlockDeviceMapping()
