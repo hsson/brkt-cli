@@ -17,6 +17,7 @@ import unittest
 from brkt_cli.validation import ValidationError
 
 import brkt_cli.crypto
+from brkt_cli.crypto import is_public_key
 
 if brkt_cli.crypto.cryptography_library_available:
     import cryptography.hazmat.backends.openssl.ec
@@ -211,3 +212,21 @@ class TestReadPrivateKey(unittest.TestCase):
         brkt_cli.crypto.validate_cert(TEST_CERT)
         with self.assertRaises(ValidationError):
             brkt_cli.crypto.validate_cert('foobar')
+
+
+class TestPublicKey(unittest.TestCase):
+
+    def test_is_public_key(self):
+        test_key = (
+            'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdH'
+            'AyNTYAAABBBLqHM4+wprVrOlHvygZSuFcXTfOnWqwVyFGbydUw4oPJ4jOvGcTi'
+            'TF3WPcPJRKUq6E4s6E4yhS3/eOU+YerKY2A= test@example.com'
+        )
+        test_cert = (
+            'cert-authority ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAYQC6Shl5kUu'
+            'TGqkSc8D2vP2kls2GoB/eGlgIb0BnM/zsIsbw5cWsPournZN2IwnwMhCFLT/56'
+            'CzT9ZzVfn26hxn86KMpg76NcfP5Gnd66dsXHhiMXnBeS9r6KPQeqzVInwE='
+        )
+        self.assertTrue(is_public_key(test_key))
+        self.assertTrue(is_public_key(test_cert))
+        self.assertFalse(is_public_key('Not a public key'))

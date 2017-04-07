@@ -42,10 +42,9 @@ from brkt_cli.util import (
     validate_ip_address,
     validate_dns_name_ip_address
 )
-from brkt_cli import validate_ssh_pub_key
+from brkt_cli import crypto
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 from brkt_cli.validation import ValidationError
-
 
 log = logging.getLogger(__name__)
 logging.getLogger('boto3').setLevel(logging.FATAL)
@@ -853,7 +852,10 @@ class VCenterService(BaseVCenterService):
             if ssh_key_file:
                 with open(ssh_key_file, 'r') as f:
                     key_value = (f.read()).strip()
-                validate_ssh_pub_key(key_value)
+                    if not crypto.is_public_key(key_value):
+                        raise ValidationError(
+                            '%s is not a public key file' % ssh_key_file
+                        )
                 brkt_config['ssh-public-key'] = key_value
             if rescue_proto:
                 brkt_config = dict()
