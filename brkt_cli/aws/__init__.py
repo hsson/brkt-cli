@@ -269,8 +269,7 @@ def run_encrypt(values, config, verbose=False):
     if values.validate:
         guest_image = _validate_guest_ami(aws_svc, values.ami)
     else:
-        guest_image = aws_svc.get_image(values.ami)
-
+        guest_image = _validate_ami(aws_svc, values.ami)
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
     default_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
     tags = merge_aws_tags(values.tags, values.aws_tags)
