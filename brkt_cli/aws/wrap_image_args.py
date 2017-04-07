@@ -41,7 +41,7 @@ def setup_wrap_image_args(parser, parsed_config):
     aws_args.add_security_group(parser)
     aws_args.add_subnet(parser)
     aws_args.add_aws_tag(parser)
-    aws_args.add_key(parser)
+    aws_args.add_key(parser, help='SSH key pair name')
     # Hide optional sub-command level verbose argument. This should be
     # removed once this option is removed at the sub-command level
     parser.add_argument(
