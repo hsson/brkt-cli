@@ -42,8 +42,11 @@ class AuthSubcommand(Subcommand):
             self.name(),
             description=(
                 'Authenticate with the Bracket service. On success, print '
-                'the API token (JSON Web Token) that can be used to make '
-                'calls to Bracket REST API endpoints.'
+                'the API token (JSON Web Token) that is used for making '
+                'calls to Bracket REST API endpoints. You must set the '
+                'BRKT_API_TOKEN environment variable to this value, to '
+                'allow other brkt-cli commands to communicate with the '
+                'Bracket service.'
             ),
             help='Authenticate with the Bracket service',
             formatter_class=brkt_cli.SortingHelpFormatter
