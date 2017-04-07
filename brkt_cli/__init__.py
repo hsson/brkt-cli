@@ -37,7 +37,7 @@ from brkt_cli.validation import ValidationError
 SUBCOMMAND_MODULE_PATHS = [
     'brkt_cli.auth',
     'brkt_cli.aws',
-    'brkt_cli.brkt_jwt',
+    'brkt_cli.make_token',
     'brkt_cli.config',
     'brkt_cli.esx',
     'brkt_cli.gcp',
@@ -249,20 +249,16 @@ def validate_jwt(jwt):
     missing_fields = [f for f in expected_fields if f not in header]
     if missing_fields:
         raise ValidationError(
-            'Missing fields in token header: %s.  Use the %s command '
-            'to generate a valid token.' % (
-                ','.join(missing_fields),
-                brkt_jwt.SUBCOMMAND_NAME
-            )
+            'Missing fields in token header: %s.  Use the make-token command '
+            'to generate a valid token.' % ','.join(missing_fields)
         )
 
     # Validate payload.
     payload = brkt_jwt.get_payload(jwt)
     if not payload.get('jti'):
         raise ValidationError(
-            'Token payload does not contain the jti field.  Use the %s '
-            'command to generate a valid token.' %
-            brkt_jwt.SUBCOMMAND_NAME
+            'Token payload does not contain the jti field.  Use the '
+            'make-token command to generate a valid token.'
         )
 
     return jwt

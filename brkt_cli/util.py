@@ -18,6 +18,9 @@ import logging
 import re
 import time
 import uuid
+from datetime import datetime
+
+import iso8601
 
 from brkt_cli.validation import ValidationError
 
@@ -285,3 +288,49 @@ def pretty_print_json(d, indent=4):
     """
     return json.dumps(
         d, sort_keys=True, indent=indent, separators=(',', ': '))
+
+
+def timestamp_to_datetime(ts):
+    """ Convert a Unix timestamp to a datetime with timezone set to UTC. """
+    return datetime.fromtimestamp(ts, tz=iso8601.UTC)
+
+
+def datetime_to_timestamp(dt):
+    """ Convert a datetime to a Unix timestamp in seconds. """
+    time_zero = timestamp_to_datetime(0)
+    return (dt - time_zero).total_seconds()
+
+
+def parse_timestamp(ts_string):
+    """ Return a datetime that represents the given timestamp
+    string.  The string can be a Unix timestamp in seconds or an ISO 8601
+    timestamp.
+
+    :raise ValidationError if ts_string is malformed
+    """
+    now = int(time.time())
+
+    # Parse integer timestamp.
+    m = re.match('\d+(\.\d+)?$', ts_string)
+    if m:
+        t = float(ts_string)
+        if t < now:
+            raise ValidationError(
+                '%s is earlier than the current timestamp (%s).' % (
+                    ts_string, now))
+        return timestamp_to_datetime(t)
+
+    # Parse ISO 8601 timestamp.
+    dt_now = timestamp_to_datetime(now)
+    try:
+        dt = iso8601.parse_date(ts_string)
+    except iso8601.ParseError:
+        raise ValidationError(
+            'Timestamp "%s" must either be a Unix timestamp or in iso8601 '
+            'format (2016-05-10T19:15:36Z).' % ts_string
+        )
+    if dt < dt_now:
+        raise ValidationError(
+            '%s is earlier than the current timestamp (%s).' % (
+                ts_string, dt_now))
+    return dt

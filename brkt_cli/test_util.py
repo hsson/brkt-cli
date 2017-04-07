@@ -11,8 +11,11 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+from datetime import datetime
 import time
 import unittest
+
+import iso8601
 
 from brkt_cli import util
 from brkt_cli.validation import ValidationError
@@ -144,3 +147,21 @@ class TestRetry(unittest.TestCase):
         """ Test retry based on the exception type. """
         self._get_wrapped(on=[TestException])(5)
         self.assertEqual(6, self.num_calls)
+
+
+class TestTimestamp(unittest.TestCase):
+
+    def test_datetime_to_timestamp(self):
+        now = time.time()
+        dt = datetime.fromtimestamp(now, tz=iso8601.UTC)
+        self.assertEqual(now, util.datetime_to_timestamp(dt))
+
+    def test_parse_timestamp(self):
+        ts = int(time.time()) + 10     # JWT timestamps must be in the future
+        dt = datetime.fromtimestamp(ts, tz=iso8601.UTC)
+
+        self.assertEqual(dt, util.parse_timestamp(str(ts)))
+        self.assertEqual(dt, util.parse_timestamp(dt.isoformat()))
+
+        with self.assertRaises(ValidationError):
+            util.parse_timestamp('abc')
