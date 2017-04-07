@@ -52,11 +52,12 @@ def run_encrypt(values, config):
 
     log.info('Starting encryptor session %s', gcp_svc.get_session_id())
 
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     ic = instance_config_from_values(
         values,
         mode=INSTANCE_CREATOR_MODE,
-        cli_config=config,
+        brkt_env=brkt_env,
         launch_token=lt
     )
     encrypted_image_id = encrypt_gcp_image.encrypt(
@@ -104,11 +105,12 @@ def run_update(values, config):
 
     log.info('Starting updater session %s', gcp_svc.get_session_id())
 
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     ic = instance_config_from_values(
         values,
         mode=INSTANCE_UPDATER_MODE,
-        cli_config=config,
+        brkt_env=brkt_env,
         launch_token=lt
     )
     updated_image_id = update_gcp_image.update_gcp_image(
@@ -188,11 +190,13 @@ def run_wrap_image(values, config):
 
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
+
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_METAVISOR_MODE,
-        cli_config=config,
+        brkt_env=brkt_env,
         launch_token=lt)
     if values.startup_script:
         extra_items = [{

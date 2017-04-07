@@ -105,9 +105,6 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         _check_env_vars_set('VCENTER_USER_NAME')
     vcenter_password = _get_vcenter_password(use_esx)
     brkt_cli.validate_ntp_servers(values.ntp_servers)
-    brkt_env = brkt_cli.brkt_env_from_values(values)
-    if brkt_env is None:
-        _, brkt_env = parsed_config.get_current_env()
     # Verify we have a valid launch token
     instance_config_args.get_launch_token(values, parsed_config)
 
@@ -185,11 +182,12 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
                               "thick-eager-zeroed" % (values.disk_type,))
 
     try:
+        brkt_env = brkt_cli.brkt_env_from_values(values, parsed_config)
         lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
             values,
             mode=INSTANCE_CREATOR_MODE,
-            cli_config=parsed_config,
+            brkt_env=brkt_env,
             launch_token=lt
         )
         crypto_policy = values.crypto
@@ -305,9 +303,6 @@ def run_update(values, parsed_config, log, use_esx=False):
         _check_env_vars_set('VCENTER_USER_NAME')
     vcenter_password = _get_vcenter_password(use_esx)
     brkt_cli.validate_ntp_servers(values.ntp_servers)
-    brkt_env = brkt_cli.brkt_env_from_values(values)
-    if brkt_env is None:
-        _, brkt_env = parsed_config.get_current_env()
     # Verify we have a valid launch token
     instance_config_args.get_launch_token(values, parsed_config)
 
@@ -366,11 +361,12 @@ def run_update(values, parsed_config, log, use_esx=False):
             raise ValidationError("Template VM %s not found" %
                                   values.template_vm_name)
     try:
+        brkt_env = brkt_cli.brkt_env_from_values(values, parsed_config)
         lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
             values,
             mode=INSTANCE_UPDATER_MODE,
-            cli_config=parsed_config,
+            brkt_env=brkt_env,
             launch_token=lt
         )
         user_data_str = vc_swc.create_userdata_str(instance_config,
@@ -518,11 +514,12 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
                               "thick-eager-zeroed" % (values.disk_type,))
 
     try:
+        brkt_env = brkt_cli.brkt_env_from_values(values, parsed_config)
         lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
             values,
             mode=INSTANCE_METAVISOR_MODE,
-            cli_config=parsed_config,
+            brkt_env=brkt_env,
             launch_token=lt)
         instance_config.brkt_config['allow_unencrypted_guest'] = True
         user_data_str = vc_swc.create_userdata_str(instance_config,

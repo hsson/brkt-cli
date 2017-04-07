@@ -461,6 +461,16 @@ class TestRunEncryption(unittest.TestCase):
         self.assertFalse(self.security_group_deleted)
 
 
+_test_brkt_env = brkt_cli.BracketEnvironment(
+    api_host='api.example.com',
+    api_port=777,
+    hsmproxy_host='hsmproxy.example.com',
+    hsmproxy_port=888,
+    network_host='network.example.com',
+    network_port=999
+)
+
+
 class TestBrktEnv(unittest.TestCase):
 
     def setUp(self):
@@ -479,10 +489,6 @@ class TestBrktEnv(unittest.TestCase):
         """ Test that we parse the brkt_env value and pass the correct
         values to user_data when launching the encryptor instance.
         """
-
-        api_host_port = 'api.example.com:777'
-        hsmproxy_host_port = 'hsmproxy.example.com:888'
-        network_host_port = 'network.example.com:999'
         crypto = CRYPTO_GCM
         aws_svc, encryptor_image, guest_image = build_aws_service()
 
@@ -491,15 +497,15 @@ class TestBrktEnv(unittest.TestCase):
                 brkt_config = self._get_brkt_config_from_mime(args.user_data)
                 d = json.loads(brkt_config)
                 self.assertEquals(
-                    api_host_port,
+                    'api.example.com:777',
                     d['brkt']['api_host']
                 )
                 self.assertEquals(
-                    hsmproxy_host_port,
+                    'hsmproxy.example.com:888',
                     d['brkt']['hsmproxy_host']
                 )
                 self.assertEquals(
-                    network_host_port,
+                    'network.example.com:999',
                     d['brkt']['network_host']
                 )
                 self.assertEquals(
@@ -507,11 +513,9 @@ class TestBrktEnv(unittest.TestCase):
                     d['brkt']['crypto_policy_type']
                 )
 
-        cli_args = '--brkt-env %s,%s,%s' % (api_host_port, hsmproxy_host_port,
-                                         network_host_port)
-        values = instance_config_args_to_values(cli_args)
+        values = instance_config_args_to_values('')
         values.crypto = crypto
-        ic = instance_config_from_values(values)
+        ic = instance_config_from_values(values, brkt_env=_test_brkt_env)
         aws_svc.run_instance_callback = run_instance_callback
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
@@ -535,28 +539,24 @@ class TestBrktEnv(unittest.TestCase):
             crypto_policy=CRYPTO_GCM
         )
 
-        api_host_port = 'api.example.com:777'
-        hsmproxy_host_port = 'hsmproxy.example.com:888'
-        network_host_port = 'network.example.com:999'
-        cli_args = '--brkt-env %s,%s,%s' % (api_host_port, hsmproxy_host_port,
-                                         network_host_port)
-        values = instance_config_args_to_values(cli_args)
-        ic = instance_config_from_values(values, mode=INSTANCE_UPDATER_MODE)
+        values = instance_config_args_to_values('')
+        ic = instance_config_from_values(
+            values, mode=INSTANCE_UPDATER_MODE, brkt_env=_test_brkt_env)
 
         def run_instance_callback(args):
             if args.image_id == encryptor_image.id:
                 brkt_config = self._get_brkt_config_from_mime(args.user_data)
                 d = json.loads(brkt_config)
                 self.assertEquals(
-                    api_host_port,
+                    'api.example.com:777',
                     d['brkt']['api_host']
                 )
                 self.assertEquals(
-                    hsmproxy_host_port,
+                    'hsmproxy.example.com:888',
                     d['brkt']['hsmproxy_host']
                 )
                 self.assertEquals(
-                    network_host_port,
+                    'network.example.com:999',
                     d['brkt']['network_host']
                 )
                 self.assertEquals(
