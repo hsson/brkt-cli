@@ -126,10 +126,13 @@ def _setup_args(subparsers):
     parser = subparsers.add_parser(
         SUBCOMMAND_NAME,
         description=(
-            'Generate a launch token (JSON Web Token) for encrypting an '
-            'instance or launching an encrypted instance. If a signing key is '
-            'not specified, get a token from the Bracket service. '
-            'A timestamp can be either a '
+            'Generate a launch token (JSON Web Token), '
+            'used by the Metavisor to communicate with the Bracket service. '
+            'Users who need fine-grained control of their launch tokens can '
+            'optionally use this command, and pass the generated launch '
+            'token to the encrypt, update, and make-user-data commands. If '
+            'a signing key is not specified, retrieve a launch token from '
+            'the Bracket service. A timestamp can be either a '
             'Unix timestamp in seconds or ISO 8601 (2016-05-10T19:15:36Z). '
             'Timezone offset defaults to UTC if not specified.'),
         help=(
