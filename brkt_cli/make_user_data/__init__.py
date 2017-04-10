@@ -18,7 +18,7 @@ import os
 import re
 
 import brkt_cli
-from brkt_cli import argutil
+from brkt_cli import argutil, crypto
 from brkt_cli import util
 from brkt_cli.instance_config import GuestFile
 from brkt_cli.instance_config import INSTANCE_METAVISOR_MODE
@@ -98,13 +98,17 @@ def make(values, config):
     if values.ssh_public_key_file:
         with open(values.ssh_public_key_file, 'r') as f:
             key_value = (f.read()).strip()
-            brkt_cli.validate_ssh_pub_key(key_value)
+            if not crypto.is_public_key(key_value):
+                raise ValidationError(
+                    '%s is not a public key file' % values.ssh_public_key_file
+                )
             instance_cfg.brkt_config['ssh-public-key'] = key_value
 
     ud = instance_cfg.make_userdata()
     if values.base64:
         ud = base64.b64encode(ud)
     return ud
+
 
 class MakeUserDataSubcommand(Subcommand):
 

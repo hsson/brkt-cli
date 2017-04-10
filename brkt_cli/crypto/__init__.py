@@ -110,6 +110,16 @@ def is_private_key(pem):
     return 'PRIVATE KEY' in pem
 
 
+def is_public_key(key):
+    """ Return True if the given key contents resemble an ssh public
+    key.  This a sanity check for validation of command line arguments, as
+    opposed to a rigorous test that parses the key.
+
+    :param key the public key contents as a string
+    """
+    return 'ssh-' in key or 'ecdsa-' in key
+
+
 def read_private_key(pem_path):
     """ Read a private key from a PEM file.
 

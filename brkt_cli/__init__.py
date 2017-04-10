@@ -24,8 +24,6 @@ import sys
 import tempfile
 from operator import attrgetter
 
-import sshpubkeys
-
 from brkt_cli import brkt_jwt, util, version
 from brkt_cli.config import CLIConfig, CONFIG_PATH
 from brkt_cli.proxy import Proxy, generate_proxy_config, validate_proxy_config
@@ -262,21 +260,6 @@ def validate_jwt(jwt):
         )
 
     return jwt
-
-
-def validate_ssh_pub_key(key):
-    ssh = sshpubkeys.SSHKey(key)
-    try:
-        if ssh.bits > 0:
-            return True
-        else:
-            raise ValidationError(
-                'Invalid public key: %s' % key
-                )
-    except Exception as e:
-        raise ValidationError(
-            'Unable to validate public key: %s' % e.message
-            )
 
 
 def add_brkt_env_to_brkt_config(brkt_env, brkt_config):
