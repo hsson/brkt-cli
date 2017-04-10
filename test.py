@@ -20,8 +20,9 @@ import unittest
 import yaml
 
 import brkt_cli
+import brkt_cli.instance_config_args
 import brkt_cli.util
-from brkt_cli import proxy, version
+from brkt_cli import proxy, version, CLIConfig, instance_config_args
 from brkt_cli.proxy import Proxy
 from brkt_cli.validation import ValidationError
 
@@ -266,7 +267,7 @@ class TestBrktEnv(unittest.TestCase):
         }
         brkt_env = brkt_cli.parse_brkt_env(
             api_host_port + ',' + hsmproxy_host_port + ',' + network_host_port)
-        brkt_cli.add_brkt_env_to_brkt_config(brkt_env, userdata)
+        instance_config_args.add_brkt_env_to_brkt_config(brkt_env, userdata)
         self.assertEqual(userdata, expected_userdata)
 
     def test_brkt_env_from_values(self):
@@ -294,3 +295,8 @@ class TestBrktEnv(unittest.TestCase):
             str(brkt_cli.parse_brkt_env(values.brkt_env)),
             str(brkt_env)
         )
+
+        # Test CLIConfig
+        brkt_env = brkt_cli.brkt_env_from_values(
+            DummyValues(), CLIConfig())
+        self.assertEquals('api.mgmt.brkt.com', brkt_env.public_api_host)

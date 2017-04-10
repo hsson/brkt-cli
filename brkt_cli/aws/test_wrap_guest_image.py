@@ -181,60 +181,23 @@ class TestBrktEnv(unittest.TestCase):
         """ Test that we parse the brkt_env value and pass the correct
         values to user_data when launching the encryptor instance.
         """
+        aws_svc, encryptor_image, guest_image = build_aws_service()
 
         api_host_port = 'api.example.com:777'
         hsmproxy_host_port = 'hsmproxy.example.com:888'
         network_host_port = 'network.example.com:999'
-        aws_svc, encryptor_image, guest_image = build_aws_service()
-
-        def run_instance_callback(args):
-            if args.image_id == encryptor_image.id:
-                brkt_config = self._get_brkt_config_from_mime(args.user_data)
-                d = json.loads(brkt_config)
-                self.assertEquals(
-                    api_host_port,
-                    d['brkt']['api_host']
-                )
-                self.assertEquals(
-                    hsmproxy_host_port,
-                    d['brkt']['hsmproxy_host']
-                )
-                self.assertEquals(
-                    network_host_port,
-                    d['brkt']['network_host']
-                )
-                self.assertEquals(
-                    True,
-                    d['brkt']['allow_unencrypted_guest']
-                )
-
-        cli_args = '--brkt-env %s,%s,%s' % (api_host_port, hsmproxy_host_port,
-                                         network_host_port)
-        values = instance_config_args_to_values(cli_args)
+        values = instance_config_args_to_values('')
         values.unencrypted_guest = True
-        ic = instance_config_from_values(values)
-        aws_svc.run_instance_callback = run_instance_callback
-        wrap_image.launch_wrapped_image(
-            aws_svc=aws_svc,
-            image_id=guest_image.id,
-            metavisor_ami=encryptor_image.id,
-            instance_config=ic
+        brkt_env = brkt_cli.BracketEnvironment(
+            api_host='api.example.com',
+            api_port=777,
+            hsmproxy_host='hsmproxy.example.com',
+            hsmproxy_port=888,
+            network_host='network.example.com',
+            network_port=999
         )
-
-    def test_brkt_env_update(self):
-        """ Test that the Bracket environment is passed through to metavisor
-        user data.
-        """
-        aws_svc, encryptor_image, guest_image = build_aws_service()
-
-        api_host_port = 'api.example.com:777'
-        hsmproxy_host_port = 'hsmproxy.example.com:888'
-        network_host_port = 'network.example.com:999'
-        cli_args = '--brkt-env %s,%s,%s' % (api_host_port, hsmproxy_host_port,
-                                         network_host_port)
-        values = instance_config_args_to_values(cli_args)
-        values.unencrypted_guest = True
-        ic = instance_config_from_values(values, mode=INSTANCE_METAVISOR_MODE)
+        ic = instance_config_from_values(
+            values, mode=INSTANCE_METAVISOR_MODE, brkt_env=brkt_env)
 
         def run_instance_callback(args):
             if args.image_id == encryptor_image.id:

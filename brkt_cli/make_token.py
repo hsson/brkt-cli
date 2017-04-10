@@ -19,7 +19,9 @@ import uuid
 
 import brkt_cli
 import brkt_cli.crypto
-from brkt_cli import brkt_jwt, ValidationError, config, util, argutil
+from brkt_cli import (
+    brkt_jwt, ValidationError, util, argutil, instance_config_args
+)
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.util import parse_timestamp
 
@@ -82,7 +84,10 @@ class MakeTokenSubcommand(Subcommand):
                 raise ValidationError(msg % '--nbf')
 
             # New workflow: get a launch token from Yeti.
-            yeti = config.get_yeti_service(self.config)
+            # TODO: add support for specifying environment on the command
+            # line.
+            brkt_env = self.config.get_current_env()[1]
+            yeti = instance_config_args.get_yeti_service(brkt_env)
             tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
             jwt_string = yeti.get_launch_token(tags=tags)
 

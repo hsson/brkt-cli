@@ -14,17 +14,16 @@
 
 import argparse
 import logging
+import os
 
 import brkt_cli
+import brkt_cli.crypto
 from brkt_cli import (
-    add_brkt_env_to_brkt_config,
-    config,
     encryptor_service,
-    get_proxy_config
-)
+    get_proxy_config,
+    yeti)
 from brkt_cli import argutil
 from brkt_cli import brkt_jwt
-import brkt_cli.crypto
 from brkt_cli.config import CLIConfig
 from brkt_cli.instance_config import (
     InstanceConfig,
@@ -139,49 +138,33 @@ def setup_instance_config_args(parser, parsed_config,
 
 
 def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
-                                cli_config=None, launch_token=None):
+                                brkt_env=None, launch_token=None):
     """ Return an InstanceConfig object, based on options specified on
     the command line and Metavisor mode.
 
     :param values an argparse.Namespace object
     :param mode the mode in which Metavisor is running
-    :param cli_config an brkt_cli.config.CLIConfig instance
+    :param brkt_env a BracketEnvironment object
     :param launch_token the token that Metavisor will use to authenticate
-    with Yeti.  If not specified, use values.token.
+    with Yeti.
     """
     brkt_config = {}
     if not values:
         return InstanceConfig(brkt_config, mode)
 
-    # Handle BracketEnvironment.
-    #
-    # The Yeti endpoints are included in the instance config when either
-    # 1. '--brkt-env' or '--service-domain' are specified at the CLI
-    # 2. 'current-environment' is specified in the CLI Config
-    # 3. mode is 'creator' or 'updater' (the brkt-env is assumed to be the
-    #    Prod Environment if the env wasn't specified by CLI or cli_config)
-    #
-    # I.e., the Yeti endpoints are *not* included in the config when in
-    # metavisor mode and the env is not specified by CLI or cli_config
-    #
-    brkt_env = brkt_cli.brkt_env_from_values(values)
-    if brkt_env is None and cli_config is not None:
-        name, brkt_env = cli_config.get_current_env()
-        log.info('Using %s environment', name)
-        log.debug(brkt_env)
-
     if mode in (INSTANCE_CREATOR_MODE, INSTANCE_UPDATER_MODE):
-        # Require that brkt_env be included for encryption or updating
-        brkt_env = brkt_env or brkt_cli.get_prod_brkt_env()
+        if not brkt_env:
+            raise Exception(
+                'BracketEnvironment is required for %s mode' % mode)
 
         # We only monitor status when encrypting or updating.
         brkt_config['status_port'] = (
             values.status_port or
             encryptor_service.ENCRYPTOR_STATUS_PORT
         )
+
     add_brkt_env_to_brkt_config(brkt_env, brkt_config)
 
-    launch_token = launch_token or values.token
     if launch_token:
         brkt_config['identity_token'] = launch_token
 
@@ -222,6 +205,37 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
     return ic
 
 
+def _get_yeti_service(brkt_env):
+    root_url = 'https://%s:%d' % (
+        brkt_env.public_api_host, brkt_env.public_api_port)
+    token = (
+        os.environ.get('BRKT_API_TOKEN')
+    )
+    return yeti.YetiService(root_url, token=token)
+
+
+def get_yeti_service(brkt_env):
+    """ Return a YetiService object based on the given BracketEnvironment.
+
+    :raise ValidationError if the API token is not set in config, or if
+    authentication with Yeti fails.
+    """
+    y = _get_yeti_service(brkt_env)
+    if not y.token:
+        raise ValidationError(
+            '$BRKT_API_TOKEN is not set. Run brkt auth to get an API token.')
+
+    try:
+        y.get_customer()
+    except yeti.YetiError as e:
+        if e.http_status == 401:
+            raise ValidationError(
+                '$BRKT_API_TOKEN is not authorized to access %s' %
+                y.root_url)
+        raise ValidationError(e.message)
+    return y
+
+
 def get_launch_token(values, cli_config):
     """ Return the launch token either from values.token or from Yeti, in that
     order.  Assume that the values.token and values.brkt_tags fields exist.
@@ -231,7 +245,8 @@ def get_launch_token(values, cli_config):
     token = values.token
     if not token:
         log.debug('Getting launch token from Yeti')
-        y = config.get_yeti_service(cli_config)
+        brkt_env = brkt_cli.brkt_env_from_values(values, cli_config)
+        y = get_yeti_service(brkt_env)
         tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
         token = y.get_launch_token(tags=tags)
 
@@ -253,3 +268,21 @@ def instance_config_args_to_values(cli_args, mode=INSTANCE_CREATOR_MODE):
     setup_instance_config_args(parser, config, mode)
     argv = cli_args.split()
     return parser.parse_args(argv)
+
+
+def add_brkt_env_to_brkt_config(brkt_env, brkt_config):
+    """ Add BracketEnvironment values to the config dictionary
+    that will be passed to the metavisor via userdata.
+
+    :param brkt_env a BracketEnvironment object
+    :param brkt_config a dictionary that contains configuration data
+    """
+    if brkt_env:
+        api_host_port = '%s:%d' % (brkt_env.api_host, brkt_env.api_port)
+        hsmproxy_host_port = '%s:%d' % (
+            brkt_env.hsmproxy_host, brkt_env.hsmproxy_port)
+        network_host_port = '%s:%d' % (
+            brkt_env.network_host, brkt_env.network_port)
+        brkt_config['api_host'] = api_host_port
+        brkt_config['hsmproxy_host'] = hsmproxy_host_port
+        brkt_config['network_host'] = network_host_port

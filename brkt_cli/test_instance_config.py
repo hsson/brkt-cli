@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import json
+import os
 import tempfile
 import unittest
 
 import brkt_cli
 from brkt_cli import (
-    proxy)
+    proxy, instance_config_args)
 from brkt_cli.config import CLIConfig
 from brkt_cli.instance_config import (
     BRKT_CONFIG_CONTENT_TYPE,
@@ -159,10 +160,14 @@ class TestInstanceConfig(unittest.TestCase):
         """
 
 
+PROD_ENV = brkt_cli.get_prod_brkt_env()
+
+
 def _get_brkt_config_for_cli_args(cli_args='', mode=INSTANCE_CREATOR_MODE,
-                                  cli_config=None):
+                                  brkt_env=PROD_ENV, launch_token=None):
     values = instance_config_args_to_values(cli_args)
-    ic = instance_config_from_values(values, mode=mode, cli_config=cli_config)
+    ic = instance_config_from_values(
+        values, mode=mode, brkt_env=brkt_env, launch_token=launch_token)
     ud = ic.make_userdata()
     brkt_config_json = get_mime_part_payload(ud, BRKT_CONFIG_CONTENT_TYPE)
     brkt_config = json.loads(brkt_config_json)['brkt']
@@ -172,17 +177,17 @@ def _get_brkt_config_for_cli_args(cli_args='', mode=INSTANCE_CREATOR_MODE,
 class TestInstanceConfigFromCliArgs(unittest.TestCase):
 
     def test_brkt_env(self):
-        cli_args = '--brkt-env %s,%s,%s' % (
+        env_string = '%s,%s,%s' % (
             api_host_port, hsmproxy_host_port, network_host_port)
-        brkt_config = _get_brkt_config_for_cli_args(cli_args)
+        brkt_env = brkt_cli.parse_brkt_env(env_string)
+        brkt_config = _get_brkt_config_for_cli_args(brkt_env=brkt_env)
         self.assertEqual(brkt_config['api_host'], api_host_port)
         self.assertEqual(brkt_config['hsmproxy_host'], hsmproxy_host_port)
         self.assertEqual(brkt_config['network_host'], network_host_port)
 
     def test_service_domain(self):
-        brkt_config = _get_brkt_config_for_cli_args(
-            '--service-domain example.com'
-        )
+        brkt_env = brkt_cli.brkt_env_from_domain('example.com')
+        brkt_config = _get_brkt_config_for_cli_args(brkt_env=brkt_env)
         self.assertEqual(brkt_config['api_host'], 'yetiapi.example.com:443')
         self.assertEqual(
             brkt_config['hsmproxy_host'], 'hsmproxy.example.com:443')
@@ -193,23 +198,17 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
         """ Test that Yeti endpoints aren't set when they're not specified
         on the command line.
         """
-        prod_env = brkt_cli.get_prod_brkt_env()
 
-        # In creator and updater mode, we default to prod.
+        # Verify that we require BracketEnvironment for creator and
+        # updater mode.
         for mode in (INSTANCE_CREATOR_MODE, INSTANCE_UPDATER_MODE):
-            brkt_config = _get_brkt_config_for_cli_args(mode=mode)
-            self.assertEqual(
-                '%s:%d' % (prod_env.api_host, prod_env.api_port),
-                brkt_config.get('api_host')
-            )
-            self.assertEqual(
-                '%s:%d' % (prod_env.hsmproxy_host, prod_env.hsmproxy_port),
-                brkt_config.get('hsmproxy_host')
-            )
+            with self.assertRaises(Exception):
+                values = instance_config_args_to_values('', mode=mode)
+                instance_config_from_values(values)
 
-        # In metavisor mode, we don't default the environment.
+        # BracketEnvironment isn't required in Metavisor mode.
         brkt_config = _get_brkt_config_for_cli_args(
-            mode=INSTANCE_METAVISOR_MODE)
+            mode=INSTANCE_METAVISOR_MODE, brkt_env=None)
         self.assertIsNone(brkt_config.get('api_host'))
         self.assertIsNone(brkt_config.get('hsmproxy_host'))
         self.assertIsNone(brkt_config.get('network_host'))
@@ -224,7 +223,7 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
         config.set_current_env('test')
         for mode in (INSTANCE_CREATOR_MODE, INSTANCE_UPDATER_MODE):
             brkt_config = _get_brkt_config_for_cli_args(
-                mode=mode, cli_config=config)
+                mode=mode, brkt_env=env)
             for attr in ('api', 'hsmproxy', 'network'):
                 endpoint = '%s:%d' % (
                     getattr(env, attr + '_host'),
@@ -244,15 +243,26 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
         self.assertEqual(server_list, [ntp_server1, ntp_server2])
 
     def test_jwt(self):
-        cli_args = '--token %s' % test_jwt
-        brkt_config = _get_brkt_config_for_cli_args(cli_args)
-        self.assertEqual(brkt_config['identity_token'], test_jwt)
+        brkt_config = _get_brkt_config_for_cli_args(launch_token='abc')
+        self.assertEqual(brkt_config['identity_token'], 'abc')
 
     def test_proxy_config(self):
         cli_args = '--proxy %s' % (proxy_host_port)
         values = instance_config_args_to_values(cli_args)
-        ic = instance_config_from_values(values)
+        ic = instance_config_from_values(values, brkt_env=PROD_ENV)
         _verify_proxy_config_in_userdata(self, ic.make_userdata())
+
+    def _check_brkt_files(self, mv_mode, cli_args, brkt_files_start,
+                          brkt_env):
+        values = instance_config_args_to_values(cli_args)
+        ic = instance_config_from_values(
+            values, mode=mv_mode, brkt_env=brkt_env)
+        ud = ic.make_userdata()
+        brkt_files = get_mime_part_payload(ud, BRKT_FILES_CONTENT_TYPE)
+        self.assertTrue(
+            brkt_files.startswith(brkt_files_start),
+            msg='%s does not start with %s' % (brkt_files, brkt_files_start)
+        )
 
     def test_ca_cert(self):
         domain = 'dummy.foo.com'
@@ -260,10 +270,12 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
         cli_args = '--ca-cert dummy.crt'
         values = instance_config_args_to_values(cli_args)
         with self.assertRaises(ValidationError):
-            ic = instance_config_from_values(values)
+            instance_config_from_values(values, brkt_env=PROD_ENV)
 
-        endpoint_args = ('--brkt-env api.%s:7777,hsmproxy.%s:8888,' +
-                         'network.%s:9999') % (domain, domain, domain)
+        brkt_env_string = 'api.%s:7777,hsmproxy.%s:8888,network.%s:9999' % (
+            domain, domain, domain)
+        endpoint_args = '--brkt-env ' + brkt_env_string
+        dummy_env = brkt_cli.parse_brkt_env(brkt_env_string)
 
         if brkt_cli.crypto.cryptography_library_available:
             # Now specify endpoint args but use a bogus cert.  Validation
@@ -276,7 +288,7 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
                 cli_args = endpoint_args + ' --ca-cert %s' % f.name
                 values = instance_config_args_to_values(cli_args)
                 with self.assertRaises(ValidationError):
-                    ic = instance_config_from_values(values)
+                    instance_config_from_values(values, brkt_env=PROD_ENV)
 
         # Now use endpoint args and a valid cert, with all three modes
         with tempfile.NamedTemporaryFile() as f:
@@ -284,18 +296,52 @@ class TestInstanceConfigFromCliArgs(unittest.TestCase):
             f.flush()
             cli_args = endpoint_args + ' --ca-cert %s' % f.name
 
-            all_modes = [INSTANCE_METAVISOR_MODE, INSTANCE_UPDATER_MODE,
-                         INSTANCE_CREATOR_MODE]
-            for mode in all_modes:
-                values = instance_config_args_to_values(cli_args)
-                ic = instance_config_from_values(values, mode=mode)
-                ud = ic.make_userdata()
-                brkt_files = get_mime_part_payload(ud, BRKT_FILES_CONTENT_TYPE)
-                if mode is INSTANCE_METAVISOR_MODE:
-                    self.assertTrue(brkt_files.startswith(
-                        "/var/brkt/instance_config/ca_cert.pem.dummy.foo.com: " +
-                        "{contents: '-----BEGIN CERTIFICATE-----"))
-                else:
-                    self.assertTrue(brkt_files.startswith(
-                        "/var/brkt/ami_config/ca_cert.pem.dummy.foo.com: " +
-                        "{contents: '-----BEGIN CERTIFICATE-----"))
+            mv_mode_start = (
+                "/var/brkt/instance_config/ca_cert.pem.dummy.foo.com: "
+                "{contents: '-----BEGIN CERTIFICATE-----"
+            )
+            creator_updater_start = (
+                "/var/brkt/ami_config/ca_cert.pem.dummy.foo.com: " +
+                "{contents: '-----BEGIN CERTIFICATE-----"
+            )
+            self._check_brkt_files(
+                INSTANCE_METAVISOR_MODE,
+                cli_args,
+                mv_mode_start,
+                dummy_env
+            )
+            self._check_brkt_files(
+                INSTANCE_CREATOR_MODE,
+                cli_args,
+                creator_updater_start,
+                dummy_env
+            )
+            self._check_brkt_files(
+                INSTANCE_UPDATER_MODE,
+                cli_args,
+                creator_updater_start,
+                dummy_env
+            )
+
+
+class YetiServiceTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.original_token = os.environ.get('BRKT_API_TOKEN')
+
+    def tearDown(self):
+        if self.original_token:
+            os.environ['BRKT_API_TOKEN'] = self.original_token
+        else:
+            del os.environ['BRKT_API_TOKEN']
+
+    def test_get_yeti_service(self):
+        brkt_env = brkt_cli.get_prod_brkt_env()
+        y = instance_config_args._get_yeti_service(brkt_env)
+        self.assertEqual('https://api.mgmt.brkt.com:443', y.root_url)
+        self.assertEqual(self.original_token, y.token)
+
+        # Make sure the API token environment variable is picked up.
+        os.environ['BRKT_API_TOKEN'] = 'abc'
+        y = instance_config_args._get_yeti_service(brkt_env)
+        self.assertEqual('abc', y.token)

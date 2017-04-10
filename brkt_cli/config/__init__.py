@@ -27,7 +27,6 @@ import brkt_cli
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.util import parse_endpoint, render_table_rows
 from brkt_cli.validation import ValidationError
-from brkt_cli.yeti import YetiError, YetiService
 
 log = logging.getLogger(__name__)
 
@@ -340,36 +339,6 @@ class CLIConfig(object):
         except:
             _unlink_noraise(f.name)
             raise
-
-
-def _get_yeti_service(parsed_config):
-    _, env = parsed_config.get_current_env()
-    root_url = 'https://%s:%d' % (
-        env.public_api_host, env.public_api_port)
-    token = os.environ.get('BRKT_API_TOKEN')
-    return YetiService(root_url, token=token)
-
-
-def get_yeti_service(parsed_config):
-    """ Return a YetiService object based on the given CLIConfig.
-
-    :raise ValidationError if the API token is not set in config, or if
-    authentication with Yeti fails.
-    """
-    y = _get_yeti_service(parsed_config)
-    if not y.token:
-        raise ValidationError(
-            '$BRKT_API_TOKEN is not set. Run brkt auth to get an API token.')
-
-    try:
-        y.get_customer()
-    except YetiError as e:
-        if e.http_status == 401:
-            raise ValidationError(
-                '$BRKT_API_TOKEN is not authorized to access %s' %
-                y.root_url)
-        raise ValidationError(e.message)
-    return y
 
 
 class ConfigSubcommand(Subcommand):

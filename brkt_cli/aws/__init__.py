@@ -220,11 +220,12 @@ def run_wrap_image(values, config, verbose=False):
         _validate(aws_svc, values, metavisor_ami)
         brkt_cli.validate_ntp_servers(values.ntp_servers)
 
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_METAVISOR_MODE,
-        cli_config=config,
+        brkt_env=brkt_env,
         launch_token=lt)
 
     instance_id = wrap_image.launch_wrapped_image(
@@ -255,10 +256,6 @@ def run_encrypt(values, config, verbose=False):
     log.debug(
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
-
-    brkt_env = brkt_cli.brkt_env_from_values(values)
-    if not brkt_env:
-        _, brkt_env = config.get_current_env()
 
     if values.validate:
         # Validate the region before connecting.
@@ -301,12 +298,14 @@ def run_encrypt(values, config, verbose=False):
                 crypto_policy, mv_image.name
             )
 
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_CREATOR_MODE,
-        cli_config=config,
-        launch_token=lt)
+        brkt_env=brkt_env,
+        launch_token=lt
+    )
 
     if verbose:
         with tempfile.NamedTemporaryFile(
@@ -350,10 +349,6 @@ def run_update(values, config, verbose=False):
     log.debug(
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
-
-    brkt_env = brkt_cli.brkt_env_from_values(values)
-    if not brkt_env:
-        _, brkt_env = config.get_current_env()
 
     if values.validate:
         # Validate the region before connecting.
@@ -408,11 +403,12 @@ def run_update(values, config, verbose=False):
         encrypted_image.id, encryptor_ami
     )
 
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
         values,
         mode=INSTANCE_UPDATER_MODE,
-        cli_config=config,
+        brkt_env=brkt_env,
         launch_token=lt
     )
     if verbose:

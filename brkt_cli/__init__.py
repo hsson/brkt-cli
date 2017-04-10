@@ -155,15 +155,18 @@ def get_prod_brkt_env():
     return brkt_env_from_domain('mgmt.brkt.com')
 
 
-def brkt_env_from_values(values):
+def brkt_env_from_values(values, cli_config=None):
     """ Return a BracketEnvironment object based on options specified
-    on the command line.  If the environment was not specified with
-    --service-domain or --brkt-env, return None.
+    by the --service-domain or --brkt-env options.  If the environment was
+    not specified on the command line, return the default environment from
+    the CLIConfig, or None.
     """
     if values.service_domain:
         return brkt_env_from_domain(values.service_domain)
     elif values.brkt_env:
         return parse_brkt_env(values.brkt_env)
+    elif cli_config:
+        return cli_config.get_current_env()[1]
     else:
         return None
 
@@ -260,24 +263,6 @@ def validate_jwt(jwt):
         )
 
     return jwt
-
-
-def add_brkt_env_to_brkt_config(brkt_env, brkt_config):
-    """ Add BracketEnvironment values to the config dictionary
-    that will be passed to the metavisor via userdata.
-
-    :param brkt_env a BracketEnvironment object
-    :param brkt_config a dictionary that contains configuration data
-    """
-    if brkt_env:
-        api_host_port = '%s:%d' % (brkt_env.api_host, brkt_env.api_port)
-        hsmproxy_host_port = '%s:%d' % (
-            brkt_env.hsmproxy_host, brkt_env.hsmproxy_port)
-        network_host_port = '%s:%d' % (
-            brkt_env.network_host, brkt_env.network_port)
-        brkt_config['api_host'] = api_host_port
-        brkt_config['hsmproxy_host'] = hsmproxy_host_port
-        brkt_config['network_host'] = network_host_port
 
 
 class SortingHelpFormatter(argparse.HelpFormatter):
