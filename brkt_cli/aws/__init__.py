@@ -25,8 +25,6 @@ import brkt_cli
 from brkt_cli import encryptor_service, util
 from brkt_cli.aws import (
     aws_service,
-    diag,
-    diag_args,
     encrypt_ami,
     encrypt_ami_args,
     wrap_image,
@@ -103,58 +101,6 @@ def _handle_aws_errors(func):
 
 
 @_handle_aws_errors
-def run_diag(values):
-    nonce = util.make_nonce()
-
-    aws_svc = aws_service.AWSService(
-        nonce,
-        retry_timeout=values.retry_timeout,
-        retry_initial_sleep_seconds=values.retry_initial_sleep_seconds
-    )
-    log.debug(
-        'Retry timeout=%.02f, initial sleep seconds=%.02f',
-        aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
-
-    if values.snapshot_id and values.instance_id:
-        raise ValidationError("Only one of --instance-id or --snapshot-id "
-                              "may be specified")
-
-    if not values.snapshot_id and not values.instance_id:
-        raise ValidationError("--instance-id or --snapshot-id "
-                              "must be specified")
-
-    if values.validate:
-        # Validate the region before connecting.
-        region_names = [r.name for r in aws_svc.get_regions()]
-        if values.region not in region_names:
-            raise ValidationError(
-                'Invalid region %s.  Supported regions: %s.' %
-                (values.region, ', '.join(region_names)))
-
-    aws_svc.connect(values.region, key_name=values.key_name)
-    default_tags = {}
-    tags = merge_aws_tags(values.tags, values.aws_tags)
-    default_tags.update(brkt_cli.parse_tags(tags))
-    aws_svc.default_tags = default_tags
-
-    if values.validate:
-        if values.key_name:
-            aws_svc.get_key_pair(values.key_name)
-        _validate_subnet_and_security_groups(
-            aws_svc, values.subnet_id, values.security_group_ids)
-    else:
-        log.info('Skipping validation.')
-
-    diag.diag(
-        aws_svc,
-        instance_id=values.instance_id,
-        snapshot_id=values.snapshot_id,
-        ssh_keypair=values.key_name
-    )
-    return 0
-
-
-@_handle_aws_errors
 def run_share_logs(values):
     nonce = util.make_nonce()
 
@@ -184,12 +130,16 @@ def run_share_logs(values):
                 (values.region, ', '.join(region_names)))
 
     aws_svc.connect(values.region)
+    logs_svc = share_logs.ShareLogsService()
 
     share_logs.share(
         aws_svc,
+        logs_svc,
         instance_id=values.instance_id,
         snapshot_id=values.snapshot_id,
-        bracket_aws_account=values.bracket_aws_account
+        region=values.region,
+        bucket=values.bucket,
+        path=values.path
     )
     return 0
 
@@ -230,7 +180,7 @@ def run_wrap_image(values, config, verbose=False):
 
     instance_id = wrap_image.launch_wrapped_image(
         aws_svc=aws_svc,
-        image_id = guest_image.id,
+        image_id=guest_image.id,
         metavisor_ami=metavisor_ami,
         wrapped_instance_name=values.wrapped_instance_name,
         subnet_id=values.subnet_id,
@@ -467,18 +417,6 @@ class AWSSubcommand(Subcommand):
             metavar='{encrypt,update,wrap-guest-image}'
         )
 
-        diag_parser = aws_subparsers.add_parser(
-            # Don't specify the help field.  This is an internal command
-            # which shouldn't show up in usage output.
-            'diag',
-            description=(
-                'Create instance to diagnose an existing encrypted instance.'
-            ),
-            formatter_class=brkt_cli.SortingHelpFormatter
-        )
-        diag_args.setup_diag_args(diag_parser, parsed_config)
-        diag_parser.set_defaults(aws_subcommand='diag')
-
         encrypt_ami_parser = aws_subparsers.add_parser(
             'encrypt',
             description='Create an encrypted AMI from an existing AMI.',
@@ -544,8 +482,6 @@ class AWSSubcommand(Subcommand):
         if values.aws_subcommand == 'update':
             verbose = brkt_cli.is_verbose(values, self)
             return run_update(values, self.config, verbose=verbose)
-        if values.aws_subcommand == 'diag':
-            return run_diag(values)
         if values.aws_subcommand == 'share-logs':
             return run_share_logs(values)
         if values.aws_subcommand == 'wrap-guest-image':

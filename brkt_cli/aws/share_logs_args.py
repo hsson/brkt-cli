@@ -29,22 +29,33 @@ def setup_share_logs_args(parser, parsed_config):
         dest='instance_id',
         help='The instance with Bracket system logs to be shared'
     )
+    parser.add_argument(
+        '--region',
+        metavar='NAME',
+        dest='region',
+        help='The region of the instance(e.g. us-west-2)',
+        required=True
+    )
+    parser.add_argument(
+        '--bucket',
+        metavar='NAME',
+        dest='bucket',
+        help='Bucket that logs file is uploaded to',
+        required=True
+    )
+    parser.add_argument(
+        '--log-path',
+        metavar='PATH',
+        dest='path',
+        help='PATH in bucket to store logs file',
+        default='logs.tar.gz'
+    )
     aws_args.add_no_validate(parser)
-    aws_args.add_region(parser, parsed_config)
     parser.add_argument(
         '-v',
         '--verbose',
         dest='aws_verbose',
         action='store_true',
-        help=argparse.SUPPRESS
-    )
-    # Hidden argument to specify AWS account to share account with - used
-    # for developer testing
-    parser.add_argument(
-        '--bracket-aws-account',
-        metavar='ID',
-        dest='bracket_aws_account',
-        default=164337164081,
         help=argparse.SUPPRESS
     )
     aws_args.add_retry_timeout(parser)

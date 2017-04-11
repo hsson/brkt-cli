@@ -16,9 +16,10 @@ import abc
 import logging
 import re
 import ssl
+import time
+
 import string
 import tempfile
-import time
 from datetime import datetime
 
 import boto
@@ -202,7 +203,7 @@ class BaseAWSService(object):
 
     @abc.abstractmethod
     def modify_instance_attribute(self, instance_id, attribute,
-                               value, dry_run=False):
+        value, dry_run=False):
         pass
 
     @abc.abstractmethod
