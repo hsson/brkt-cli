@@ -11,7 +11,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import argparse
 import logging
 
 import brkt_cli.crypto
@@ -50,16 +49,6 @@ class GetPublicKeySubcommand(Subcommand):
                 'OpenSSL PEM format'
             )
         )
-        parser.add_argument(
-            '-v',
-            '--verbose',
-            dest='make_private_key_verbose',
-            action='store_true',
-            help=argparse.SUPPRESS
-        )
-
-    def verbose(self, values):
-        return values.make_private_key_verbose
 
     def run(self, values):
         crypto = brkt_cli.crypto.read_private_key(values.private_key_path)

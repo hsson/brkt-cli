@@ -12,7 +12,6 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import json
 import logging
 import uuid
@@ -41,9 +40,6 @@ class MakeTokenSubcommand(Subcommand):
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
         _setup_args(subparsers, parsed_config)
-
-    def verbose(self, values):
-        return values.make_jwt_verbose
 
     def run(self, values):
         # The signing_key field doesn't exist if cryptography isn't
@@ -183,10 +179,3 @@ def _setup_args(subparsers, parsed_config):
         help='Token is not valid before this time'
     )
     argutil.add_out(parser)
-    parser.add_argument(
-        '-v',
-        '--verbose',
-        dest='make_jwt_verbose',
-        action='store_true',
-        help=argparse.SUPPRESS
-    )
