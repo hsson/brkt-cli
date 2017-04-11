@@ -61,15 +61,7 @@ class AuthSubcommand(Subcommand):
             help='If not specified, show a prompt.'
         )
 
-        _, env = parsed_config.get_current_env()
-        default_url = 'https://%s:%d' % (
-            env.public_api_host, env.public_api_port)
-        parser.add_argument(
-            '--root-url',
-            metavar='URL',
-            default=default_url,
-            help='Bracket service root URL'
-        )
+        argutil.add_root_url(parser, parsed_config)
         argutil.add_out(parser)
 
     def run(self, values):
