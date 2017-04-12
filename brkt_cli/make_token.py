@@ -46,9 +46,18 @@ class MakeTokenSubcommand(Subcommand):
         return values.make_jwt_verbose
 
     def run(self, values):
-        # The signing_key field doesn't exist if cryptography isn't
-        # installed.
-        signing_key = getattr(values, 'signing_key', None)
+        if values.signing_key_option:
+            log.warn(
+                'The --signing-key option is deprecated and will be removed '
+                'in a future release.'
+            )
+
+        signing_key = (
+            # The signing_key field doesn't exist if cryptography isn't
+            # installed.
+            getattr(values, 'signing_key', None) or
+            values.signing_key_option
+        )
         if signing_key:
             # Original workflow: create a launch token from a private key.
             if not brkt_cli.crypto.cryptography_library_available:
@@ -188,5 +197,14 @@ def _setup_args(subparsers, parsed_config):
         '--verbose',
         dest='make_jwt_verbose',
         action='store_true',
+        help=argparse.SUPPRESS
+    )
+
+    # The signing key is now passed as a positional argument.  This option
+    # is deprecated and will be removed in a future release.
+    parser.add_argument(
+        '--signing-key',
+        dest='signing_key_option',
+        metavar='PATH',
         help=argparse.SUPPRESS
     )
