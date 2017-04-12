@@ -186,7 +186,7 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def validate_vcenter_params(self):
+    def validate_vcenter_params(self, use_esx=False):
         pass
 
     @abc.abstractmethod
@@ -468,7 +468,7 @@ class VCenterService(BaseVCenterService):
                 raise Exception('Task failed to finish with error %s' %
                                 task.info.error)
 
-    def validate_vcenter_params(self):
+    def validate_vcenter_params(self, use_esx=False):
         content = self.si.RetrieveContent()
         if self.datacenter_name:
             datacenter = self.__get_obj(content, [vim.Datacenter],
@@ -488,6 +488,8 @@ class VCenterService(BaseVCenterService):
             if not cluster:
                 raise ValidationError("Cluster %s not found",
                                       self.cluster_name)
+        elif not use_esx:
+            raise ValidationError("Cluster name required when using vCenter")
 
     def find_vm(self, vm_name):
         self.validate_connection()
