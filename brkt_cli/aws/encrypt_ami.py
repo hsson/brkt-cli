@@ -439,7 +439,7 @@ def _register_ami(aws_svc, encryptor_instance, encryptor_image, name,
 
 def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             encrypted_ami_name=None, subnet_id=None, security_group_ids=None,
-            guest_instance_type='m3.medium', instance_config=None,
+            guest_instance_type='m4.large', instance_config=None,
             save_encryptor_logs=True,
             status_port=encryptor_service.ENCRYPTOR_STATUS_PORT,
             terminate_encryptor_on_failure=True):

@@ -53,8 +53,8 @@ log = logging.getLogger(__name__)
 def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
                subnet_id=None, security_group_ids=None,
                enc_svc_class=encryptor_service.EncryptorService,
-               guest_instance_type='m3.medium',
-               updater_instance_type='m3.medium',
+               guest_instance_type='m4.large',
+               updater_instance_type='m4.large',
                instance_config=None,
                status_port=encryptor_service.ENCRYPTOR_STATUS_PORT):
     encrypted_guest = None

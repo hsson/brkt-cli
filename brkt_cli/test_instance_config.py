@@ -337,11 +337,11 @@ class YetiServiceTestCase(unittest.TestCase):
 
     def test_get_yeti_service(self):
         brkt_env = brkt_cli.get_prod_brkt_env()
-        y = instance_config_args._get_yeti_service(brkt_env)
+        y = instance_config_args._yeti_service_from_brkt_env(brkt_env)
         self.assertEqual('https://api.mgmt.brkt.com:443', y.root_url)
         self.assertEqual(self.original_token, y.token)
 
         # Make sure the API token environment variable is picked up.
         os.environ['BRKT_API_TOKEN'] = 'abc'
-        y = instance_config_args._get_yeti_service(brkt_env)
+        y = instance_config_args._yeti_service_from_brkt_env(brkt_env)
         self.assertEqual('abc', y.token)

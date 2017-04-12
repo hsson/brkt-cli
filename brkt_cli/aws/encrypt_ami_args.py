@@ -40,7 +40,7 @@ def setup_encrypt_ami_args(parser, parsed_config):
         help=(
             'The instance type to use when running the unencrypted guest '
             'instance'),
-        default='m3.medium'
+        default='m4.large'
     )
     aws_args.add_no_validate(parser)
     aws_args.add_region(parser, parsed_config)

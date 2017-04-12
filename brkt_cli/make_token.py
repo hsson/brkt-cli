@@ -40,24 +40,15 @@ class MakeTokenSubcommand(Subcommand):
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
-        _setup_args(subparsers)
+        _setup_args(subparsers, parsed_config)
 
     def verbose(self, values):
         return values.make_jwt_verbose
 
     def run(self, values):
-        if values.signing_key_option:
-            log.warn(
-                'The --signing-key option is deprecated and will be removed '
-                'in a future release.'
-            )
-
-        signing_key = (
-            # The signing_key field doesn't exist if cryptography isn't
-            # installed.
-            getattr(values, 'signing_key', None) or
-            values.signing_key_option
-        )
+        # The signing_key field doesn't exist if cryptography isn't
+        # installed.
+        signing_key = getattr(values, 'signing_key', None)
         if signing_key:
             # Original workflow: create a launch token from a private key.
             if not brkt_cli.crypto.cryptography_library_available:
@@ -84,10 +75,13 @@ class MakeTokenSubcommand(Subcommand):
                 raise ValidationError(msg % '--nbf')
 
             # New workflow: get a launch token from Yeti.
-            # TODO: add support for specifying environment on the command
-            # line.
-            brkt_env = self.config.get_current_env()[1]
-            yeti = instance_config_args.get_yeti_service(brkt_env)
+            if values.root_url:
+                yeti = instance_config_args.get_yeti_service(values.root_url)
+            else:
+                brkt_env = self.config.get_current_env()[1]
+                yeti = instance_config_args.yeti_service_from_brkt_env(
+                    brkt_env)
+
             tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
             jwt_string = yeti.get_launch_token(tags=tags)
 
@@ -127,7 +121,7 @@ def _make_jwt_from_signing_key(values, signing_key):
     )
 
 
-def _setup_args(subparsers):
+def _setup_args(subparsers, parsed_config):
     parser = subparsers.add_parser(
         SUBCOMMAND_NAME,
         description=(
@@ -158,6 +152,8 @@ def _setup_args(subparsers):
         )
 
     argutil.add_brkt_tag(parser)
+    argutil.add_root_url(parser, parsed_config)
+
     parser.add_argument(
         '--claim',
         metavar='NAME=VALUE',
@@ -192,14 +188,5 @@ def _setup_args(subparsers):
         '--verbose',
         dest='make_jwt_verbose',
         action='store_true',
-        help=argparse.SUPPRESS
-    )
-
-    # The signing key is now passed as a positional argument.  This option
-    # is deprecated and will be removed in a future release.
-    parser.add_argument(
-        '--signing-key',
-        dest='signing_key_option',
-        metavar='PATH',
         help=argparse.SUPPRESS
     )

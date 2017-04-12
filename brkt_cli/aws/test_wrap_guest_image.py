@@ -125,15 +125,15 @@ class TestRunEncryption(unittest.TestCase):
         self.assertTrue(self.security_group_was_created)
 
     def test_default_instance_type(self):
-        """ Test that we launch the wrapped guest as m3.medium by default
+        """ Test that we launch the wrapped guest as m4.large by default
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
 
         def run_instance_callback(args):
             if args.image_id == guest_image.id:
-                self.assertEqual('m3.medium', args.instance_type)
+                self.assertEqual('m4.large', args.instance_type)
             elif args.image_id == encryptor_image.id:
-                self.assertEqual('m3.medium', args.instance_type)
+                self.assertEqual('m4.large', args.instance_type)
             else:
                 self.fail('Unexpected image id: ' + args.image_id)
 
