@@ -108,7 +108,7 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
 
         # Launch new instance, with volume and startup script
         new_instance = aws_svc.run_instance(
-            image_id, instance_type='m3.medium', block_device_map=bdm,
+            image_id, instance_type='m4.large', block_device_map=bdm,
             user_data=amzn, ebs_optimized=False)
 
         # wait for instance to launch
