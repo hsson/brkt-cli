@@ -38,3 +38,17 @@ def add_brkt_tag(parser):
             'be a JWT registered claim name (see RFC 7519).'),
         action='append'
     )
+
+
+def add_root_url(parser, cli_config):
+    """ Add the --root-url argument, for specifying the Yeti public API
+    endpoint. """
+    _, env = cli_config.get_current_env()
+    default_url = 'https://%s:%d' % (
+        env.public_api_host, env.public_api_port)
+    parser.add_argument(
+        '--root-url',
+        metavar='URL',
+        default=default_url,
+        help='Bracket service root URL'
+    )
