@@ -102,7 +102,7 @@ def create_instance_security_group(aws_svc, vpc_id=None):
 
 def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
                          wrapped_instance_name=None, subnet_id=None,
-                         security_group_ids=None, instance_type='m3.medium',
+                         security_group_ids=None, instance_type='m4.large',
                          instance_config=None):
     temp_sg_id = None
     guest_image = aws_svc.get_image(image_id)

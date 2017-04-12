@@ -75,7 +75,7 @@ class BaseAWSService(object):
     def run_instance(self,
                      image_id,
                      security_group_ids=None,
-                     instance_type='c3.xlarge',
+                     instance_type='c4.xlarge',
                      placement=None,
                      block_device_map=None,
                      subnet_id=None,
@@ -310,7 +310,7 @@ class AWSService(BaseAWSService):
     def run_instance(self,
                      image_id,
                      security_group_ids=None,
-                     instance_type='c3.xlarge',
+                     instance_type='c4.xlarge',
                      placement=None,
                      block_device_map=None,
                      subnet_id=None,
@@ -737,7 +737,7 @@ def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=\
 
 
 def run_guest_instance(aws_svc, image_id, subnet_id=None,
-                       instance_type='m3.medium'):
+                       instance_type='m4.large'):
     instance = None
 
     try:

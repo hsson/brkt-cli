@@ -257,17 +257,17 @@ class TestRunEncryption(unittest.TestCase):
         self.assertTrue(self.security_group_was_created)
 
     def test_instance_type(self):
-        """ Test that we launch the guest as m3.medium and the encryptor
-        as c3.xlarge.
+        """ Test that we launch the guest as m4.large and the encryptor
+        as c4.xlarge.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
 
         def run_instance_callback(args):
             if args.image_id == guest_image.id:
-                self.assertEqual('m3.medium', args.instance_type)
+                self.assertEqual('m4.large', args.instance_type)
                 self.assertFalse(args.ebs_optimized)
             elif args.image_id == encryptor_image.id:
-                self.assertEqual('c3.xlarge', args.instance_type)
+                self.assertEqual('c4.xlarge', args.instance_type)
                 self.assertTrue(args.ebs_optimized)
             else:
                 self.fail('Unexpected image id: ' + args.image_id)

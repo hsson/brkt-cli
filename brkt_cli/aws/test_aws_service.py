@@ -103,7 +103,7 @@ class DummyAWSService(aws_service.BaseAWSService):
     def run_instance(self,
                      image_id,
                      security_group_ids=None,
-                     instance_type='c3.xlarge',
+                     instance_type='c4.xlarge',
                      placement=None,
                      block_device_map=None,
                      subnet_id=None,

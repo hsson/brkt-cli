@@ -34,7 +34,7 @@ def setup_wrap_image_args(parser, parsed_config):
         metavar='TYPE',
         dest='instance_type',
         help='The instance type to use when launching the wrapped image',
-        default='m3.medium'
+        default='m4.large'
     )
     aws_args.add_no_validate(parser)
     aws_args.add_region(parser, parsed_config)

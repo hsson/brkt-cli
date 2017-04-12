@@ -34,19 +34,16 @@ def setup_update_encrypted_ami(parser, parsed_config):
         '--guest-instance-type',
         metavar='TYPE',
         dest='guest_instance_type',
-        help=(
-            'The instance type to use when running the encrypted guest '
-            'instance. Default: m3.medium'),
-        default='m3.medium'
+        help='The instance type to use when running the encrypted guest '
+             'instance',
+        default='m4.large'
     )
     parser.add_argument(
         '--updater-instance-type',
         metavar='TYPE',
         dest='updater_instance_type',
-        help=(
-            'The instance type to use when running the updater '
-            'instance. Default: m3.medium'),
-        default='m3.medium'
+        help='The instance type to use when running the updater instance',
+        default='m4.large'
     )
     aws_args.add_no_validate(parser)
     aws_args.add_region(parser, parsed_config)

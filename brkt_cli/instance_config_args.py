@@ -205,7 +205,7 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
     return ic
 
 
-def _get_yeti_service(brkt_env):
+def _yeti_service_from_brkt_env(brkt_env):
     root_url = 'https://%s:%d' % (
         brkt_env.public_api_host, brkt_env.public_api_port)
     token = (
@@ -214,26 +214,51 @@ def _get_yeti_service(brkt_env):
     return yeti.YetiService(root_url, token=token)
 
 
-def get_yeti_service(brkt_env):
+def _validate_yeti_service(yeti_service):
+    """ Validate that the given YetiService is able to authenticate.
+
+    :return the valid YetiService
+    :raise ValidationError if the API token is not set in config, or if
+    authentication with Yeti fails.
+    """
+
+    if not yeti_service.token:
+        raise ValidationError(
+            '$BRKT_API_TOKEN is not set. Run brkt auth to get an API token.')
+
+    try:
+        yeti_service.get_customer()
+    except yeti.YetiError as e:
+        if e.http_status == 401:
+            raise ValidationError(
+                '$BRKT_API_TOKEN is not authorized to access %s' %
+                yeti_service.root_url)
+        raise ValidationError(e.message)
+    return yeti_service
+
+
+def yeti_service_from_brkt_env(brkt_env):
     """ Return a YetiService object based on the given BracketEnvironment.
 
     :raise ValidationError if the API token is not set in config, or if
     authentication with Yeti fails.
     """
-    y = _get_yeti_service(brkt_env)
-    if not y.token:
-        raise ValidationError(
-            '$BRKT_API_TOKEN is not set. Run brkt auth to get an API token.')
+    y = _yeti_service_from_brkt_env(brkt_env)
+    return _validate_yeti_service(y)
 
-    try:
-        y.get_customer()
-    except yeti.YetiError as e:
-        if e.http_status == 401:
-            raise ValidationError(
-                '$BRKT_API_TOKEN is not authorized to access %s' %
-                y.root_url)
-        raise ValidationError(e.message)
-    return y
+
+def get_yeti_service(root_url):
+    """ Return a YetiService object based on the given Yeti public API
+    root URL.
+
+    :raise ValidationError if the API token is not set in config, or if
+    authentication with Yeti fails.
+    """
+    token = (
+        os.environ.get('BRKT_API_TOKEN')
+    )
+    y = yeti.YetiService(root_url, token=token)
+    return _validate_yeti_service(y)
 
 
 def get_launch_token(values, cli_config):
@@ -246,7 +271,7 @@ def get_launch_token(values, cli_config):
     if not token:
         log.debug('Getting launch token from Yeti')
         brkt_env = brkt_cli.brkt_env_from_values(values, cli_config)
-        y = get_yeti_service(brkt_env)
+        y = yeti_service_from_brkt_env(brkt_env)
         tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
         token = y.get_launch_token(tags=tags)
 
