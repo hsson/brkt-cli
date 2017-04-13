@@ -145,7 +145,7 @@ def run_share_logs(values):
 
 
 @_handle_aws_errors
-def run_wrap_image(values, config, verbose=False):
+def run_wrap_image(values, config):
     nonce = util.make_nonce()
 
     aws_svc = aws_service.AWSService(
@@ -385,11 +385,13 @@ def run_update(values, config, verbose=False):
 class AWSSubcommand(Subcommand):
     def __init__(self):
         self.config = None
+        self.verbose = False
 
     def name(self):
         return 'aws'
 
     def init_logging(self, verbose):
+        self.verbose = verbose
         # Set boto logging to FATAL, since boto logs auth errors and 401s
         # at ERROR level.
         boto.log.setLevel(logging.FATAL)
@@ -398,9 +400,6 @@ class AWSSubcommand(Subcommand):
         config.register_option(
             '%s.region' % self.name(),
             'The AWS region metavisors will be launched into')
-
-    def verbose(self, values):
-        return values.aws_verbose
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
@@ -468,7 +467,6 @@ class AWSSubcommand(Subcommand):
                                    mode=INSTANCE_CREATOR_MODE)
         wrap_parser.set_defaults(aws_subcommand='wrap-guest-image')
 
-
     def debug_log_to_temp_file(self, values):
         return values.aws_subcommand in ('encrypt', 'update')
 
@@ -477,16 +475,13 @@ class AWSSubcommand(Subcommand):
             raise ValidationError(
                 'Specify --region or set the aws.region config key')
         if values.aws_subcommand == 'encrypt':
-            verbose = brkt_cli.is_verbose(values, self)
-            return run_encrypt(values, self.config, verbose=verbose)
+            return run_encrypt(values, self.config, self.verbose)
         if values.aws_subcommand == 'update':
-            verbose = brkt_cli.is_verbose(values, self)
-            return run_update(values, self.config, verbose=verbose)
+            return run_update(values, self.config, self.verbose)
         if values.aws_subcommand == 'share-logs':
             return run_share_logs(values)
         if values.aws_subcommand == 'wrap-guest-image':
-            verbose = brkt_cli.is_verbose(values, self)
-            return run_wrap_image(values, self.config, verbose=verbose)
+            return run_wrap_image(values, self.config)
 
 
 def get_subcommands():

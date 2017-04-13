@@ -296,15 +296,6 @@ class SortingHelpFormatter(argparse.HelpFormatter):
         return help
 
 
-def is_verbose(values, subcommand):
-    if subcommand.verbose(values):
-        print(
-            '%s --verbose is deprecated. Please use brkt --verbose '
-            'instead.' % subcommand.name(), file=sys.stderr)
-
-    return values.verbose or subcommand.verbose(values)
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Command-line interface to the Bracket Computing service.',
@@ -404,13 +395,10 @@ def main():
     if not subcommand:
         raise Exception('Could not find subcommand ' + values.subparser_name)
 
-    # Initialize logging.  Verbose logging can be specified for either
-    # the top-level "brkt" command or one of the subcommands.  We support
-    # both because users got confused when "brkt encrypt-ami -v" didn't work.
+    # Initialize logging.
     log_level = logging.INFO
-    verbose = is_verbose(values, subcommand)
-    subcommand.init_logging(verbose)
-    if verbose:
+    subcommand.init_logging(values.verbose)
+    if values.verbose:
         log_level = logging.DEBUG
 
     # Prefix log messages with a compact timestamp, so that the user

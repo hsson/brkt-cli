@@ -39,14 +39,6 @@ class Subcommand(object):
         """
         pass
 
-    def verbose(self, values):
-        """ Subcommands can optionally implement this callback to specify
-        whether the verbose flag was specified.
-
-        @param values the parsed arguments object
-        """
-        return False
-
     def setup_config(self, config):
         """ Subcommands may add options to the supplied ConfigParser.
         Option values will be pulled from ~/.brkt/config.

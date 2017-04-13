@@ -47,13 +47,7 @@ def setup_encrypt_ami_args(parser, parsed_config):
     aws_args.add_security_group(parser)
     aws_args.add_subnet(parser)
     aws_args.add_aws_tag(parser)
-    parser.add_argument(
-        '-v',
-        '--verbose',
-        dest='aws_verbose',
-        action='store_true',
-        help=argparse.SUPPRESS
-    )
+
     # Hide deprecated --tag argument
     parser.add_argument(
         '--tag',
