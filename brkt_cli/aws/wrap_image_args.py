@@ -46,6 +46,13 @@ def setup_wrap_image_args(parser, parsed_config):
     # argument is hidden because it's only used for development.
     aws_args.add_encryptor_ami(parser)
 
+    # Optional IAM role for the instance
+    parser.add_argument(
+        '--iam',
+        metavar='ROLE',
+        dest='iam',
+        help='The IAM role to use for the launched instance',
+    )
     # Optional arguments for changing the behavior of our retry logic.  We
     # use these options internally, to avoid intermittent AWS service failures
     # when running concurrent encryption processes in integration tests.
