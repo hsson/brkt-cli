@@ -103,7 +103,7 @@ def create_instance_security_group(aws_svc, vpc_id=None):
 def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
                          wrapped_instance_name=None, subnet_id=None,
                          security_group_ids=None, instance_type='m4.large',
-                         instance_config=None):
+                         instance_config=None, iam=None):
     temp_sg_id = None
     guest_image = aws_svc.get_image(image_id)
     guest_root_device = guest_image.root_device_name
@@ -166,7 +166,8 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
             placement=None,
             block_device_map=bdm,
             ebs_optimized=ebs_optimized,
-            subnet_id=subnet_id
+            subnet_id=subnet_id,
+            instance_profile_name=iam
         )
         aws_svc.create_tags(
             instance.id,

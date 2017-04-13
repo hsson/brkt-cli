@@ -164,6 +164,10 @@ def run_wrap_image(values, config):
     else:
         guest_image = aws_svc.get_image(values.ami)
 
+    if values.iam:
+        if not aws_svc.iam_role_exists(values.iam):
+            raise ValidationError('IAM role %s does not exist' % values.iam)
+
     metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
     if values.validate:
         values.encrypted_ami_name = None
@@ -186,7 +190,8 @@ def run_wrap_image(values, config):
         subnet_id=values.subnet_id,
         security_group_ids=values.security_group_ids,
         instance_type=values.instance_type,
-        instance_config=instance_config
+        instance_config=instance_config,
+        iam=values.iam
     )
     # Print the Instance ID to stdout, in case the caller wants to process
     # the output. Log messages go to stderr
