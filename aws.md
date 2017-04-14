@@ -54,7 +54,7 @@ Run **brkt aws encrypt** to create a new encrypted AMI based on an existing
 image:
 
 ```
-$ brkt aws encrypt --region us-east-1 --token <token> ami-76e27e1e
+$ brkt aws encrypt --region us-east-1 --brkt-tag env=prod ami-76e27e1e
 15:28:37 Starting encryptor session caabe51a
 15:28:38 Launching instance i-703f4c99 to snapshot root disk for ami-76e27e1e
 ...
@@ -74,7 +74,7 @@ Run **brkt aws update** to update an encrypted AMI based on an existing
 encrypted image:
 
 ```
-$ brkt aws update --region us-east-1 --token <token> ami-72094e18
+$ brkt aws update --region us-east-1 --brkt-tag env=prod ami-72094e18
 13:38:14 Using zone us-east-1a
 13:38:15 Updating ami-72094e18
 13:38:15 Creating guest volume snapshot
@@ -99,7 +99,7 @@ image. This generates an encrypted instance, without the guest root
 volume being encrypted.
 
 ```
-$ brkt aws wrap-guest-image --region us-east-1 --token <token> ami-72094e18
+$ brkt aws wrap-guest-image --region us-east-1 --brkt-tag env=prod ami-72094e18
 18:50:33 Created security group with id sg-d821d2a3
 18:50:34 Launching wrapped guest instance i-039dba15316de37a0
 18:50:53 Done.
@@ -251,9 +251,11 @@ version of the Metavisor code.
 
 ```
 usage: brkt aws wrap-guest-image [-h] [--wrapped-instance-name NAME]
-                                 [--instance-type TYPE] [--no-validate] --region
-                                 NAME [--security-group ID] [--subnet ID]
-                                 [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
+                                 [--instance-type TYPE] [--no-validate]
+                                 --region NAME [--security-group ID]
+                                 [--subnet ID] [--aws-tag KEY=VALUE]
+                                 [--key NAME] [--iam ROLE]
+                                 [--ntp-server DNS_NAME]
                                  [--proxy HOST:PORT | --proxy-config-file PATH]
                                  [--status-port PORT]
                                  [--token TOKEN | --brkt-tag NAME=VALUE]
@@ -279,6 +281,8 @@ optional arguments:
   --subnet ID           Launch instances in this subnet
   --aws-tag KEY=VALUE   Set an AWS tag on resources created during update. May
                         be specified multiple times.
+  --key NAME            SSH key pair name
+  --iam ROLE            The IAM role to use for the launched instance
   --ntp-server DNS_NAME
                         NTP server to sync Metavisor clock. May be specified
                         multiple times.

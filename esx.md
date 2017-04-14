@@ -330,7 +330,7 @@ Run **brkt vmware encrypt-with-vcenter** to create a new encrypted VMDK based on
 VMDK:
 
 ```
-$ ./brkt vmware encrypt-with-vcenter --token <token> --vcenter-host <vcenter_host> --template-vm-name encrypt-vmdk-test --vcenter-datacenter <datacenter_name> --vcenter-datastore <datastore_name> --vcenter-cluster <cluster_name> centos66/centos66.vmdk
+$ brkt vmware encrypt-with-vcenter --brkt-tag env=prod --vcenter-host <vcenter_host> --template-vm-name encrypt-vmdk-test --vcenter-datacenter <datacenter_name> --vcenter-datastore <datastore_name> --vcenter-cluster <cluster_name> centos66/centos66.vmdk
 18:35:20 Fetching Metavisor OVF from S3
 18:35:31 Launching VM from OVF ./c4ca122117c9f0bb.ovf
 18:35:37 Starting new HTTPS connection (1): 10.9.1.216
@@ -359,7 +359,7 @@ Run **brkt vmware update-with-vcenter** to update an encrypted VMDK with the
 latest Metavisor using vCenter:
 
 ```
-$ brkt vmware update-with-vcenter --token <token> --vcenter-host <vcenter_host> --template-vm-name encrypt-vmdk-test --vcenter-datacenter <datacenter_name> --vcenter-datastore <datastore_name> --vcenter-cluster <cluster_name>
+$ brkt vmware update-with-vcenter --brkt-tag env=prod --vcenter-host <vcenter_host> --template-vm-name encrypt-vmdk-test --vcenter-datacenter <datacenter_name> --vcenter-datastore <datastore_name> --vcenter-cluster <cluster_name>
 17:08:40 Fetching Metavisor OVF from S3
 17:21:09 Launching encrypted guest VM
 17:34:12 Launching VM from OVF ./c4ca122117c9f0bb.ovf
@@ -392,7 +392,7 @@ Run **brkt vmware wrap-with-vcenter** to wrap an guest VMDK with the latest
 Metavisor using vCenter:
 
 ```
-$ brkt vmware wrap-with-vcenter --token <token> --vcenter-host <vcenter_host> --vm-name wrap-vmdk-test  --vcenter-datacenter <datacenter_name> --vcenter-datastore <datastore_name> --vcenter-cluster <cluster_name> centos66/centos66.vmdk
+$ brkt vmware wrap-with-vcenter --brkt-tag env=prod --vcenter-host <vcenter_host> --vm-name wrap-vmdk-test  --vcenter-datacenter <datacenter_name> --vcenter-datastore <datastore_name> --vcenter-cluster <cluster_name> centos66/centos66.vmdk
 02:58:07 Fetching Metavisor OVF from S3
 03:00:17 Launching VM from OVF metavisor-1-0-100-gcaf72844f.ovf
 /usr/local/lib/python2.7/dist-packages/requests/packages/urllib3/connectionpool.py:852: InsecureRequestWarning: Unverified HTTPS request is being made. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
@@ -652,7 +652,7 @@ Run **brkt vmware encrypt-with-esx-host** to create an encrypted VM with the
 latest Metavisor on an ESX host:
 
 ```
-$ brkt vmware encrypt-with-esx-host --token <token> --esx-host <HOST> --esx-datastore <datastore> --encrypted-image-directory=<PATH> --encrypted-image-name=centos66encrypted_ovf  centos66-stock/centos66-stock.vmdk --template-vm-name brkt-esx-encrypted-vm
+$ brkt vmware encrypt-with-esx-host --brkt-tag env=prod --esx-host <HOST> --esx-datastore <datastore> --encrypted-image-directory=<PATH> --encrypted-image-name=centos66encrypted_ovf  centos66-stock/centos66-stock.vmdk --template-vm-name brkt-esx-encrypted-vm
 16:49:25 Fetching Metavisor OVF from S3
 16:49:34 Launching VM from OVF ./c4ca122117c9f0bb.ovf
 16:49:35 Starting new HTTPS connection (1): 10.9.1.216
@@ -679,7 +679,8 @@ Run **brkt vmware encrypt-with-esx-host** to create an encrypted OVF image with
 the latest Metavisor on an ESX host.
 
 ```
-$ brkt vmware encrypt-with-esx-host --token <token> --esx-host <HOST> --esx-datastore <datastore> --encrypted-image-directory=<PATH> --create-ovf --encrypted-image-name centos66encrypted --ovftool-path /usr/bin/ovftool centos66/centos66.vmdk
+$ brkt vmware encrypt-with-esx-host --brkt-tag env=prod --esx-host <HOST> --esx-datastore <datastore> --encrypted-image-directory=<PATH> --create-ovf --encrypted-image-name centos66encrypted --ovftool-path /usr/bin/ovftool centos66/centos66.vmdk
+
 17:06:25 Fetching Metavisor OVF from S3
 17:06:34 Launching VM from OVF ./c4ca122117c9f0bb.ovf
 17:06:41 Starting new HTTPS connection (1): 10.9.1.216
@@ -714,7 +715,7 @@ Run **brkt vmware wrap-with-esx-host** to launch an encrypted instance which wra
 the unencrypted guest image (VMDK)
 
 ```
-$ brkt vmware wrap-with-esx-host --token <token> --esx-host <HOST> --esx-datastore <datastore> --vm-name test-wrap-image centos66/centos66.vmdk
+$ brkt vmware wrap-with-esx-host --brkt-tag env=prod --esx-host <HOST> --esx-datastore <datastore> --vm-name test-wrap-image centos66/centos66.vmdk
 22:56:47 Fetching Metavisor OVF from S3
 22:57:03 Launching VM from OVF metavisor-1-0-80-g14a5ec1a0.ovf
 /usr/local/lib/python2.7/dist-packages/requests/packages/urllib3/connectionpool.py:852: InsecureRequestWarning: Unverified HTTPS request is being made. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings

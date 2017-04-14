@@ -292,7 +292,7 @@ you specify with the **--status-port** option in the default network
 Run **gcp encrypt** to encrypt an image:
 
 ```
-$ brkt gcp encrypt --zone us-central1-a --project brkt-dev --token <token> --image-project ubuntu-os-cloud ubuntu-1404-trusty-v20160627
+$ brkt gcp encrypt --zone us-central1-a --project brkt-dev --brkt-tag env=prod --image-project ubuntu-os-cloud ubuntu-1404-trusty-v20160627
 ...
 14:30:23 Starting encryptor session 59e3b3a7
 ...
@@ -319,7 +319,7 @@ Run **gcp update** to update an encrypted image with the latest
 Metavisor code:
 
 ```
-$ brkt gcp update --zone us-central1-a --project brkt-dev --token <token> ubuntu-1404-trusty-v20160627-encrypted-ee521b31
+$ brkt gcp update --zone us-central1-a --project brkt-dev --brkt-tag env=prod ubuntu-1404-trusty-v20160627-encrypted-ee521b31
 ...
 15:50:04 Starting updater session 80985e58
 ...
@@ -340,7 +340,7 @@ ubuntu-1404-trusty-v20160627-encrypted-63e57e6e
 Run **gcp launch** to launch an encrypted GCP image
 
 ```
-$ brkt gcp launch --instance-name brkt-test-instance --project <project> --token <token> --zone us-central1-c centos-6-v20160921-encrypted-30fccdeb
+$ brkt gcp launch --instance-name brkt-test-instance --project <project> --brkt-tag env=prod --zone us-central1-c centos-6-v20160921-encrypted-30fccdeb
 18:13:54 Creating guest root disk from snapshot
 18:13:54 Attempting refresh to obtain initial access_token
 18:13:54 Refreshing access_token
@@ -366,7 +366,7 @@ Run **gcp wrap-guest-image** to launch a guest image wrapped with the Bracket
 Metavisor
 
 ```
-$ brkt gcp wrap-guest-image --project <project> --token <token> --zone us-central1-c centos-6-v20170327
+$ brkt gcp wrap-guest-image --project <project> --brkt-tag env=prod --zone us-central1-c centos-6-v20170327
 19:44:47 Retrieving encryptor image from GCP bucket
 19:44:47 Attempting refresh to obtain initial access_token
 19:44:47 Refreshing access_token
