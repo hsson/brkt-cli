@@ -52,6 +52,7 @@ class RunInstanceArgs(object):
         self.subnet_id = None
         self.user_data = None
         self.instance = None
+        self.instance_profile_name = None
 
 
 class DummyAWSService(aws_service.BaseAWSService):
@@ -142,6 +143,7 @@ class DummyAWSService(aws_service.BaseAWSService):
             args.subnet_id = subnet_id
             args.user_data = user_data
             args.instance = instance
+            args.instance_profile_name = instance_profile_name
             self.run_instance_callback(args)
 
         return instance
@@ -355,6 +357,12 @@ class DummyAWSService(aws_service.BaseAWSService):
         if attribute == 'sriovNetSupport':
             return dict()
         return None
+
+    def iam_role_exists(self, role):
+        if role == 'brkt-objectstore':
+            return True
+        else:
+            return False
 
     def modify_instance_attribute(self, instance_id, attribute, value, dry_run=False):
         if attribute == 'sriovNetSupport':

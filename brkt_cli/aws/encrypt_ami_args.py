@@ -47,16 +47,6 @@ def setup_encrypt_ami_args(parser, parsed_config):
     aws_args.add_security_group(parser)
     aws_args.add_subnet(parser)
     aws_args.add_aws_tag(parser)
-
-    # Hide deprecated --tag argument
-    parser.add_argument(
-        '--tag',
-        metavar='KEY=VALUE',
-        dest='tags',
-        action='append',
-        help=argparse.SUPPRESS
-    )
-
     aws_args.add_encryptor_ami(parser)
     aws_args.add_key(parser)
     aws_args.add_retry_timeout(parser)

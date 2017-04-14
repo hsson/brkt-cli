@@ -12,8 +12,6 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-
 from brkt_cli.aws import aws_args
 
 
@@ -51,16 +49,6 @@ def setup_update_encrypted_ami(parser, parsed_config):
     aws_args.add_subnet(parser)
     aws_args.add_key(parser)
     aws_args.add_aws_tag(parser)
-
-    # Hide deprecated --tag argument
-    parser.add_argument(
-        '--tag',
-        metavar='KEY=VALUE',
-        dest='tags',
-        action='append',
-        help=argparse.SUPPRESS
-    )
-
     aws_args.add_encryptor_ami(parser)
     aws_args.add_retry_timeout(parser)
     aws_args.add_retry_initial_sleep_seconds(parser)

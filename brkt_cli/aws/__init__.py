@@ -164,6 +164,10 @@ def run_wrap_image(values, config):
     else:
         guest_image = aws_svc.get_image(values.ami)
 
+    if values.iam:
+        if not aws_svc.iam_role_exists(values.iam):
+            raise ValidationError('IAM role %s does not exist' % values.iam)
+
     metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
     if values.validate:
         values.encrypted_ami_name = None
@@ -186,7 +190,8 @@ def run_wrap_image(values, config):
         subnet_id=values.subnet_id,
         security_group_ids=values.security_group_ids,
         instance_type=values.instance_type,
-        instance_config=instance_config
+        instance_config=instance_config,
+        iam=values.iam
     )
     # Print the Instance ID to stdout, in case the caller wants to process
     # the output. Log messages go to stderr
@@ -218,10 +223,10 @@ def run_encrypt(values, config, verbose=False):
     else:
         guest_image = _validate_ami(aws_svc, values.ami)
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
-    default_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
-    tags = merge_aws_tags(values.tags, values.aws_tags)
-    default_tags.update(brkt_cli.parse_tags(tags))
-    aws_svc.default_tags = default_tags
+    aws_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
+    command_line_tags = brkt_cli.parse_tags(values.aws_tags)
+    aws_tags.update(command_line_tags)
+    aws_svc.default_tags = aws_tags
 
     if values.validate:
         _validate(aws_svc, values, encryptor_ami)
@@ -307,10 +312,10 @@ def run_update(values, config, verbose=False):
     aws_svc.connect(values.region, key_name=values.key_name)
     encrypted_image = _validate_ami(aws_svc, values.ami)
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
-    default_tags = encrypt_ami.get_default_tags(nonce, encryptor_ami)
-    tags = merge_aws_tags(values.tags, values.aws_tags)
-    default_tags.update(brkt_cli.parse_tags(tags))
-    aws_svc.default_tags = default_tags
+    aws_tags = encrypt_ami.get_default_tags(nonce, encryptor_ami)
+    command_line_tags = brkt_cli.parse_tags(values.aws_tags)
+    aws_tags.update(command_line_tags)
+    aws_svc.default_tags = aws_tags
 
     if values.validate:
         _validate_guest_encrypted_ami(
@@ -702,24 +707,3 @@ def _get_updated_image_name(image_name, session_id):
         encrypted_ami_name = util.append_suffix(
             image_name, suffix, max_length=128)
     return encrypted_ami_name
-
-
-def merge_aws_tags(old_tags, new_tags):
-    """ Merge the attribute values for the old and new tag arguments to a
-    single attribute list.
-
-    : return the merged attribute list or None
-    """
-    if old_tags:
-        log.warn(
-                 'The "--tag" argument has been deprecated. Please use '
-                 '"--aws-tag" instead.'
-        )
-        if new_tags:
-            return set(old_tags + new_tags)
-        else:
-            return old_tags
-    elif new_tags:
-        return new_tags
-    else:
-        return None

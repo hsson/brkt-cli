@@ -114,9 +114,12 @@ def setup_instance_config_args(parser, parsed_config,
     # or provided via userdata to a MV with an unencrypted guest root.
     parser.add_argument(
         '--ca-cert',
-        metavar='CERT_FILE',
+        metavar='PATH',
         dest='ca_cert',
-        help=argparse.SUPPRESS
+        help=(
+            'Certificate that Metavisor uses to communicate with a '
+            'Customer Managed MCP.'
+        )
     )
 
     token_group = parser.add_mutually_exclusive_group()
