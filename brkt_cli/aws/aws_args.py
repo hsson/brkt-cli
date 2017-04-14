@@ -47,12 +47,13 @@ def add_security_group(parser):
     )
 
 
-def add_subnet(parser):
+def add_subnet(parser, parsed_config):
     parser.add_argument(
         '--subnet',
         metavar='ID',
         dest='subnet_id',
-        help='Launch instances in this subnet'
+        help='Launch instances in this subnet',
+        default=parsed_config.get_option('aws.subnet')
     )
 
 
