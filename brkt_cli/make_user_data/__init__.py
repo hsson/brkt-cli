@@ -153,13 +153,6 @@ class MakeUserDataSubcommand(Subcommand):
         )
 
         parser.add_argument(
-            '-v',
-            '--verbose',
-            dest='make_user_data_verbose',
-            action='store_true',
-            help=argparse.SUPPRESS
-        )
-        parser.add_argument(
             '--base64',
             dest='base64',
             action='store_true',
@@ -207,9 +200,6 @@ class MakeUserDataSubcommand(Subcommand):
             help=argparse.SUPPRESS
         )
         argutil.add_out(parser)
-
-    def verbose(self, values):
-        return values.make_user_data_verbose
 
     def run(self, values):
         mime = make(values, self.config)

@@ -162,6 +162,23 @@ class TestRunEncryption(unittest.TestCase):
             instance_type='t2.micro'
         )
 
+    def test_iam_role(self):
+        """ Test that the IAM role is passed to the calls to
+        AWSService.run_instance().
+        """
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+
+        def run_instance_callback(args):
+            self.assertEqual('valid', args.instance_profile_name)
+
+        aws_svc.run_instance_callback = run_instance_callback
+        wrap_image.launch_wrapped_image(
+            aws_svc=aws_svc,
+            image_id=guest_image.id,
+            metavisor_ami=encryptor_image.id,
+            iam='valid'
+        )
+
 
 class TestBrktEnv(unittest.TestCase):
 

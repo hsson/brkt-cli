@@ -11,7 +11,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import argparse
 
 from brkt_cli.aws import aws_args
 
@@ -51,12 +50,5 @@ def setup_share_logs_args(parser, parsed_config):
         default='logs.tar.gz'
     )
     aws_args.add_no_validate(parser)
-    parser.add_argument(
-        '-v',
-        '--verbose',
-        dest='aws_verbose',
-        action='store_true',
-        help=argparse.SUPPRESS
-    )
     aws_args.add_retry_timeout(parser)
     aws_args.add_retry_initial_sleep_seconds(parser)

@@ -12,7 +12,6 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 from brkt_cli.aws import aws_args
 
 
@@ -42,20 +41,18 @@ def setup_wrap_image_args(parser, parsed_config):
     aws_args.add_subnet(parser)
     aws_args.add_aws_tag(parser)
     aws_args.add_key(parser, help='SSH key pair name')
-    # Hide optional sub-command level verbose argument. This should be
-    # removed once this option is removed at the sub-command level
-    parser.add_argument(
-        '-v',
-        '--verbose',
-        dest='aws_verbose',
-        action='store_true',
-        help=argparse.SUPPRESS
-    )
 
     # Optional AMI ID that's used to launch the encryptor instance.  This
     # argument is hidden because it's only used for development.
     aws_args.add_encryptor_ami(parser)
 
+    # Optional IAM role for the instance
+    parser.add_argument(
+        '--iam',
+        metavar='ROLE',
+        dest='iam',
+        help='The IAM role to use for the launched instance',
+    )
     # Optional arguments for changing the behavior of our retry logic.  We
     # use these options internally, to avoid intermittent AWS service failures
     # when running concurrent encryption processes in integration tests.

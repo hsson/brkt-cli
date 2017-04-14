@@ -25,6 +25,7 @@ from datetime import datetime
 import boto
 import boto.sts
 import boto.vpc
+import boto.iam
 from boto.exception import EC2ResponseError, BotoServerError
 
 from brkt_cli import util, encryptor_service
@@ -102,6 +103,10 @@ class BaseAWSService(object):
 
     @abc.abstractmethod
     def get_volume(self, volume_id):
+        pass
+
+    @abc.abstractmethod
+    def iam_role_exists(self, role):
         pass
 
     @abc.abstractmethod
@@ -386,6 +391,16 @@ class AWSService(BaseAWSService):
 
         get_all_volumes = self.retry(self.conn.get_all_volumes)
         return get_all_volumes(filters=filters)
+
+    def iam_role_exists(self, role):
+        conn = boto.iam.connect_to_region(self.region)
+        try:
+            conn.get_instance_profile(role)
+        except BotoServerError as e:
+            if e.error_code != 'NoSuchEntity':
+                raise
+            return False
+        return True
 
     def get_snapshots(self, *snapshot_ids):
         get_all_snapshots = self.retry(
