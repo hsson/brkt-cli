@@ -403,8 +403,12 @@ class AWSSubcommand(Subcommand):
 
     def setup_config(self, config):
         config.register_option(
-            '%s.region' % self.name(),
+            'aws.region',
             'The AWS region metavisors will be launched into')
+        config.register_option(
+            'aws.subnet',
+            'The AWS subnet metavisors will be launched into'
+        )
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
