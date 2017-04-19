@@ -53,9 +53,6 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         mv_vm_name = vc_swc.get_vm_name(vm)
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(vm)
-        # Reconfigure VM with serial port
-        if serial_port_file_name:
-            vc_swc.add_serial_port_to_file(vm, serial_port_file_name)
         # Add datastore path to the guest vmdk
         guest_vmdk_path = vc_swc.get_datastore_path(guest_vmdk)
         # Attach guest vmdk
@@ -71,7 +68,12 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         vc_swc.add_disk(vm, disk_size=encrypted_guest_size, unit_number=1)
         # Configure Static IP for the encryptor VM
         if static_ip:
+            vc_swc.power_on(vm)
+            vc_swc.power_off(vm)
             vc_swc.configure_static_ip(vm, static_ip)
+        # Reconfigure VM with serial port
+        if serial_port_file_name:
+            vc_swc.add_serial_port_to_file(vm, serial_port_file_name)
         # Power on the VM and wait for encryption
         vc_swc.power_on(vm)
         # Send user data

@@ -581,7 +581,7 @@ class VCenterService(BaseVCenterService):
                                    memoryMB=(memoryGB*1024),
                                    numCPUs=numCPUs,
                                    files=vmx_file,
-                                   guestId='otherGuest64',
+                                   guestId='otherLinuxGuest64',
                                    version='vmx-11',
                                    deviceChange=dev_changes)
         task = vmfolder.CreateVM_Task(config=config, pool=pool)
@@ -602,6 +602,7 @@ class VCenterService(BaseVCenterService):
 
     def configure_static_ip(self, vm, static_ip):
         self.validate_connection()
+        log.info("Configuring static IP address")
         adaptermap = vim.vm.customization.AdapterMapping()
         globalip = vim.vm.customization.GlobalIPSettings()
         adaptermap.adapter = vim.vm.customization.IPSettings()
@@ -611,9 +612,10 @@ class VCenterService(BaseVCenterService):
         adaptermap.adapter.gateway = static_ip.gw
         globalip.dnsServerList = static_ip.dns
         adaptermap.adapter.dnsDomain = static_ip.dns_domain
+        fixedname = 'brkt-' + self.session_id
         ident = vim.vm.customization.LinuxPrep(
             domain=static_ip.dns_domain,
-            hostName=vim.vm.customization.FixedName(name=vm.config.name))
+            hostName=vim.vm.customization.FixedName(name=fixedname))
         customspec = vim.vm.customization.Specification()
         customspec.identity = ident
         customspec.nicSettingMap = [adaptermap]
