@@ -15,6 +15,7 @@
 import json
 import logging
 import uuid
+from dateutil.parser import parse
 
 import brkt_cli
 import brkt_cli.crypto
@@ -100,6 +101,12 @@ def _make_jwt_from_signing_key(values, signing_key):
     nbf = None
     if values.nbf:
         nbf = parse_timestamp(values.nbf)
+    if exp and nbf:
+        exp_time = parse(str(exp))
+        nbf_time = parse(str(nbf))
+        if exp_time < nbf_time:
+            raise ValidationError(
+                "exp value cannot be earlier than nbf")
     customer = None
     if values.customer:
         customer = str(values.customer)

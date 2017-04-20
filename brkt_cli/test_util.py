@@ -163,5 +163,13 @@ class TestTimestamp(unittest.TestCase):
         self.assertEqual(dt, util.parse_timestamp(str(ts)))
         self.assertEqual(dt, util.parse_timestamp(dt.isoformat()))
 
+        ts = int(time.time()) + 18000 # 5 hours from now
+        dt1 = datetime.fromtimestamp(ts, tz=iso8601.UTC)
+        dur = util.parse_timestamp('5h')
+        ts = int(time.time()) + 18000 # 5 hours from now
+        dt2 = datetime.fromtimestamp(ts, tz=iso8601.UTC)
+        self.assertLessEqual(dt1, dur)
+        self.assertGreaterEqual(dt2, dur)
+
         with self.assertRaises(ValidationError):
             util.parse_timestamp('abc')
