@@ -18,7 +18,7 @@ import logging
 import re
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import iso8601
 
@@ -310,6 +310,24 @@ def parse_timestamp(ts_string):
     """
     now = int(time.time())
 
+    # Parse relative timestamp
+    m = re.match('\d+(m|h|d|y)$', ts_string)
+    if m:
+        try:
+            dur = int(ts_string[:-1])
+            if ts_string.endswith("h"):
+                delta = int(timedelta(hours=dur).total_seconds())
+            elif ts_string.endswith("m"):
+                delta = int(timedelta(minutes=dur).total_seconds())
+            elif ts_string.endswith("d"):
+                delta = int(timedelta(days=dur).total_seconds())
+            elif ts_string.endswith("y"):
+                delta = int(timedelta(days=dur*365).total_seconds())
+            return timestamp_to_datetime(now + delta)
+        except:
+            # Don't throw an error here and let the subsequent checks handle it
+            pass
+
     # Parse integer timestamp.
     m = re.match('\d+(\.\d+)?$', ts_string)
     if m:
@@ -326,8 +344,9 @@ def parse_timestamp(ts_string):
         dt = iso8601.parse_date(ts_string)
     except iso8601.ParseError:
         raise ValidationError(
-            'Timestamp "%s" must either be a Unix timestamp or in iso8601 '
-            'format (2016-05-10T19:15:36Z).' % ts_string
+            'Timestamp "%s" must either be a Unix timestamp, in iso8601 '
+            'format (2016-05-10T19:15:36Z) or duration '
+            '(30m, 6h, 5d, 2y).' % ts_string
         )
     if dt < dt_now:
         raise ValidationError(
