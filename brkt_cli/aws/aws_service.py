@@ -94,6 +94,10 @@ class BaseAWSService(object):
         pass
 
     @abc.abstractmethod
+    def start_instance(self, instance_id):
+        pass
+
+    @abc.abstractmethod
     def stop_instance(self, instance_id):
         pass
 
@@ -366,6 +370,12 @@ class AWSService(BaseAWSService):
         log.debug('Tagging %s with %s', resource_id, tags)
         create_tags = self.retry(self.conn.create_tags, r'.*\.NotFound')
         create_tags([resource_id], tags)
+
+    def start_instance(self, instance_id):
+        log.debug('Starting instnace %s', instance_id)
+        start_instances = self.retry(self.conn.start_instances)
+        instances = start_instances([instance_id])
+        return instances[0]
 
     def stop_instance(self, instance_id):
         log.debug('Stopping instance %s', instance_id)

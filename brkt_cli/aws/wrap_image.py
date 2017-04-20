@@ -169,13 +169,36 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
             subnet_id=subnet_id,
             instance_profile_name=iam
         )
+
         aws_svc.create_tags(
             instance.id,
             name=instance_name
         )
 
+        net_sriov_attr = aws_svc.get_instance_attribute(instance.id,
+                                                        "sriovNetSupport")
         log.info('Launching wrapped guest instance %s', instance.id)
         instance = wait_for_instance(aws_svc, instance.id)
+
+        if net_sriov_attr.get("sriovNetSupport") != "simple":
+            log.info('Stopping wrapped instance %s to enabled sriovNetSupport',
+                     instance.id)
+            aws_svc.stop_instance(instance.id)
+            wait_for_instance(aws_svc, instance.id, state='stopped')
+            try:
+                ret = aws_svc.modify_instance_attribute(instance.id,
+                                                        "sriovNetSupport",
+                                                        "simple")
+                if ret:
+                    log.info('sriovNetSupport enabled successfully')
+                else:
+                    log.info('Failed to enable sriovNetSupport')
+            except EC2ResponseError as e:
+                log.warn('Unable to enable sriovNetSupport for guest '
+                         'instance %s with error %s', instance.id, e)
+            log.info('Starting up warpped instance %s', instance.id)
+            aws_svc.start_instance(instance.id)
+            wait_for_instance(aws_svc, instance.id)
     finally:
         pass
 

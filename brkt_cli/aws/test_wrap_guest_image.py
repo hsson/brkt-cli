@@ -83,11 +83,15 @@ class TestRunEncryption(unittest.TestCase):
         calls to AWSService.run_instance().
         """
 
+        def start_instance_callback(instance):
+            self.instance_stopped = True
+
         def run_instance_callback(args):
             self.assertEqual('subnet-1', args.subnet_id)
             self.assertEqual(['sg-1', 'sg-2'], args.security_group_ids)
 
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        aws_svc.start_instance_callback = start_instance_callback
         aws_svc.run_instance_callback = run_instance_callback
         wrap_image.launch_wrapped_image(
             aws_svc=aws_svc,

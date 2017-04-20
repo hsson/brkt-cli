@@ -90,6 +90,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         self.create_snapshot_callback = None
         self.get_snapshot_callback = None
         self.delete_snapshot_callback = None
+        self.start_instance_callback = None
         self.stop_instance_callback = None
         self.create_tags_callback = None
         self.terminate_instance_callback = None
@@ -169,6 +170,15 @@ class DummyAWSService(aws_service.BaseAWSService):
         if self.create_tags_callback:
             self.create_tags_callback(resource_id, name, description)
         pass
+
+    def start_instance(self, instance_id):
+        instance = self.instances[instance_id]
+        if self.start_instance_callback:
+            self.start_instance_callback(instance)
+
+        instance._state.code = 0
+        instance._state.name = 'running'
+        return instance
 
     def stop_instance(self, instance_id):
         instance = self.instances[instance_id]
