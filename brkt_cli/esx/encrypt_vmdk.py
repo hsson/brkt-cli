@@ -27,6 +27,7 @@ Before running brkt encrypt-vmdk, do "pip install pyvmomi".
 """
 
 import logging
+import threading
 from brkt_cli.encryptor_service import (
     wait_for_encryptor_up,
     wait_for_encryption,
@@ -158,6 +159,12 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                 if vm is not None:
                     vc_swc.destroy_vm(vm)
         log.info("Done")
+        # Temporary hack to debug hung threads
+        t_list = threading.enumerate()
+        for thread_e in t_list:
+            log.info("Thread name: %s Daemon: %d IsAlive %d",
+                     thread_e.name, thread_e.daemon,
+                     thread_e.is_alive())
 
 
 def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
