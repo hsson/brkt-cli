@@ -24,7 +24,8 @@ from brkt_cli.instance_config import GuestFile
 from brkt_cli.instance_config import INSTANCE_METAVISOR_MODE
 from brkt_cli.instance_config_args import (
     instance_config_from_values,
-    setup_instance_config_args
+    setup_instance_config_args,
+    get_launch_token
 )
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.validation import ValidationError
@@ -76,11 +77,15 @@ def make(values, config):
             raise ValidationError(
                 '--brkt-env is only allowed with --unencrypted-guest')
 
+    lt = values.token
+    if not lt and values.brkt_tags:
+        lt = get_launch_token(values, config)
+
     instance_cfg = instance_config_from_values(
         values,
         brkt_env=brkt_env,
         mode=INSTANCE_METAVISOR_MODE,
-        launch_token=values.token
+        launch_token=lt
     )
 
     if values.make_user_data_brkt_files:
@@ -142,14 +147,10 @@ class MakeUserDataSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
 
-        # Don't add --brkt-tag, since we don't want make-user-data to talk
-        # to Yeti to generate a launch token.  Users can generate a token
-        # and specify tags with the make-token command.
         setup_instance_config_args(
             parser,
             parsed_config,
             mode=INSTANCE_METAVISOR_MODE,
-            brkt_tag=False
         )
 
         parser.add_argument(
