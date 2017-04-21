@@ -936,7 +936,7 @@ class VCenterService(BaseVCenterService):
                 file_name = url.url[url.url.rfind('/') + 1:]
                 target_file = os.path.join(target_path, file_name)
                 keepalive_thread = Thread(target=self.keep_lease_alive,
-                                          args=(lease,))
+                                          args=(lease,), name="keepalive-export")
                 keepalive_thread.start()
                 # Disable verification as VMDK download happens directly
                 # from the ESX host.
@@ -1095,7 +1095,8 @@ class VCenterService(BaseVCenterService):
                 if vm:
                     self.destroy_vm(vm)
                 raise Exception("Failed to get lease to upload OVF")
-        keepalive_thread = Thread(target=self.keep_lease_alive, args=(lease,))
+        keepalive_thread = Thread(target=self.keep_lease_alive, args=(lease,),
+                                  name="keepalive-upload")
         keepalive_thread.start()
         try:
             count = 0
