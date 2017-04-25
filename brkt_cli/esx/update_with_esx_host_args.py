@@ -50,6 +50,7 @@ def setup_update_with_esx_host_args(parser):
     esx_args.add_ovftool_path(parser)
     esx_args.add_ovf_source_directory(parser)
     esx_args.add_metavisor_ovf_image_name(parser)
+    esx_args.add_metavisor_version(parser)
     esx_args.add_console_file_name(parser)
     esx_args.add_disk_type(parser)
     esx_args.add_encryptor_vmdk(parser)

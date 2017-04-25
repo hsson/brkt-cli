@@ -73,6 +73,7 @@ def setup_update_vmdk_args(parser):
     esx_args.add_no_verify_cert(parser)
     esx_args.add_ovf_source_directory(parser)
     esx_args.add_metavisor_ovf_image_name(parser)
+    esx_args.add_metavisor_version(parser)
     esx_args.add_use_esx_host(parser)
     esx_args.add_http_s3_proxy(parser)
     esx_args.add_encryptor_vmdk(parser)

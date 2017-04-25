@@ -47,6 +47,7 @@ def setup_encrypt_ami_args(parser, parsed_config):
     aws_args.add_security_group(parser)
     aws_args.add_subnet(parser, parsed_config)
     aws_args.add_aws_tag(parser)
+    aws_args.add_metavisor_version(parser)
     aws_args.add_encryptor_ami(parser)
     aws_args.add_key(parser)
     aws_args.add_retry_timeout(parser)
