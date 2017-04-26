@@ -70,6 +70,18 @@ def add_aws_tag(parser):
     )
 
 
+def add_metavisor_version(parser):
+    parser.add_argument(
+        '--metavisor-version',
+        metavar='NAME',
+        dest='metavisor_version',
+        default=None,
+        help=(
+            'Metavisor version [e.g 1.2.12 ] (default: latest)'
+        )
+    )
+
+
 def add_key(parser, help=argparse.SUPPRESS):
     # Optional EC2 SSH key pair name to use for launching the guest
     # and encryptor instances.  This argument is hidden by default because

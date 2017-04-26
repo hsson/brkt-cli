@@ -40,6 +40,7 @@ def setup_wrap_image_args(parser, parsed_config):
     aws_args.add_security_group(parser)
     aws_args.add_subnet(parser, parsed_config)
     aws_args.add_aws_tag(parser)
+    aws_args.add_metavisor_version(parser)
     aws_args.add_key(parser, help='SSH key pair name')
 
     # Optional AMI ID that's used to launch the encryptor instance.  This

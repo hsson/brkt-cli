@@ -129,7 +129,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             (ovf, file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
-                    image_name=values.image_name,
+                    version=values.metavisor_version,
                     proxy=proxy
                 )
             if ovf is None:
@@ -327,7 +327,7 @@ def run_update(values, parsed_config, log, use_esx=False):
             (ovf_name, download_file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
-                    image_name=values.image_name,
+                    version=values.metavisor_version,
                     proxy=proxy
                 )
             if ovf_name is None:
@@ -462,7 +462,7 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
             (ovf, file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
-                    image_name=values.image_name,
+                    version=values.metavisor_version,
                     proxy=proxy
                 )
             if ovf is None:

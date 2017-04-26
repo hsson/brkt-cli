@@ -22,7 +22,7 @@ from boto.exception import EC2ResponseError, NoAuthHandlerFound
 from brkt_cli import instance_config_args
 
 import brkt_cli
-from brkt_cli import encryptor_service, util
+from brkt_cli import encryptor_service, util, mv_version
 from brkt_cli.aws import (
     aws_service,
     encrypt_ami,
@@ -57,9 +57,7 @@ from brkt_cli.validation import ValidationError
 log = logging.getLogger(__name__)
 
 
-ENCRYPTOR_AMIS_URL = \
-    "https://solo-brkt-prod-net.s3.amazonaws.com/hvm_amis.json"
-
+ENCRYPTOR_AMIS_AWS_BUCKET = 'solo-brkt-prod-net'
 
 def _handle_aws_errors(func):
     """Provides common error handling to subcommands that interact with AWS
@@ -168,7 +166,8 @@ def run_wrap_image(values, config):
         if not aws_svc.iam_role_exists(values.iam):
             raise ValidationError('IAM role %s does not exist' % values.iam)
 
-    metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
+    metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
+                                                    values.metavisor_version)
     if values.validate:
         values.encrypted_ami_name = None
         _validate(aws_svc, values, metavisor_ami)
@@ -222,7 +221,8 @@ def run_encrypt(values, config, verbose=False):
         guest_image = _validate_guest_ami(aws_svc, values.ami)
     else:
         guest_image = _validate_ami(aws_svc, values.ami)
-    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
+    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
+                                                    values.metavisor_version)
     aws_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
     command_line_tags = brkt_cli.parse_tags(values.aws_tags)
     aws_tags.update(command_line_tags)
@@ -311,7 +311,8 @@ def run_update(values, config, verbose=False):
 
     aws_svc.connect(values.region, key_name=values.key_name)
     encrypted_image = _validate_ami(aws_svc, values.ami)
-    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region)
+    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
+                                                    values.metavisor_version)
     aws_tags = encrypt_ami.get_default_tags(nonce, encryptor_ami)
     command_line_tags = brkt_cli.parse_tags(values.aws_tags)
     aws_tags.update(command_line_tags)
@@ -671,20 +672,21 @@ def _validate_region(aws_svc, region_name):
         )
 
 
-def _get_encryptor_ami(region_name):
+def _get_encryptor_ami(region_name, version):
     """ Read the list of AMIs from the AMI endpoint and return the AMI ID
     for the given region.
 
     :raise ValidationError if the region is not supported
     :raise BracketError if the list of AMIs cannot be read
     """
-    bucket_url = ENCRYPTOR_AMIS_URL
+    bucket = ENCRYPTOR_AMIS_AWS_BUCKET
+    amis_url = mv_version.get_amis_url(version, bucket)
 
-    log.debug('Getting encryptor AMI list from %s', bucket_url)
-    r = urllib2.urlopen(bucket_url)
+    log.debug('Getting encryptor AMI list from %s', amis_url)
+    r = urllib2.urlopen(amis_url)
     if r.getcode() not in (200, 201):
         raise BracketError(
-            'Getting %s gave response: %s' % (bucket_url, r.text))
+            'Getting %s gave response: %s' % (amis_url, r.text))
     resp_json = json.loads(r.read())
     ami = resp_json.get(region_name)
 

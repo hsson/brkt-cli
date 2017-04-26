@@ -282,6 +282,17 @@ def add_metavisor_ovf_image_name(parser):
     )
 
 
+def add_metavisor_version(parser):
+    parser.add_argument(
+        '--metavisor-version',
+        metavar='NAME',
+        dest='metavisor_version',
+        help='Metavisor version [e.g 1.2.12 ] (default: latest)',
+        default=None,
+        required=False
+    )
+
+
 def add_console_file_name(parser):
     parser.add_argument(
         '--console-file-name',

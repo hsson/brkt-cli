@@ -43,6 +43,7 @@ from brkt_cli.util import (
     validate_dns_name_ip_address
 )
 from brkt_cli import crypto
+from brkt_cli import mv_version
 from brkt_cli.instance_config import INSTANCE_UPDATER_MODE
 from brkt_cli.validation import ValidationError
 
@@ -1197,15 +1198,11 @@ def need_to_download_from_s3(file_list):
     return fetch_s3_objects
 
 
-def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
+def download_ovf_from_s3(bucket_name, version=None, proxy=None):
     log.info("Fetching Metavisor OVF from S3")
     if bucket_name is None:
         log.error("Bucket-name is unknown, cannot get metavisor OVF")
         raise Exception("Invalid bucket-name")
-
-    # Normalize image_name for S3 downloads
-    if image_name and image_name.endswith('.ovf'):
-        image_name = image_name[:image_name.find('.ovf')]
 
     try:
         _environ = dict(os.environ)
@@ -1220,25 +1217,13 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
         if not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ)):
             s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
 
+        mv = mv_version.get_version(version=version,
+                                    bucket=bucket_name)
+
         bucket = s3.Bucket(bucket_name)
-        blist = list(bucket.objects.filter(Prefix="metavisor/"))
-        if not blist:
-            blist = list(bucket.objects.all())
+        blist = list(bucket.objects.filter(Prefix=mv))
 
-        # Get latest, exact, or partial match of ovfs
-        # No debug for partial match
-        if image_name is None:
-            ovfs = [ o for o in blist if o.key.endswith('.ovf')
-                     and ('latest/' in o.key or 'release-' in o.key)
-                     and not '-debug' in o.key ]
-        else:
-            exact_match = image_name + '.ovf'
-            ovfs = [ o for o in blist if o.key.endswith(exact_match) ]
-            if not ovfs:
-                ovfs = [ o for o in blist if o.key.endswith('.ovf')
-                         and image_name in o.key
-                         and not '-debug' in o.key ]
-
+        ovfs = [ o for o in blist if o.key.endswith('.ovf') ]
         if ovfs:
             ovf_key = sorted(ovfs, key=attrgetter('last_modified'))[-1].key
             ovf_name = ovf_key[ovf_key.rfind('/')+1:]
@@ -1253,8 +1238,7 @@ def download_ovf_from_s3(bucket_name, image_name=None, proxy=None):
             else:
                 log.info("Using previously downloaded OVF image: %s", ovf_name)
         else:
-            log.error("No OVF image found with name %s in bucket "
-                     "%s" % (image_name, bucket_name))
+            log.error("No metavisor ovfs found in bucket %s", bucket_name)
             ovf_name = ovf_filenames = None
 
         os.environ.clear()

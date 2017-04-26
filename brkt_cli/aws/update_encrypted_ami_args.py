@@ -49,6 +49,7 @@ def setup_update_encrypted_ami(parser, parsed_config):
     aws_args.add_subnet(parser, parsed_config)
     aws_args.add_key(parser)
     aws_args.add_aws_tag(parser)
+    aws_args.add_metavisor_version(parser)
     aws_args.add_encryptor_ami(parser)
     aws_args.add_retry_timeout(parser)
     aws_args.add_retry_initial_sleep_seconds(parser)
