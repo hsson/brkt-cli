@@ -50,7 +50,10 @@ def wrap_from_s3(vc_swc, guest_vmdk, vm_name=None,
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=1)
         if user_data_str:
             vc_swc.send_userdata(vm, user_data_str)
+        vc_swc.reconfigure_vm_cpu_ram(vm)
         if static_ip:
+            vc_swc.power_on(vm)
+            vc_swc.power_off(vm)
             vc_swc.configure_static_ip(vm, static_ip)
         vc_swc.power_on(vm)
         ip_addr = vc_swc.get_ip_address(vm)
@@ -84,7 +87,10 @@ def wrap_from_local_ovf(vc_swc, guest_vmdk, vm_name=None,
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=1)
         if user_data_str:
             vc_swc.send_userdata(vm, user_data_str)
+        vc_swc.reconfigure_vm_cpu_ram(vm)
         if static_ip:
+            vc_swc.power_on(vm)
+            vc_swc.power_off(vm)
             vc_swc.configure_static_ip(vm, static_ip)
         vc_swc.power_on(vm)
         ip_addr = vc_swc.get_ip_address(vm)
@@ -115,7 +121,10 @@ def wrap_from_vmdk(vc_swc, guest_vmdk, vm_name=None,
         vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=1)
         if user_data_str:
             vc_swc.send_userdata(vm, user_data_str)
+        vc_swc.reconfigure_vm_cpu_ram(vm)
         if static_ip:
+            vc_swc.power_on(vm)
+            vc_swc.power_off(vm)
             vc_swc.configure_static_ip(vm, static_ip)
         vc_swc.power_on(vm)
         ip_addr = vc_swc.get_ip_address(vm)
