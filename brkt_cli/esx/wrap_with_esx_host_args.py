@@ -23,7 +23,7 @@ def setup_wrap_with_esx_host_args(parser):
     )
     esx_args.add_vcenter_host(parser, use_esx=True)
     esx_args.add_vcenter_port(parser, use_esx=True)
-    esx_args.add_vcenter_datacenter(parser, use_esx=True)
+    esx_args.add_vcenter_datastore(parser, use_esx=True)
     esx_args.add_vcenter_network_name(parser, use_esx=True)
     esx_args.add_cpu(parser, help="Number of CPUs to assign to the VM")
     esx_args.add_memory(parser, help="Memory to assign to the VM")
