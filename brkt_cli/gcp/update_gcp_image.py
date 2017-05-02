@@ -72,9 +72,15 @@ def update_gcp_image(gcp_svc, enc_svc_cls, image_id, encryptor_image,
                              delete_boot=False,
                              metadata=user_data,
                              tags=gcp_tags)
+        host_ips = []
         ip = gcp_svc.get_instance_ip(updater, zone)
+        if ip:
+            host_ips.append(ip)
+        pvt_ip = gcp_svc.get_private_ip(updater, zone)
+        if pvt_ip:
+            host_ips.append(pvt_ip)
         updater_launched = True
-        enc_svc = enc_svc_cls([ip], port=status_port)
+        enc_svc = enc_svc_cls(host_ips, port=status_port)
 
         # wait for updater to finish and guest root disk
         wait_for_encryptor_up(enc_svc, Deadline(600))
