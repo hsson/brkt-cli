@@ -13,7 +13,6 @@
 # limitations under the License.
 import logging
 import os
-import threading
 from brkt_cli.encryptor_service import (
     wait_for_encryptor_up,
     wait_for_encryption,
@@ -116,12 +115,6 @@ def update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
         vc_swc.destroy_vm(guest_vm)
         vc_swc.destroy_vm(mv_vm)
     log.info("Done")
-    # Temporary hack to debug hung threads
-    t_list = threading.enumerate()
-    for thread_e in t_list:
-        log.info("Thread name: %s Daemon: %d IsAlive %d",
-                 thread_e.name, thread_e.daemon,
-                 thread_e.is_alive())
 
 
 def launch_guest_vm(vc_swc, template_vm_name, target_path, ovf_name,

@@ -157,7 +157,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
     # Validate vCenter parameters
-    vc_swc.validate_vcenter_params(use_esx)
+    vc_swc.validate_vcenter_params()
     # Validate that template does not already exist
     if values.template_vm_name:
         if vc_swc.find_vm(values.template_vm_name):
@@ -355,7 +355,7 @@ def run_update(values, parsed_config, log, use_esx=False):
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
     # Validate vCenter parameters
-    vc_swc.validate_vcenter_params(use_esx)
+    vc_swc.validate_vcenter_params()
     if values.template_vm_name:
         if vc_swc.find_vm(values.template_vm_name) is None:
             raise ValidationError("Template VM %s not found" %
@@ -491,7 +491,7 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
     # Validate vCenter parameters
-    vc_swc.validate_vcenter_params(use_esx)
+    vc_swc.validate_vcenter_params()
     # Validate that template does not already exist
     if values.vm_name:
         if vc_swc.find_vm(values.vm_name):
