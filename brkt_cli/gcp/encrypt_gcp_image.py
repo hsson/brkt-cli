@@ -84,8 +84,14 @@ def do_encryption(gcp_svc,
                          tags=gcp_tags)
 
     try:
+        host_ips = []
         ip = gcp_svc.get_instance_ip(encryptor, zone)
-        enc_svc = enc_svc_cls([ip], port=status_port)
+        if ip:
+            host_ips.append(ip)
+        pvt_ip = gcp_svc.get_private_ip(encryptor, zone)
+        if pvt_ip:
+            host_ips.append(pvt_ip)
+        enc_svc = enc_svc_cls(host_ips, port=status_port)
         wait_for_encryptor_up(enc_svc, Deadline(600))
         log.info(
             'Waiting for encryption service on %s (%s:%s)',
