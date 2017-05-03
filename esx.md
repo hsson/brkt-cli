@@ -311,6 +311,7 @@ optional arguments:
   --vcenter-port N      Port Number of the vCenter Server (default: 443)
   --vm-name NAME        Specify the name of the launched VM
   -h, --help            show this help message and exit
+```
 
 ## Configuration
 
