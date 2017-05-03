@@ -187,7 +187,7 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def validate_vcenter_params(self, use_esx=False):
+    def validate_vcenter_params(self):
         pass
 
     @abc.abstractmethod
@@ -469,7 +469,7 @@ class VCenterService(BaseVCenterService):
                 raise Exception('Task failed to finish with error %s' %
                                 task.info.error)
 
-    def validate_vcenter_params(self, use_esx=False):
+    def validate_vcenter_params(self):
         content = self.si.RetrieveContent()
         if self.datacenter_name:
             datacenter = self.__get_obj(content, [vim.Datacenter],
@@ -489,7 +489,7 @@ class VCenterService(BaseVCenterService):
             if not cluster:
                 raise ValidationError("Cluster %s not found",
                                       self.cluster_name)
-        elif not use_esx:
+        elif not self.esx_host:
             raise ValidationError("Cluster name required when using vCenter")
 
     def find_vm(self, vm_name):
@@ -604,6 +604,10 @@ class VCenterService(BaseVCenterService):
     def configure_static_ip(self, vm, static_ip):
         self.validate_connection()
         log.info("Configuring static IP address")
+        # Static IP configuration on MVs work only with a
+        # power-on and then power-off of the VM
+        self.power_on(vm)
+        self.power_off(vm)
         adaptermap = vim.vm.customization.AdapterMapping()
         globalip = vim.vm.customization.GlobalIPSettings()
         adaptermap.adapter = vim.vm.customization.IPSettings()
