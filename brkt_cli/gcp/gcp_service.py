@@ -113,6 +113,10 @@ class BaseGCPService(object):
         pass
 
     @abc.abstractmethod
+    def get_private_ip(self, name, zone):
+        pass
+
+    @abc.abstractmethod
     def detach_disk(self, zone, instance, diskName):
         pass
 
@@ -406,6 +410,15 @@ class GCPService(BaseGCPService):
             except:
                 pass
         self.log.info("Couldn't find an IP address for this instance.")
+
+    def get_private_ip(self, name, zone):
+        nw = 'networkInterfaces'
+        instance_req = self.compute.instances().get(project=self.project,
+                zone=zone, instance=name)
+        instance = retry(execute_gcp_api_call)(instance_req)
+        if instance[nw][0]['networkIP']:
+            return instance[nw][0]['networkIP']
+        self.log.info("Couldn't find private IP address for this instance.")
 
     def write_serial_console_file(self, zone, instance):
         try:
