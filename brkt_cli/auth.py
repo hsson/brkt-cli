@@ -11,12 +11,12 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import getpass
 import logging
 
 import sys
 
-import brkt_cli
 from brkt_cli import argutil, ValidationError, util
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.yeti import YetiService, YetiError
@@ -41,28 +41,27 @@ class AuthSubcommand(Subcommand):
         parser = subparsers.add_parser(
             self.name(),
             description=(
-                'Authenticate with the Bracket service. On success, print '
-                'the API token (JSON Web Token) that is used for making '
-                'calls to Bracket REST API endpoints. You must set the '
-                'BRKT_API_TOKEN environment variable to this value, to '
-                'allow other brkt-cli commands to communicate with the '
-                'Bracket service.'
+                'Authenticate with the Bracket service. On success, print the API token (JSON\n'  # noqa
+                'Web Token) that is used for making calls to Bracket REST API endpoints. You \n'  # noqa
+                'must set the BRKT_API_TOKEN environment variable to this value, to allow other\n'  # noqa
+                'brkt-cli commands to communicate with the Bracket service:\n'
+                '\n'
+                '$ export BRKT_API_TOKEN=$(brkt auth)'
             ),
             help='Authenticate with the Bracket service',
-            formatter_class=brkt_cli.SortingHelpFormatter
+            formatter_class=argparse.RawDescriptionHelpFormatter
         )
         parser.add_argument(
             '--email',
             metavar='ADDRESS',
             help='If not specified, show a prompt.'
         )
+        argutil.add_out(parser)
         parser.add_argument(
             '--password',
             help='If not specified, show a prompt.'
         )
-
         argutil.add_root_url(parser, parsed_config)
-        argutil.add_out(parser)
 
     def run(self, values):
         email = values.email
