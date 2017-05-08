@@ -136,6 +136,9 @@ class DummyGCPService(gcp_service.BaseGCPService):
     def get_instance_ip(self, name, zone):
         return
 
+    def get_private_ip(self, name, zone):
+        return
+
     def detach_disk(self, zone, instance, diskName):
         return self.wait_for_detach(zone, diskName)
 

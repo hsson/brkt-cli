@@ -4,6 +4,8 @@ import logging
 
 from googleapiclient import errors
 
+from brkt_cli.util import append_suffix
+from brkt_cli.gcp.gcp_service import GCP_NAME_MAX_LENGTH
 
 log = logging.getLogger(__name__)
 
@@ -28,9 +30,12 @@ def wrap_guest_image(gcp_svc, image_id, encryptor_image, zone,
 
         if not instance_name:
             instance_name = 'brkt-guest-' + gcp_svc.get_session_id()
-            guest_disk_name = instance_name + '-unencrypted'
+            guest_disk_name = append_suffix(instance_name, '-unencrypted',
+                                            GCP_NAME_MAX_LENGTH)
         else:
-            guest_disk_name = instance_name + gcp_svc.get_session_id()
+            guest_disk_name = append_suffix(instance_name,
+                                            gcp_svc.get_session_id(),
+                                            GCP_NAME_MAX_LENGTH)
         
         gcp_svc.disk_from_image(zone, image_id, guest_disk_name, image_project)
         log.info('Waiting for guest root disk to become ready')

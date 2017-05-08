@@ -11,7 +11,7 @@ the encryption process.
 and generating a JSON Web Token (JWT) that is used to authenticate with
 The Bracket Computing service.
 
-The latest release of **brkt-cli** is [1.0.8](https://github.com/brkt/brkt-cli/releases/tag/brkt-cli-1.0.8).
+The latest release of **brkt-cli** is [1.0.9](https://github.com/brkt/brkt-cli/releases/tag/brkt-cli-1.0.9).
 
 ## Requirements
 
