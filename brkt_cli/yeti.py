@@ -29,8 +29,9 @@ class Customer(object):
 class YetiError(Exception):
     def __init__(self, http_status, message=None):
         if not message:
-            if http_status == 401:
-                message = httplib.responses[http_status]
+            message = 'Bracket service returned error %d: %s' % (
+                http_status, httplib.responses[http_status]
+            )
 
         super(YetiError, self).__init__(message)
         self.http_status = http_status
