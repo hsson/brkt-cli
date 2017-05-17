@@ -1225,7 +1225,8 @@ def download_ovf_from_s3(bucket_name, version=None, proxy=None):
                                     bucket=bucket_name)
 
         bucket = s3.Bucket(bucket_name)
-        blist = list(bucket.objects.filter(Prefix=mv))
+        prefix = mv + '/'
+        blist = list(bucket.objects.filter(Prefix=prefix))
 
         ovfs = [ o for o in blist if o.key.endswith('.ovf') ]
         if ovfs:

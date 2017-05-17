@@ -97,8 +97,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         if use_esx is False and values.template_vm_name is None:
             raise ValidationError("Missing template-vm-name for the "
                                   "template VM")
-    if (values.source_image_path is not None and values.image_name is None):
-        raise ValidationError("Specify the Metavisor OVF file.")
+    if values.source_image_path is None and values.image_name is not None:
+        raise ValidationError("Specify OVF image location with --ovf-source-directory")
     if use_esx:
         _check_env_vars_set('ESX_USER_NAME')
     else:
@@ -295,8 +295,8 @@ def run_update(values, parsed_config, log, use_esx=False):
                                   "updation on a single ESX host")
         if (values.template_vm_name is None):
             raise ValidationError("Encrypted image not provided")
-    if (values.source_image_path is not None and values.image_name is None):
-        raise ValidationError("Specify the Metavisor OVF file.")
+    if values.source_image_path is None and values.image_name is not None:
+        raise ValidationError("Specify OVF image location with --ovf-source-directory")
     if use_esx:
         _check_env_vars_set('ESX_USER_NAME')
     else:
@@ -427,8 +427,8 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
 
     if not use_esx and values.vm_name is None:
         raise ValidationError("Missing vm-name for the VM")
-    if (values.source_image_path is not None and values.image_name is None):
-        raise ValidationError("Specify the Metavisor OVF file.")
+    if values.source_image_path is None and values.image_name is not None:
+        raise ValidationError("Specify OVF image location with --ovf-source-directory")
     if use_esx:
         _check_env_vars_set('ESX_USER_NAME')
     else:
