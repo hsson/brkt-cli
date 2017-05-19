@@ -149,7 +149,10 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         vm.remove_disk(unit_number)
         return disk
 
-    def clone_disk(self, source_disk, dest_disk=None, dest_disk_name=None):
+    def clone_disk(self, source_disk=None, source_disk_name=None,
+                   dest_disk=None, dest_disk_name=None):
+        if source_disk is None:
+            source_disk = self.disks[source_disk_name]
         if (dest_disk_name is None):
             if (dest_disk is None):
                 raise Exception("Cannot clone disk as destination "
@@ -158,6 +161,9 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         disk = DummyDisk(source_disk.size, dest_disk_name)
         self.disks[dest_disk_name] = disk
         return dest_disk_name
+
+    def delete_disk(self, disk_name):
+        del self.disks[disk_name]
 
     def get_disk(self, vm, unit_number):
         # return vim.vm.device.VirtualDisk

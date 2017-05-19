@@ -232,7 +232,12 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def clone_disk(self, source_disk, dest_disk=None, dest_disk_name=None):
+    def clone_disk(self, source_disk=None, source_disk_name=None,
+                   dest_disk=None, dest_disk_name=None):
+        pass
+
+    @abc.abstractmethod
+    def delete_disk(self, disk_name):
         pass
 
     @abc.abstractmethod
@@ -755,10 +760,14 @@ class VCenterService(BaseVCenterService):
                  unit_number, vm.config.name)
         return delete_device
 
-    def clone_disk(self, source_disk, dest_disk=None, dest_disk_name=None):
+    def clone_disk(self, source_disk=None, source_disk_name=None,
+                   dest_disk=None, dest_disk_name=None):
         self.validate_connection()
         content = self.si.RetrieveContent()
-        source_disk_name = source_disk.backing.fileName
+        if source_disk_name is None:
+            if source_disk is None:
+                raise Exception("Cannot clone disk as source not specified")
+            source_disk_name = source_disk.backing.fileName
         if (dest_disk_name is None):
             if (dest_disk is None):
                 raise Exception("Cannot clone disk as destination "
@@ -766,6 +775,7 @@ class VCenterService(BaseVCenterService):
             source = source_disk_name.split("/")
             dest = dest_disk.backing.fileName.split("/")
             dest_disk_name = source[0] + "/" + dest[1]
+        log.info("Cloning disk %s to disk %s", source_disk_name, dest_disk_name)
         virtualDiskManager = self.si.content.virtualDiskManager
         if self.esx_host:
             s_name = source_disk_name
@@ -791,6 +801,23 @@ class VCenterService(BaseVCenterService):
                 datacenter)
         self.__wait_for_task(task)
         return dest_disk_name
+
+    def delete_disk(self, disk_name):
+        self.validate_connection()
+        content = self.si.RetrieveContent()
+        virtualDiskManager = self.si.content.virtualDiskManager
+        if self.esx_host:
+            d_name = disk_name
+            if self.datastore_path in disk_name:
+                start = disk_name.find(self.datastore_path)
+                d_name = disk_name[(start + len(self.datastore_path)):]
+            disk_url = "https://" + self.host + "/folder/" + d_name + "?dsName=" + self.datastore_name
+            task = virtualDiskManager.DeleteVirtualDisk(disk_url, None)
+        else:
+            datacenter = self.__get_obj(content, [vim.Datacenter],
+                                        self.datacenter_name)
+            task = virtualDiskManager.DeleteVirtualDisk(disk_name, datacenter)
+        self.__wait_for_task(task)
 
     def get_disk(self, vm, unit_number):
         self.validate_connection()
