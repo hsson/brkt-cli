@@ -50,13 +50,17 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                                 user_data_str=None, serial_port_file_name=None,
                                 status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     try:
+        # clone the guest vmdk
+        new_guest_vmdk_name = vc_swc.get_datastore_path(vc_swc.session_id +
+                                                        guest_vmdk)
+        vc_swc.clone_disk(source_disk_name=vc_swc.get_datastore_path(guest_vmdk),
+                          dest_disk_name=new_guest_vmdk_name)
         mv_vm_name = vc_swc.get_vm_name(vm)
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(vm)
         # Add datastore path to the guest vmdk
-        guest_vmdk_path = vc_swc.get_datastore_path(guest_vmdk)
         # Attach guest vmdk
-        vc_swc.add_disk(vm, filename=guest_vmdk_path, unit_number=2)
+        vc_swc.add_disk(vm, filename=new_guest_vmdk_name, unit_number=2)
         if crypto_policy is None:
             crypto_policy = CRYPTO_XTS
         # Attach empty disk
@@ -155,6 +159,11 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                         vm = vc_swc.find_vm(mv_vm_name)
                 if vm is not None:
                     vc_swc.destroy_vm(vm)
+                try:
+                    vc_swc.delete_disk(new_guest_vmdk_name)
+                except Exception as e:
+                    log.error("Failed to delete disk %s %s",
+                              new_guest_vmdk_name, e)
         log.info("Done")
 
 

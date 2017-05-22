@@ -64,7 +64,7 @@ def update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
         new_disk = vc_swc.get_disk(mv_vm, unit_number=0)
         # Clone and attach new MV disk to guest VM
         log.info("Cloning Metavisor disk")
-        u_disk_name = vc_swc.clone_disk(new_disk, dest_disk=mv_old_disk)
+        u_disk_name = vc_swc.clone_disk(source_disk=new_disk, dest_disk=mv_old_disk)
         # Add disks to guest VM
         vc_swc.add_disk(guest_vm, filename=u_disk_name, unit_number=0)
         vc_swc.add_disk(guest_vm, filename=vc_swc.get_disk_name(guest_old_disk),
