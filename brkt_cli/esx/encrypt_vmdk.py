@@ -51,8 +51,7 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                                 status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     try:
         # clone the guest vmdk
-        new_guest_vmdk_name = vc_swc.get_datastore_path(vc_swc.session_id +
-                                                        guest_vmdk)
+        new_guest_vmdk_name = vc_swc.get_session_vmdk_name(guest_vmdk)
         vc_swc.clone_disk(source_disk_name=vc_swc.get_datastore_path(guest_vmdk),
                           dest_disk_name=new_guest_vmdk_name)
         mv_vm_name = vc_swc.get_vm_name(vm)
