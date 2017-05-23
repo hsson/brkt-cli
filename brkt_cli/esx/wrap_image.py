@@ -46,9 +46,7 @@ def wrap_from_s3(vc_swc, guest_vmdk, vm_name=None,
         vm = launch_mv_vm_from_s3(vc_swc, ovf_name,
                                   download_file_list, vm_name,
                                   cleanup)
-        new_guest_vmdk_name = vc_swc.get_datastore_path(
-                                  vc_swc.session_id +
-                                  guest_vmdk)
+        new_guest_vmdk_name = vc_swc.get_session_vmdk_name(guest_vmdk)
         vc_swc.clone_disk(source_disk_name=vc_swc.get_datastore_path(guest_vmdk),
                           dest_disk_name=new_guest_vmdk_name)
         vc_swc.add_disk(vm, filename=new_guest_vmdk_name, unit_number=1)
@@ -85,9 +83,7 @@ def wrap_from_local_ovf(vc_swc, guest_vmdk, vm_name=None,
         vm = vc_swc.upload_ovf_to_vcenter(source_image_path,
                                           ovf_image_name,
                                           vm_name=vm_name)
-        new_guest_vmdk_name = vc_swc.get_datastore_path(
-                                  vc_swc.session_id +
-                                  guest_vmdk)
+        new_guest_vmdk_name = vc_swc.get_session_vmdk_name(guest_vmdk)
         vc_swc.clone_disk(source_disk_name=vc_swc.get_datastore_path(guest_vmdk),
                           dest_disk_name=new_guest_vmdk_name)
         vc_swc.add_disk(vm, filename=new_guest_vmdk_name, unit_number=1)
@@ -116,9 +112,7 @@ def wrap_from_vmdk(vc_swc, guest_vmdk, vm_name=None,
             return
         # Add datastore path to the vmdk
         metavisor_vmdk_path = vc_swc.get_datastore_path(metavisor_vmdk)
-        new_guest_vmdk_name = vc_swc.get_datastore_path(
-                                  vc_swc.session_id +
-                                  guest_vmdk)
+        new_guest_vmdk_name = vc_swc.get_session_vmdk_name(guest_vmdk)
         vc_swc.clone_disk(source_disk_name=vc_swc.get_datastore_path(guest_vmdk),
                           dest_disk_name=new_guest_vmdk_name)
         # Create a metavisor VM

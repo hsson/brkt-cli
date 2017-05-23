@@ -162,6 +162,14 @@ class BaseVCenterService(object):
     def is_esx_host(self):
         return self.esx_host
 
+    def get_session_vmdk_name(self, vmdk_name):
+        p = os.path.split(vmdk_name)
+        new_vmdk_name = self.session_id + p[1]
+        if len(p[0]) > 0:
+            new_vmdk_name = os.path.join(p[0], self.session_id + p[1])
+        f_name = self.get_datastore_path(new_vmdk_name)
+        return f_name
+
     @abc.abstractmethod
     def connect(self):
         pass
