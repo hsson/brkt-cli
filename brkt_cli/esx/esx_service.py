@@ -465,13 +465,16 @@ class VCenterService(BaseVCenterService):
         container = content.viewManager.CreateContainerView(
             content.rootFolder, vimtype, True)
         for c in container.view:
-            if name:
-                if c.name == name:
+            try:
+                if name:
+                    if c.name == name:
+                        obj = c
+                        break
+                else:
                     obj = c
                     break
-            else:
-                obj = c
-                break
+            except:
+                pass
         return obj
 
     def __wait_for_task(self, task):
