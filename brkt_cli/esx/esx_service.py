@@ -1174,7 +1174,9 @@ class VCenterService(BaseVCenterService):
                 with open(file_path, 'rb') as f:
                     # Disable verification as VMDK upload happens directly
                     # to the ESX host.
-                    requests.post(dev_url, data=f, verify=False, headers=headers)
+                    retry(requests.post,
+                          on=requests.exceptions.ConnectionError)(
+                          dev_url, data=f, verify=False, headers=headers)
             vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
         except Exception as e:
             log.error("Exception while uploading OVF %s" % e)
