@@ -251,10 +251,15 @@ def _snapshot_encrypted_instance(
             os.environ['NO_PROXY'] = encryptor_instance.private_ip_address
 
     enc_svc = enc_svc_cls(host_ips, port=status_port)
-    try:
-        log.info('Waiting for encryption service on %s (port %s on %s)',
+    log.info('Waiting for encryption service on %s (port %s on %s)',
              encryptor_instance.id, enc_svc.port, ', '.join(host_ips))
+    try:
         encryptor_service.wait_for_encryptor_up(enc_svc, Deadline(600))
+    except:
+        log.error('Unable to connect to encryptor instance.')
+        raise
+
+    try:
         log.info('Creating encrypted root drive.')
         encryptor_service.wait_for_encryption(enc_svc)
     except (BracketError, encryptor_service.EncryptionError) as e:
