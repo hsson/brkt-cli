@@ -95,7 +95,12 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
             log.error("Failed to re-connect to vCenter after encryption. "
                       "Please cleanup VM %s manually.", mv_vm_name)
             raise
-        vm = vc_swc.find_vm(mv_vm_name)
+        for retry in range(10):
+            # This should not fail, if it fails, then retry
+            # 10 times before giving up
+            vm = vc_swc.find_vm(mv_vm_name)
+            if vm:
+                break
         # detach unencrypted guest root
         vc_swc.power_off(vm)
         vc_swc.detach_disk(vm, unit_number=2)
