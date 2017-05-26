@@ -425,3 +425,15 @@ def add_no_cleanup(parser, help=argparse.SUPPRESS):
         action='store_false',
         help=help
     )
+
+
+# Optional argument to attach a CDROM device to the launched VM
+# Used currently only for PCF deployments
+def add_cdrom(parser, help=argparse.SUPPRESS):
+    parser.add_argument(
+        '--cdrom',
+        dest='cdrom',
+        default=False,
+        action='store_true',
+        help=help
+    )

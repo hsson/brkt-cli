@@ -66,3 +66,4 @@ def setup_encrypt_vmdk_args(parser):
     esx_args.add_nic_type(parser)
     esx_args.add_crypto_policy(parser)
     esx_args.add_no_cleanup(parser)
+    esx_args.add_cdrom(parser)
