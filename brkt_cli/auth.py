@@ -19,6 +19,7 @@ import sys
 
 from brkt_cli import argutil, ValidationError, util
 from brkt_cli.subcommand import Subcommand
+from brkt_cli import yeti
 from brkt_cli.yeti import YetiService, YetiError
 
 log = logging.getLogger(__name__)
@@ -64,6 +65,19 @@ class AuthSubcommand(Subcommand):
         argutil.add_root_url(parser, parsed_config)
 
     def run(self, values):
+        try:
+            if not yeti.is_yeti(values.root_url):
+                raise ValidationError(
+                    values.root_url +
+                    ' is not the Bracket service'
+                )
+        except IOError as e:
+            log.debug('', exc_info=1)
+            msg = 'Unable to reach the Bracket service'
+            if e.message:
+                msg = '%s: %s' % (msg, e.message)
+            raise ValidationError(msg)
+
         email = values.email
         if not email:
             # Write to stderr, so that the user doesn't see the prompt
@@ -79,6 +93,7 @@ class AuthSubcommand(Subcommand):
                 raise ValidationError(
                     'Invalid email or password for %s' % values.root_url)
             raise ValidationError(e.message)
+
         util.write_to_file_or_stdout(token, path=values.out)
 
         return 0

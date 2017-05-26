@@ -166,3 +166,12 @@ class YetiService(object):
             json=payload
         )
         return d['jwt']
+
+
+def is_yeti(root_url, timeout=10.0):
+    """ Return True if the root_url points to Yeti.
+    :raise IOError if the url cannot be accessed
+    """
+    url = root_url + '/health_check'
+    r = requests.get(url, timeout=timeout)
+    return r.status_code == 200
