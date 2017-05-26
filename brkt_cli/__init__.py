@@ -452,6 +452,7 @@ def main():
 
     # Run the subcommand.
     allow_debug_log = True
+    error_msg = None
     try:
         result = subcommand.run(values)
         if not isinstance(result, (int, long)):
@@ -460,10 +461,10 @@ def main():
         log.debug('%s returned %d', subcommand.name(), result)
     except ValidationError as e:
         allow_debug_log = False
-        print(e, file=sys.stderr)
+        error_msg = e.message
     except util.BracketError as e:
         log.debug('', exc_info=1)
-        log.error(e.message)
+        error_msg = e.message
     except KeyboardInterrupt:
         allow_debug_log = False
         log.debug('', exc_info=1)
@@ -478,6 +479,10 @@ def main():
                 log.info('Debug log is available at %s', debug_log_file.name)
             else:
                 os.remove(debug_log_file.name)
+
+    if error_msg:
+        print(error_msg, file=sys.stderr)
+
     return result
 
 

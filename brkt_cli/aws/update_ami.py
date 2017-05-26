@@ -149,7 +149,12 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
         enc_svc = enc_svc_class(host_ips, port=status_port)
         log.info('Waiting for updater service on %s (port %s on %s)',
                  updater.id, enc_svc.port, ', '.join(host_ips))
-        wait_for_encryptor_up(enc_svc, Deadline(600))
+        try:
+            wait_for_encryptor_up(enc_svc, Deadline(600))
+        except:
+            log.error('Unable to connect to encryptor instance.')
+            raise
+
         try:
             wait_for_encryption(enc_svc)
         except Exception as e:
