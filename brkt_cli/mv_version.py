@@ -51,7 +51,7 @@ def get_s3_versions(bucket):
        versions: List of metavisor version prefix's for AWS bucket (list)
 
     """
-    log.info('Fetching Metavisor version from S3')
+    log.debug('Fetching Metavisor version from S3')
     versions = []
 
     # Check for dev bucket
