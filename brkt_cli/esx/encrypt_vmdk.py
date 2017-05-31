@@ -50,11 +50,11 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                                 user_data_str=None, serial_port_file_name=None,
                                 status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     try:
+        mv_vm_name = vc_swc.get_vm_name(vm)
         # clone the guest vmdk
         new_guest_vmdk_name = vc_swc.get_session_vmdk_name(guest_vmdk)
         vc_swc.clone_disk(source_disk_name=vc_swc.get_datastore_path(guest_vmdk),
                           dest_disk_name=new_guest_vmdk_name)
-        mv_vm_name = vc_swc.get_vm_name(vm)
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(vm)
         # Add datastore path to the guest vmdk
