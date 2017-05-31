@@ -137,7 +137,8 @@ def run_share_logs(values):
         snapshot_id=values.snapshot_id,
         region=values.region,
         bucket=values.bucket,
-        path=values.path
+        path=values.path,
+        subnet_id=values.subnet_id
     )
     return 0
 

@@ -98,7 +98,7 @@ class ShareLogsTestService(share_logs.ShareLogsService):
         return [snapshot]
 
     def run_instance(self, image_id, instance_type,
-                     block_device_map, user_data, ebs_optimized):
+                     block_device_map, user_data, ebs_optimized, subnet_id):
         instance = Instance()
         ShareLogsTestService.created = True
         return instance
@@ -156,4 +156,4 @@ class TestShareLogs(unittest.TestCase):
         path = 'test/path'
 
         share_logs.share(aws_svc, logs_svc, instance_id=instance_id,
-            snapshot_id=snapshot_id, region=region, bucket=bucket, path=path)
+            snapshot_id=snapshot_id, region=region, bucket=bucket, path=path, subnet_id=None)

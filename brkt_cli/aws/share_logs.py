@@ -30,10 +30,11 @@ log = logging.getLogger(__name__)
 
 
 def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
-          snapshot_id=None, bucket=None, path=None):
+          snapshot_id=None, bucket=None, path=None, subnet_id=None):
 
     log.info('Sharing logs')
     snapshot = None
+    new_instance = None
 
     try:
         s3 = logs_svc.s3_connect()
@@ -78,7 +79,8 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
         amzn = '#!/bin/bash\n' + \
         'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/xvdg4 /mnt\n' + \
         'sudo tar czvf /tmp/%s -C /mnt ./log ./crash\n' % (logs_file) + \
-        'sudo aws s3 cp /tmp/%s s3://%s/%s %s\n' % (logs_file, bucket, path, acl)
+        'aws configure set default.s3.multipart_threshold 256MB\n' + \
+        'aws s3 cp /tmp/%s s3://%s/%s %s\n' % (logs_file, bucket, path, acl)
 
         # Specifies volume to be attached to instance
         bdm = BlockDeviceMapping()
@@ -107,9 +109,10 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
         image_id = IMAGES_BY_REGION[region]
 
         # Launch new instance, with volume and startup script
+
         new_instance = aws_svc.run_instance(
             image_id, instance_type='m4.large', block_device_map=bdm,
-            user_data=amzn, ebs_optimized=False)
+            user_data=amzn, ebs_optimized=False, subnet_id=subnet_id)
 
         # wait for instance to launch
         log.info('Waiting for instance...')

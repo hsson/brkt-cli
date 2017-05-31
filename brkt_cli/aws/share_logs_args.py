@@ -49,6 +49,13 @@ def setup_share_logs_args(parser, parsed_config):
         help='PATH in bucket to store logs file',
         default='logs.tar.gz'
     )
+    parser.add_argument(
+        '--subnet',
+        metavar='ID',
+        dest='subnet_id',
+        help='Launch instances in this subnet',
+        required=False
+    )
     aws_args.add_no_validate(parser)
     aws_args.add_retry_timeout(parser)
     aws_args.add_retry_initial_sleep_seconds(parser)
