@@ -66,8 +66,6 @@ class MakeTokenSubcommand(Subcommand):
                 raise ValidationError(msg % '--claim')
             if values.customer:
                 raise ValidationError(msg % '--customer')
-            if values.exp:
-                raise ValidationError(msg % '--exp')
             if values.nbf:
                 raise ValidationError(msg % '--nbf')
 
@@ -80,7 +78,10 @@ class MakeTokenSubcommand(Subcommand):
                     brkt_env)
 
             tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
-            jwt_string = yeti.get_launch_token(tags=tags)
+            expiry = None
+            if values.exp:
+                expiry = util.parse_duration(values.exp)
+            jwt_string = yeti.create_launch_token(tags=tags, expiry=expiry)
 
         log.debug('Header: %s', json.dumps(brkt_jwt.get_header(jwt_string)))
         log.debug('Payload: %s', json.dumps(brkt_jwt.get_payload(jwt_string)))
@@ -132,11 +133,7 @@ def _setup_args(subparsers, parsed_config):
             'used by the Metavisor to communicate with the Bracket service. '
             'Users who need fine-grained control of their launch tokens can '
             'optionally use this command, and pass the generated launch '
-            'token to the encrypt, update, and make-user-data commands. If '
-            'a signing key is not specified, retrieve a launch token from '
-            'the Bracket service. A timestamp can be either a '
-            'Unix timestamp in seconds or ISO 8601 (2016-05-10T19:15:36Z). '
-            'Timezone offset defaults to UTC if not specified.'),
+            'token to the encrypt, update, and make-user-data commands.'),
         help=(
             'Generate a JSON Web Token for encrypting or launching an '
             'instance'),
@@ -149,8 +146,10 @@ def _setup_args(subparsers, parsed_config):
             metavar='SIGNING-KEY-PATH',
             nargs='?',
             help=(
-                'The private key that is used to sign the JWT. The key must '
-                'be a 384-bit ECDSA private key (NIST P-384) in PEM format.'
+                'Create a launch token locally, based on a private key, '
+                'instead of getting the token from the Bracket service. The '
+                'key must be a 384-bit ECDSA private key (NIST P-384) in PEM '
+                'format.'
             )
         )
 
@@ -175,11 +174,7 @@ def _setup_args(subparsers, parsed_config):
             'Required for API access when using a third party JWK server'
         )
     )
-    parser.add_argument(
-        '--exp',
-        metavar='TIMESTAMP',
-        help='Token expiration time'
-    )
+    argutil.add_exp(parser)
     parser.add_argument(
         '--nbf',
         metavar='TIMESTAMP',

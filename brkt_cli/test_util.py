@@ -11,7 +11,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import unittest
 
@@ -173,3 +173,23 @@ class TestTimestamp(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             util.parse_timestamp('abc')
+
+    def test_parse_duration(self):
+        self.assertEqual(
+            timedelta(seconds=5),
+            util.parse_duration('5s')
+        )
+        self.assertEqual(
+            timedelta(minutes=10),
+            util.parse_duration('10m')
+        )
+        self.assertEqual(
+            timedelta(hours=12),
+            util.parse_duration('12h')
+        )
+        self.assertEqual(
+            timedelta(days=2),
+            util.parse_duration('2d')
+        )
+        with self.assertRaises(ValidationError):
+            util.parse_duration('10')

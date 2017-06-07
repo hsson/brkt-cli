@@ -301,36 +301,57 @@ def datetime_to_timestamp(dt):
     return (dt - time_zero).total_seconds()
 
 
+def parse_duration(duration_string):
+    """ Return a timedelta that represents the given string.
+    :param duration_string a string in the format N[dhms].
+    :return a timedelta object
+    :raise ValidationError if the string is malformed
+    """
+    m = re.match('\d+[smhdy]$', duration_string)
+    if m:
+        dur = int(duration_string[:-1])
+        unit = duration_string[-1]
+        if unit == 'h':
+            return timedelta(hours=dur)
+        elif unit == 'm':
+            return timedelta(minutes=dur)
+        elif unit == 's':
+            return timedelta(seconds=dur)
+        elif unit == 'd':
+            return timedelta(days=dur)
+        elif unit == 'y':
+            log.warn(
+                'Time duration in years is deprecated.  Use days instead.')
+            return timedelta(days=dur*365)
+    else:
+        raise ValidationError(
+            'Duration must be formatted as N[dhms]: ' + duration_string)
+
+
 def parse_timestamp(ts_string):
     """ Return a datetime that represents the given timestamp
-    string.  The string can be a Unix timestamp in seconds or an ISO 8601
-    timestamp.
+    string.  The string can be a Unix timestamp in seconds, an ISO 8601
+    timestamp, or a time duration formatted as N[dhms].
 
+    :return a datetime object
     :raise ValidationError if ts_string is malformed
     """
     now = int(time.time())
+    dt_now = timestamp_to_datetime(now)
 
-    # Parse relative timestamp
-    m = re.match('\d+(m|h|d|y)$', ts_string)
-    if m:
-        try:
-            dur = int(ts_string[:-1])
-            if ts_string.endswith("h"):
-                delta = int(timedelta(hours=dur).total_seconds())
-            elif ts_string.endswith("m"):
-                delta = int(timedelta(minutes=dur).total_seconds())
-            elif ts_string.endswith("d"):
-                delta = int(timedelta(days=dur).total_seconds())
-            elif ts_string.endswith("y"):
-                delta = int(timedelta(days=dur*365).total_seconds())
-            return timestamp_to_datetime(now + delta)
-        except:
-            # Don't throw an error here and let the subsequent checks handle it
-            pass
+    # Parse duration.
+    try:
+        return dt_now + parse_duration(ts_string)
+    except ValidationError:
+        pass
 
     # Parse integer timestamp.
     m = re.match('\d+(\.\d+)?$', ts_string)
     if m:
+        log.warn(
+            'Integer timestamps are deprecated.  Please use a duration '
+            'like 12h.'
+        )
         t = float(ts_string)
         if t < now:
             raise ValidationError(
@@ -339,14 +360,16 @@ def parse_timestamp(ts_string):
         return timestamp_to_datetime(t)
 
     # Parse ISO 8601 timestamp.
-    dt_now = timestamp_to_datetime(now)
     try:
         dt = iso8601.parse_date(ts_string)
+        log.warn(
+            'ISO 8601 timestamps are deprecated.  Please use a duration '
+            'like 12h.'
+        )
     except iso8601.ParseError:
         raise ValidationError(
-            'Timestamp "%s" must either be a Unix timestamp, in iso8601 '
-            'format (2016-05-10T19:15:36Z) or duration '
-            '(30m, 6h, 5d, 2y).' % ts_string
+            'Timestamp "%s" must be a duration '
+            '(e.g. 45s, 30m, 6h, 5d).' % ts_string
         )
     if dt < dt_now:
         raise ValidationError(

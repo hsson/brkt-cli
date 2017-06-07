@@ -276,7 +276,7 @@ def get_launch_token(values, cli_config):
         brkt_env = brkt_cli.brkt_env_from_values(values, cli_config)
         y = yeti_service_from_brkt_env(brkt_env)
         tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
-        token = y.get_launch_token(tags=tags)
+        token = y.create_launch_token(tags=tags)
 
     return token
 

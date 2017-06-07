@@ -40,6 +40,14 @@ def add_brkt_tag(parser):
     )
 
 
+def add_exp(parser):
+    parser.add_argument(
+        '--exp',
+        metavar='DURATION',
+        help='Token expiry time duration in the format N[dhms] (e.g. 12h)'
+    )
+
+
 def add_root_url(parser, cli_config):
     """ Add the --root-url argument, for specifying the Yeti public API
     endpoint. """

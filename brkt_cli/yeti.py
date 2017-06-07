@@ -19,6 +19,10 @@ import requests
 log = logging.getLogger(__name__)
 
 
+_TOKEN_TYPE_LAUNCH = 'launch'
+_TOKEN_TYPE_API = 'api'
+
+
 class Customer(object):
     def __init__(self, uuid=None, name=None, email=None):
         self.uuid = uuid
@@ -146,19 +150,26 @@ class YetiService(object):
             email=d['email']
         )
 
-    def get_launch_token(self, tags=None):
-        """ Return a Metavisor launch token (JWT).
+    def _create_token(self, token_type, tags=None, expiry=None):
+        """ Return a JWT that is created by Yeti.
 
         :param tags a string map that specifies Bracket tags that will be
         added to the JWT payload.
+        :param expiry a timedelta object that specifies how long the token
+        is valid
         """
         tags = tags or {}
         payload = {}
+        payload['api_token'] = token_type == _TOKEN_TYPE_API
+
         if tags:
             payload['tags'] = []
             for key, value in tags.iteritems():
                 tag_dict = {'key': key, 'value': value}
                 payload['tags'].append(tag_dict)
+
+        if expiry:
+            payload['expiry'] = '%ds' % expiry.total_seconds()
 
         d = post_json(
             self.root_url + '/api/v1/token',
@@ -166,6 +177,28 @@ class YetiService(object):
             json=payload
         )
         return d['jwt']
+
+    def create_launch_token(self, tags=None, expiry=None):
+        """ Return a Metavisor launch token (JWT).
+
+        :param tags a string map that specifies Bracket tags that will be
+        added to the JWT payload.
+        :param expiry a timedelta object that specifies how long the token
+        is valid
+        """
+        return self._create_token(
+            _TOKEN_TYPE_LAUNCH, tags=tags, expiry=expiry)
+
+    def create_api_token(self, expiry=None):
+        """ Return a token (JWT) used for accessing the Bracket public API.
+
+        :param tags a string map that specifies Bracket tags that will be
+        added to the JWT payload.
+        :param expiry a timedelta object that specifies how long the token
+        is valid
+        """
+        return self._create_token(
+            _TOKEN_TYPE_API, expiry=expiry)
 
 
 def is_yeti(root_url, timeout=10.0):
