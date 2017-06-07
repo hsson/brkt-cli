@@ -153,6 +153,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             network_name=values.network_name,
             nic_type=values.nic_type,
             verify=False if use_esx else values.validate,
+            cdrom=values.cdrom,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
@@ -579,6 +580,7 @@ def run_rescue_metavisor(values, parsed_config, log):
             network_name=None,
             nic_type=None,
             verify=values.validate,
+            cdrom=values.cdrom,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter ", e)
