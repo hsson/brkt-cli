@@ -136,7 +136,7 @@ class BaseVCenterService(object):
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
                  cluster_name, no_of_cpus, memoryGB, session_id,
-                 network_name, nic_type, verify=True):
+                 network_name, nic_type, verify=True, cdrom=False):
         self.host = host
         self.user = user
         self.password = password
@@ -157,6 +157,7 @@ class BaseVCenterService(object):
         self.eagerscrub = False
         self.network_name = network_name
         self.nic_type = nic_type
+        self.cdrom = cdrom
         self.verify = verify
 
     def is_esx_host(self):
@@ -345,11 +346,11 @@ class VCenterService(BaseVCenterService):
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
                  cluster_name, no_of_cpus, memoryGB, session_id,
-                 network_name, nic_type, verify):
+                 network_name, nic_type, verify, cdrom):
         super(VCenterService, self).__init__(
             host, user, password, port, datacenter_name, datastore_name,
             esx_host, cluster_name, no_of_cpus, memoryGB, session_id,
-            network_name, nic_type, verify)
+            network_name, nic_type, verify, cdrom)
 
     @timeout(30)
     def _s_connect(self):
@@ -707,6 +708,35 @@ class VCenterService(BaseVCenterService):
         self.__wait_for_task(task)
         log.info("Console message will no longer be dumped to file %s",
                  filename)
+
+    def add_cdrom(self, vm=None):
+        self.validate_connection()
+        # Find the IDE controller
+        ide_ctlr = None
+        if vm:
+            for dev in vm.config.hardware.device:
+                if isinstance(dev, vim.vm.device.VirtualIDEController):
+                    ide_ctlr = dev
+                    break
+
+        cd_spec = vim.vm.device.VirtualDeviceSpec()
+        cd_spec.operation = vim.vm.device.VirtualDeviceSpec.Operation.add
+        cd_spec.device = vim.vm.device.VirtualCdrom()
+        cd_spec.device.key = -1
+        cd_spec.device.backing = vim.vm.device.VirtualCdrom.RemotePassthroughBackingInfo()
+        cd_spec.device.backing.deviceName = 'cdrom0'
+        cd_spec.device.deviceInfo = vim.Description()
+        cd_spec.device.deviceInfo.label = 'CD/DVD drive'
+        cd_spec.device.connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+        cd_spec.device.connectable.startConnected = False
+        cd_spec.device.connectable.allowGuestControl = False
+        if ide_ctlr:
+            cd_spec.device.controllerKey = ide_ctlr.key
+        else:
+            cd_spec.device.controllerKey = -1
+        configSpec = vim.vm.ConfigSpec(deviceChange=[cd_spec])
+        task = vm.Reconfigure(configSpec)
+        self.__wait_for_task(task)
 
     def add_disk(self, vm, disk_size=12*1024*1024,
                  filename=None, unit_number=0):
@@ -1202,11 +1232,11 @@ class VCenterService(BaseVCenterService):
 def initialize_vcenter(host, user, password, port,
                        datacenter_name, datastore_name, esx_host,
                        cluster_name, no_of_cpus, memory_gb, session_id,
-                       network_name, nic_type, verify=True):
+                       network_name, nic_type, verify=True, cdrom=False):
     vc_swc = VCenterService(host, user, password, port,
                             datacenter_name, datastore_name, esx_host,
                             cluster_name, no_of_cpus, memory_gb, session_id,
-                            network_name, nic_type, verify)
+                            network_name, nic_type, verify, cdrom)
     vc_swc.connect()
     return vc_swc
 

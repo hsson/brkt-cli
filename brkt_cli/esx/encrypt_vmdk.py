@@ -69,6 +69,10 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         else:
             encrypted_guest_size = (2 * size) + (1024*1024)
         vc_swc.add_disk(vm, disk_size=encrypted_guest_size, unit_number=1)
+        # Add CDROM if required
+        if vc_swc.cdrom:
+            log.info("Adding CDROM configuration")
+            vc_swc.add_cdrom(vm)
         # Configure Static IP for the encryptor VM
         if static_ip:
             vc_swc.configure_static_ip(vm, static_ip)
@@ -254,6 +258,10 @@ def encrypt_from_vmdk(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
         vm = vc_swc.create_vm()
         # Attach metavisor vmdk as root disk
         vc_swc.add_disk(vm, filename=metavisor_vmdk_path, unit_number=0)
+        # Add CDROM if required
+        if vc_swc.cdrom:
+            log.info("Adding CDROM configuration")
+            vc_swc.add_cdrom(vm)
     except Exception as e:
         log.exception("Failed to launch metavisor VMDK (%s)", e)
         if (vm is not None):

@@ -57,3 +57,4 @@ def setup_encrypt_with_esx_host_args(parser):
     esx_args.add_http_s3_proxy(parser)
     esx_args.add_crypto_policy(parser)
     esx_args.add_no_cleanup(parser)
+    esx_args.add_cdrom(parser)
