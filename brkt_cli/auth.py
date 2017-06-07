@@ -57,6 +57,7 @@ class AuthSubcommand(Subcommand):
             metavar='ADDRESS',
             help='If not specified, show a prompt.'
         )
+        argutil.add_exp(parser)
         argutil.add_out(parser)
         parser.add_argument(
             '--password',
@@ -93,6 +94,10 @@ class AuthSubcommand(Subcommand):
                 raise ValidationError(
                     'Invalid email or password for %s' % values.root_url)
             raise ValidationError(e.message)
+
+        if values.exp:
+            dt = util.parse_duration(values.exp)
+            token = y.create_api_token(expiry=dt)
 
         util.write_to_file_or_stdout(token, path=values.out)
 
