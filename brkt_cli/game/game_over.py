@@ -1,27 +1,28 @@
-from asciimatics.effects import Cycle
-from asciimatics.renderers import FigletText
+from asciimatics.effects import Effect, Print
+from asciimatics.event import KeyboardEvent
+from asciimatics.exceptions import NextScene
+from asciimatics.renderers import FigletText, Figlet, Fire
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
-from asciimatics.effects import Effect
 
 import brkt_cli.game
 from brkt_cli.yeti import post_json
-
 from log_streamer import LogStreamer
 
 
 class ScoreReporter(Effect):
-
     def __init__(self, screen, y, **kwargs):
         super(ScoreReporter, self).__init__(**kwargs)
-        self.x = screen.width // 7
+        self.x = 5
         self.y = y
         self.selection = 0
         self._screen = screen
         self.score_reported = False
+        self.name = ""
 
     def reset(self):
-        pass
+        self.score_reported = False
+        self.name = ""
 
     def _draw_image(self, image, x, y, color=Screen.COLOUR_WHITE,
                     colour_map=None):
@@ -38,48 +39,93 @@ class ScoreReporter(Effect):
     def _update(self, frame_no):
         game_score = brkt_cli.game.game_score
         game_name = game_score['game'] if game_score else 'Unknown'
-        image, _ = FigletText(game_name, font='doom').rendered_text
-        self._draw_image(image, 10, 10)
+        image, _ = FigletText(game_name, font='small').rendered_text
+        self._draw_image(image, self.x, self.y)
 
         score = game_score['score'] if game_score else -1
-        image, _ = FigletText(str(score), font='doom').rendered_text
-        self._draw_image(image, 10, 20)
+        image, _ = FigletText("Score: %s" % score, font='small').rendered_text
+        self._draw_image(image, self.x, self.y + 5)
 
-        # TODO: Remove self.score_reported and have report_score trigger on
-        # pushing enter after filling out name or something. And remove this
-        # if check as well.
-        if not self.score_reported and brkt_cli.game.get_yeti_env() \
-                and brkt_cli.game.get_token():
-            self.report_score(game=game_name, name='Testname', score=score)
-            self.score_reported = True
+        name = "Enter name: %s" % (self.name,)
+        image, _ = FigletText(name, font='small').rendered_text
+        self._draw_image(image, self.x, self.y + 10)
 
     @property
     def stop_frame(self):
         return self._stop_frame
 
-    def report_score(self, game, name, score):
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent):
+            key = event.key_code
+            if key == brkt_cli.game.BACKSPACE:
+                self.name = self.name[:-1]
+            elif key == brkt_cli.game.ENTER:
+                self.report_score()
+                raise NextScene("Main_Menu")
+            elif key == brkt_cli.game.SPACE:
+                pass
+            else:
+                try:
+                    self.name += chr(key)
+                except ValueError:
+                    pass
+        else:
+            return event
+
+    def report_score(self):
+        if not (brkt_cli.game.yeti_env and brkt_cli.game.token) or \
+                self.score_reported:
+            return
+
+        game_score = brkt_cli.game.game_score
+        if 'game' not in game_score or 'score' not in game_score:
+            return
+
         payload = {
-            'game': game,
-            'name': name,
-            'score': score
+            'game': game_score['game'],
+            'name': self.name,
+            'score': game_score['score']
         }
-        post_json(
-            brkt_cli.game.get_yeti_env() + '/api/v1/game/score',
-            token=brkt_cli.game.get_token(),
-            json=payload
-        )
+
+        try:
+            post_json(
+                    brkt_cli.game.yeti_env + '/api/v1/game/score',
+                    token=brkt_cli.game.token,
+                    json=payload
+            )
+            self.score_reported = True
+        except Exception as e:
+            with open('yeti-exception', 'w') as except_file:
+                except_file.write(str(e))
 
 
 def get_scenes(screen):
     scenes = []
+
+    text = Figlet(font="banner", width=200).renderText("GAME OVER")
+    width = max([len(x) for x in text.split("\n")])
     effects = [
-        Cycle(
-            screen,
-            FigletText("GAME OVER", font='big'),
-            screen.height // 4
-        ),
+        Print(screen,
+              Fire(screen.height, 100, text, 0.4, 60, screen.colours),
+              y=0,
+              speed=1,
+              transparent=False),
+        Print(screen,
+              FigletText("GAME OVER", "banner"),
+              y=screen.height // 2 - 9,
+              x=(screen.width - width) // 2 + 1,
+              colour=Screen.COLOUR_BLACK,
+              bg=Screen.COLOUR_BLACK,
+              speed=1),
+        Print(screen,
+              FigletText("GAME OVER", "banner"),
+              y=screen.height // 2 - 9,
+              x=(screen.width - width) // 2,
+              colour=Screen.COLOUR_WHITE,
+              bg=Screen.COLOUR_WHITE,
+              speed=1),
         ScoreReporter(screen=screen,
-                      y=screen.height // 2),
+                      y=0),
         LogStreamer(
                 screen,
                 0,
