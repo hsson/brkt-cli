@@ -1,13 +1,11 @@
 from __future__ import division
-import time
-from asciimatics.effects import Effect, Matrix
+
+from asciimatics.effects import Effect
 from asciimatics.event import KeyboardEvent
-from asciimatics.particles import Rain
+from asciimatics.exceptions import NextScene
 from asciimatics.renderers import FigletText, Rainbow
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
-from asciimatics.exceptions import NextScene
-
 
 ENTER = 10
 SPACE = 32
@@ -22,8 +20,8 @@ class GameSelector(Effect):
         self.selection = 0
         self._screen = screen
         self._header = Rainbow(self._screen,
-                                    FigletText("CHOOSE GAME", font='big')
-                                    ).rendered_text
+                               FigletText("CHOOSE GAME", font='big')
+                               ).rendered_text
         self._game_images = [FigletText(game, font='doom').rendered_text for
                              (game, _) in games]
         self._arrow = FigletText('>', font='doom').rendered_text
@@ -54,7 +52,7 @@ class GameSelector(Effect):
         if self.selection < 0:
             self.selection = len(self.games) - 1
         if self.selection >= len(self.games):
-            self.selection = len(self.games) + 1
+            self.selection = 0
         self._draw_arrow(Screen.COLOUR_RED)
 
     def _update(self, frame_no):

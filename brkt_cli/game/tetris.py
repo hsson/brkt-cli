@@ -1,7 +1,6 @@
 from __future__ import division
 
 import time
-from collections import deque
 from copy import deepcopy
 from random import shuffle
 
@@ -130,7 +129,7 @@ class Tetris():
     def get_new_block_type(self):
         # We use 7 bag randomization for this
         if not self.block_queue or \
-                len(self.block_queue) <= BLOCKS_TO_DISPLAY_IN_QUEUE:
+                        len(self.block_queue) <= BLOCKS_TO_DISPLAY_IN_QUEUE:
             blocks = [I_BLOCK,
                       L_BLOCK,
                       J_BLOCK,
@@ -217,7 +216,7 @@ class Tetris():
                 if not block_value:
                     continue
                 if new_x < TETRIS_WIDTH and new_x > -1 and \
-                        new_y < TETRIS_HEIGHT and new_y > -1:
+                                new_y < TETRIS_HEIGHT and new_y > -1:
                     view_board[new_y][new_x] = block_value
 
         return view_board
@@ -321,7 +320,7 @@ class TetrisBoard(Effect):
 
     def _draw_tetris_blocks(self, x_start, y_start):
         block_queue = self.logical_representation.block_queue[
-            :BLOCKS_TO_DISPLAY_IN_QUEUE]
+                      :BLOCKS_TO_DISPLAY_IN_QUEUE]
         for index, block_type in enumerate(block_queue):
             self._draw_tetris_block(number=index, block_type=block_type,
                                     x_start=x_start, y_start=y_start)

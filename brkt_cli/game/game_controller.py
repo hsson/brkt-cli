@@ -1,14 +1,13 @@
-from asciimatics.screen import Screen
 from asciimatics.exceptions import ResizeScreenError
+from asciimatics.screen import Screen
 
-import main_menu
-import tetris
 import duck_hunt
 import game_over
+import main_menu
+import tetris
 
 
 def main_game(screen):
-
     scenes = []
     scenes += main_menu.get_scenes(screen)
     scenes += game_over.get_scenes(screen)
