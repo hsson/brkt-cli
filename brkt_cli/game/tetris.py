@@ -362,9 +362,9 @@ class TetrisBoard(Effect):
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             key = event.key_code
-            if key == Screen.KEY_SHIFT:
+            if key == 32:
                 self.logical_representation.drop_block()
-            if key == Screen.KEY_UP:
+            elif key == Screen.KEY_UP:
                 self.logical_representation.rotate_block()
             elif key == Screen.KEY_DOWN:
                 self.logical_representation.move_block(DOWN)
@@ -372,8 +372,6 @@ class TetrisBoard(Effect):
                 self.logical_representation.move_block(LEFT)
             elif key == Screen.KEY_RIGHT:
                 self.logical_representation.move_block(RIGHT)
-            else:
-                return event
         else:
             return event
 
