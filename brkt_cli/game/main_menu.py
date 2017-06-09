@@ -99,7 +99,7 @@ class GameSelector(Effect):
                          colour_map=colour_map)
         y += 10
 
-        for i, (game, scene) in enumerate(self.games):
+        for i in range(len(self.games)):
             image, _ = self._game_images[i]
             if i == self.selection:
                 color = Screen.COLOUR_RED

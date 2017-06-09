@@ -2,14 +2,14 @@ import random
 import time
 
 from asciimatics.effects import Effect, Sprite
-from asciimatics.exceptions import NextScene
-from asciimatics.particles import Rain, Explosion
-from asciimatics.paths import Path, DynamicPath
-from asciimatics.scene import Scene
-from asciimatics.sprites import Arrow
-from asciimatics.renderers import StaticRenderer
-from asciimatics.screen import Screen
 from asciimatics.event import MouseEvent
+from asciimatics.exceptions import NextScene
+from asciimatics.particles import Explosion, Rain
+from asciimatics.paths import DynamicPath, Path
+from asciimatics.renderers import SpeechBubble, StaticRenderer
+from asciimatics.scene import Scene
+from asciimatics.screen import Screen
+from asciimatics.sprites import Arrow
 
 import brkt_cli.game
 
@@ -19,7 +19,6 @@ MAX_MISSED_DUCKS = 5
 class DuckHuntStats():
     missed_ducks = 0
     hit_ducks = 0
-
 
 
 class MouseController(DynamicPath):
@@ -42,19 +41,20 @@ class MouseController(DynamicPath):
         else:
             return event
 
+
 class Gun(Sprite):
     def __init__(self, screen):
         """
         See :py:obj:`.Sprite` for details.
         """
         super(Gun, self).__init__(
-            screen,
-            renderer_dict={
-                "default": StaticRenderer(images=["X"])
-            },
-            path=MouseController(
-                self, screen, screen.width // 2, screen.height // 2),
-            colour=Screen.COLOUR_RED)
+                screen,
+                renderer_dict={
+                    "default": StaticRenderer(images=["X"])
+                },
+                path=MouseController(
+                        self, screen, screen.width // 2, screen.height // 2),
+                colour=Screen.COLOUR_BLACK)
         self._screen = screen
 
     def shoot(self, powerful=True):
@@ -107,7 +107,7 @@ class DuckSpawner(Effect):
         self.last_spawn_time = time.time()
 
     def _update(self, frame_no):
-        if DuckHuntStats.missed_ducks > MAX_MISSED_DUCKS:
+        if DuckHuntStats.missed_ducks >= MAX_MISSED_DUCKS:
             brkt_cli.game.game_score = {
                 'score': DuckHuntStats.hit_ducks,
                 'game': 'duck_hunt'
@@ -115,6 +115,24 @@ class DuckSpawner(Effect):
             raise NextScene("Game_Over")
         if time.time() > self.last_spawn_time + self.spawn_rate:
             self.spawn_duck()
+
+        image, _ = SpeechBubble(
+                "Score: %d" % DuckHuntStats.hit_ducks).rendered_text
+        for i, line in enumerate(image):
+            self._screen.paint(line,
+                               (self._screen.width - len(line)) // 2,
+                               self._screen.height - 5 + i,
+                               Screen.COLOUR_WHITE)
+
+        image, _ = SpeechBubble(
+                "Misses left: %d" % (MAX_MISSED_DUCKS -
+                                     DuckHuntStats.missed_ducks,)
+        ).rendered_text
+        for i, line in enumerate(image):
+            self._screen.paint(line,
+                               (self._screen.width - len(line)) // 2,
+                               self._screen.height - 3 + i,
+                               Screen.COLOUR_WHITE)
 
     def reset(self):
         pass
