@@ -397,6 +397,8 @@ class TetrisBoard(Effect):
                 self.logical_representation.move_block(LEFT)
             elif key == Screen.KEY_RIGHT:
                 self.logical_representation.move_block(RIGHT)
+            elif key == Screen.KEY_ESCAPE:
+                raise NextScene("Main_Menu")
         else:
             return event
 

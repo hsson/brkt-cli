@@ -57,6 +57,8 @@ class ScoreReporter(Effect):
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             key = event.key_code
+            if key == Screen.KEY_ESCAPE:
+                raise NextScene("Main_Menu")
             if key == brkt_cli.game.BACKSPACE:
                 self.name = self.name[:-1]
             elif key == brkt_cli.game.ENTER:

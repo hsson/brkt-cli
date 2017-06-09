@@ -2,7 +2,7 @@ import random
 import time
 
 from asciimatics.effects import Effect, Sprite
-from asciimatics.event import MouseEvent
+from asciimatics.event import MouseEvent, KeyboardEvent
 from asciimatics.exceptions import NextScene
 from asciimatics.particles import Explosion, Rain
 from asciimatics.paths import DynamicPath, Path
@@ -133,6 +133,17 @@ class DuckSpawner(Effect):
                                (self._screen.width - len(line)) // 2,
                                self._screen.height - 3 + i,
                                Screen.COLOUR_WHITE)
+
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent):
+            key = event.key_code
+            if key == Screen.KEY_ESCAPE:
+                raise NextScene("Main_Menu")
+            else:
+                # Consume all keyboard presses
+                pass
+        else:
+            return event
 
     def reset(self):
         pass
