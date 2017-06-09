@@ -299,10 +299,6 @@ class TetrisBoard(Effect):
                                bg=self._bg,
                                colour_map=colors[i])
 
-    # [0, 0, 0, 0],
-    # [0, 1, 1, 0],
-    # [0, 1, 1, 0],
-    # [0, 0, 0, 0]
     def _draw_tetris_block(self, number, block_type, x_start, y_start):
         y_offset = y_start
         image, colors = self._block_renderer.rendered_text
@@ -355,7 +351,7 @@ class TetrisBoard(Effect):
     def _update(self, frame_no):
         self.logical_representation.tick()
         if self.logical_representation.game_is_over:
-            raise NextScene("Tetris_Game_Over")
+            raise NextScene("Game_Over")
         self._render_board()
         self._render_sidebar()
 
@@ -377,7 +373,6 @@ class TetrisBoard(Effect):
             elif key == Screen.KEY_RIGHT:
                 self.logical_representation.move_block(RIGHT)
             else:
-                print key
                 return event
         else:
             return event
@@ -398,14 +393,5 @@ def get_scenes(screen):
         )
     ]
     scenes.append(Scene(effects, -1, name="Tetris_Game"))
-
-    # GAME OVER SCREEN
-    effects = [
-        Cycle(
-                screen,
-                FigletText("GAME OVER", font='big'),
-                screen.height // 2 - 8),
-    ]
-    scenes.append(Scene(effects, -1, name="Tetris_Game_Over"))
 
     return scenes
