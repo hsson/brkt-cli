@@ -70,6 +70,7 @@ DOWN = 'down'
 BLOCK_MATRIX_WIDTH_HEIGHT = 4
 TETRIS_WIDTH = 10
 TETRIS_HEIGHT = 20
+BLOCKS_TO_DISPLAY_IN_QUEUE = 4
 
 
 class Block():
@@ -113,7 +114,7 @@ class Tetris():
     def start_new_game(self):
         # The board has 'height' number of rows and 'width' number of colums
         self.block = None
-        self.block_queue = deque()
+        self.block_queue = []
         self.score = 0
         self.last_tick = time.time()
         self.board = [[0 for i in range(TETRIS_WIDTH)] for k in
@@ -128,7 +129,8 @@ class Tetris():
 
     def get_new_block_type(self):
         # We use 7 bag randomization for this
-        if not self.block_queue:
+        if not self.block_queue or \
+                len(self.block_queue) <= BLOCKS_TO_DISPLAY_IN_QUEUE:
             blocks = [I_BLOCK,
                       L_BLOCK,
                       J_BLOCK,
@@ -137,9 +139,9 @@ class Tetris():
                       T_BLOCK,
                       O_BLOCK]
             shuffle(blocks)
-            self.block_queue = deque(blocks)
+            self.block_queue.extend(blocks)
 
-        return self.block_queue.pop()
+        return self.block_queue.pop(0)
 
     def rotate_block(self):
         # for now we only rotate clockwise, but there's support for
@@ -164,9 +166,6 @@ class Tetris():
         while self.move_block(direction=DOWN):
             pass
 
-    def add_score(self, amount):
-        self.score += amount
-
     def simplify_board(self):
         for row_ind, row in enumerate(self.board):
             if all(row):
@@ -177,6 +176,7 @@ class Tetris():
         self.board = self.get_board()
         self.simplify_board()
         self.spawn_block()
+        self.score += 1
 
     def is_legal_state(self):
         # Checks if the current state of the block is legal with the current
@@ -217,7 +217,7 @@ class Tetris():
                 if not block_value:
                     continue
                 if new_x < TETRIS_WIDTH and new_x > -1 and \
-                                new_y < TETRIS_HEIGHT and new_y > -1:
+                        new_y < TETRIS_HEIGHT and new_y > -1:
                     view_board[new_y][new_x] = block_value
 
         return view_board
@@ -251,13 +251,27 @@ class TetrisBoard(Effect):
 
     @property
     def block_dimensions(self):
-        image, colours = self._block_renderer.rendered_text
-        block_width = max([len(row) for row in image]) + 1
+        image, colors = self._block_renderer.rendered_text
+        block_width = max([len(row) for row in image])
         block_height = len([row for row in image if row.strip()])
         return block_width, block_height
 
+    def _draw_box(self, x_start, y_start, width, height):
+        image, colors = Box(width, height,
+                            uni=self._screen.unicode_aware).rendered_text
+        for (i, line) in enumerate(image):
+            self._screen.paint(line, x_start, y_start + i, Screen.COLOUR_WHITE,
+                               transparent=True,
+                               bg=self._bg,
+                               colour_map=colors[i])
+
     def _render_board(self):
-        image, colours = self._block_renderer.rendered_text
+        width, height = self.block_dimensions
+        width = width * len(self.logical_representation.board[0]) + 2
+        height = height * len(self.logical_representation.board) + 2
+        self._draw_box(x_start=0, y_start=0, width=width, height=height)
+
+        image, colors = self._block_renderer.rendered_text
         block_width, block_height = self.block_dimensions
 
         x = 1
@@ -272,21 +286,69 @@ class TetrisBoard(Effect):
                                        y + i,
                                        Screen.COLOUR_WHITE,
                                        bg=self._bg,
-                                       colour_map=colours[i])
+                                       colour_map=colors[i])
                 x += block_width
             x = 1
             y += block_height
 
-    def draw_box(self):
-        width, height = self.block_dimensions
-        width = width * len(self.logical_representation.board[0]) + 2
-        height = height * len(self.logical_representation.board) + 2
-        image, colours = Box(width, height,
-                             uni=self._screen.unicode_aware).rendered_text
+    def _draw_text(self, x, y, text):
+        image, colors = StaticRenderer(images=[text]).rendered_text
         for (i, line) in enumerate(image):
-            self._screen.paint(line, 0, i, Screen.COLOUR_WHITE,
+            self._screen.paint(line,
+                               x, y + i,
+                               Screen.COLOUR_WHITE,
+                               transparent=True,
                                bg=self._bg,
-                               colour_map=colours[i])
+                               colour_map=colors[i])
+
+    def _draw_tetris_block(self, number, block_type, x_start, y_start):
+        y_offset = y_start
+        image, colors = self._block_renderer.rendered_text
+        for row_index, row in enumerate(block_type):
+            x_offset = x_start
+            for value in row:
+                for (i, line) in enumerate(image):
+                    if not value:
+                        line = " " * len(line)
+                    self._screen.paint(line,
+                                       x_offset,
+                                       y_offset,
+                                       Screen.COLOUR_WHITE,
+                                       bg=self._bg,
+                                       colour_map=colors[i])
+                x_offset += 2
+            y_offset += 1
+
+    def _draw_tetris_blocks(self, x_start, y_start):
+        block_queue = self.logical_representation.block_queue[
+            :BLOCKS_TO_DISPLAY_IN_QUEUE]
+        for index, block_type in enumerate(block_queue):
+            self._draw_tetris_block(number=index, block_type=block_type,
+                                    x_start=x_start, y_start=y_start)
+            y_start += 4
+
+    def _render_sidebar(self):
+        # Common params for both bars
+        block_width, block_height = self.block_dimensions
+        x_start = block_width * len(self.logical_representation.board[0]) + 2
+        width = block_width + 10
+
+        # Draw score bar
+        y_start = 0
+        height = block_height * 2 + 1
+        self._draw_box(x_start=x_start, y_start=y_start, width=width,
+                       height=height)
+        text = str(self.logical_representation.score)
+        text_x_start = x_start + int(width / 2 + 1) - len(text)
+        self._draw_text(x=text_x_start, y=y_start + 1, text=text)
+
+        # Draw queue bar
+        y_start = height
+        height = (block_height * 4) * BLOCKS_TO_DISPLAY_IN_QUEUE + 3
+        self._draw_box(x_start=x_start, y_start=y_start, width=width,
+                       height=height)
+        self._draw_tetris_blocks(x_start=x_start + 2, y_start=y_start + 1)
+        return
 
     def _update(self, frame_no):
         self.logical_representation.tick()
@@ -296,8 +358,8 @@ class TetrisBoard(Effect):
                 'game': 'tetris'
             }
             raise NextScene("Game_Over")
-        self.draw_box()
         self._render_board()
+        self._render_sidebar()
 
     @property
     def stop_frame(self):
@@ -306,9 +368,9 @@ class TetrisBoard(Effect):
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             key = event.key_code
-            if key == Screen.KEY_SHIFT:
+            if key == 32:
                 self.logical_representation.drop_block()
-            if key == Screen.KEY_UP:
+            elif key == Screen.KEY_UP:
                 self.logical_representation.rotate_block()
             elif key == Screen.KEY_DOWN:
                 self.logical_representation.move_block(DOWN)
@@ -316,8 +378,6 @@ class TetrisBoard(Effect):
                 self.logical_representation.move_block(LEFT)
             elif key == Screen.KEY_RIGHT:
                 self.logical_representation.move_block(RIGHT)
-            else:
-                return event
         else:
             return event
 
