@@ -311,7 +311,6 @@ class TetrisBoard(Effect):
             elif key == Screen.KEY_RIGHT:
                 self.logical_representation.move_block(RIGHT)
             else:
-                print key
                 return event
         else:
             return event
