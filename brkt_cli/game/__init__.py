@@ -7,10 +7,13 @@ import uuid
 
 import game_controller
 
+game_score = None
+
 
 def gamify(func):
     """Decorator that let's you play a game while the underlying function is
     being executed"""
+
     def func_wrapper(*args, **kwargs):
         tmp_log_file = '%s.log' % uuid.uuid4()
 

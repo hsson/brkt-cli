@@ -12,6 +12,8 @@ from asciimatics.renderers import Box, FigletText, StaticRenderer
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 
+import brkt_cli.game
+
 I_BLOCK = [
     [0, 1, 0, 0],
     [0, 1, 0, 0],
@@ -289,6 +291,10 @@ class TetrisBoard(Effect):
     def _update(self, frame_no):
         self.logical_representation.tick()
         if self.logical_representation.game_is_over:
+            brkt_cli.game.game_score = {
+                'score': self.logical_representation.score,
+                'game': 'tetris'
+            }
             raise NextScene("Game_Over")
         self.draw_box()
         self._render_board()
