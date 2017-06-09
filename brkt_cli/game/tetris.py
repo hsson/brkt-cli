@@ -1,98 +1,13 @@
 from __future__ import division
-import random
 from random import shuffle
 from collections import deque
+from copy import deepcopy
 
 
 from asciimatics.effects import Effect, Cycle
 from asciimatics.renderers import FigletText
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
-
-TETRIS_WIDTH = 10
-TETRIS_HEIGHT = 20
-
-
-class TetrisBoard(Effect):
-    """
-    Special effect to scroll some text (from a Renderer) horizontally like a
-    banner.
-    """
-
-    def __init__(self, screen, block_renderer, bg=Screen.COLOUR_BLACK,
-                 **kwargs):
-        """
-        :param screen: The Screen being used for the Scene.
-        :param block_renderer: The renderer for a single block piece
-        :param bg: The default background colour to use for the text.
-
-        Also see the common keyword arguments in :py:obj:`.Effect`.
-        """
-        super(TetrisBoard, self).__init__(**kwargs)
-        self._screen = screen
-        self._block_renderer = block_renderer
-        self._bg = bg
-        self._board = None
-
-    def reset(self):
-        self._board = [[1 for i in range(TETRIS_WIDTH)] for k in
-                       range(TETRIS_HEIGHT)]
-
-    def _update_board(self):
-        for i in range(len(self._board)):
-            for j in range(len(self._board[0])):
-                self._board[i][j] = random.randint(0, 1)
-        pass
-
-    def _render_board(self):
-        image, colours = self._block_renderer.rendered_text
-        block_width = max([len(row) for row in image]) + 1
-        block_height = len([row for row in image if row.strip()])
-        x = 0
-        y = 0
-        for row in self._board:
-            for pos in row:
-                for (i, line) in enumerate(image):
-                    if not pos:
-                        line = " " * len(line)
-                    self._screen.paint(line,
-                                       x,
-                                       y + i,
-                                       Screen.COLOUR_WHITE,
-                                       bg=self._bg,
-                                       colour_map=colours[i])
-                x += block_width
-            x = 0
-            y += block_height
-
-    def _update(self, frame_no):
-
-        self._update_board()
-
-        self._render_board()
-
-    @property
-    def stop_frame(self):
-        return 0
-
-
-def get_scenes(screen):
-    effects = [
-        Cycle(
-                screen,
-                FigletText("TETRIS", font='big'),
-                screen.height // 2 - 8),
-        # Cycle(
-        #         screen,
-        #         FigletText("ROCKS!", font='big'),
-        #         screen.height // 2 + 3),
-        # Stars(screen, (screen.width + screen.height) // 2),
-        TetrisBoard(
-                screen,
-                FigletText("[]", font='pepper'),
-        )
-    ]
-    return [Scene(effects, -1)]
 
 I_BLOCK = [
     [0, 1, 0, 0],
@@ -136,11 +51,20 @@ O_BLOCK = [
     [0, 1, 1, 0],
     [0, 0, 0, 0]
 ]
+TEST_BLOCK = [
+    [1, 1, 1, 1],
+    [1, 1, 1, 1],
+    [1, 1, 1, 1],
+    [1, 1, 1, 1]
+]
+
 LEFT = 'left'
 RIGHT = 'right'
 UP = 'up'
 DOWN = 'down'
 BLOCK_MATRIX_WIDTH_HEIGHT = 4
+TETRIS_WIDTH = 10
+TETRIS_HEIGHT = 20
 
 
 class Block():
@@ -149,7 +73,8 @@ class Block():
         # default rotations above
         self.matrix = block_type
         # self.position is represented using a (x,y) tuple
-        self.position = TETRIS_WIDTH / 2 - BLOCK_MATRIX_WIDTH_HEIGHT / 2
+        self.position = (int(TETRIS_WIDTH / 2 - BLOCK_MATRIX_WIDTH_HEIGHT / 2),
+                         -1)
 
     def move(self, direction):
         if direction == LEFT:
@@ -182,6 +107,9 @@ class Tetris():
         self.block = None
         self.block_queue = deque()
         self.score = 0
+        self.board = [[0 for i in range(TETRIS_WIDTH)] for k in
+                      range(TETRIS_HEIGHT)]
+        self.spawn_block()
 
     def game_over(self):
         # do stuff
@@ -233,31 +161,104 @@ class Tetris():
     def is_legal_state(self):
         # Checks if the current state of the block is legal with the current
         # state of the board
-        current_state = CURRENT_STATE  # TODO: Get this from the renderer
+        for x_index, x_list in enumerate(self.block.matrix):
+            for y_index, block_value in enumerate(x_list):
+                x, y = _get_x_y(self.block.position)
+                board_x_pos = x + x_index
+                board_y_pos = y + y_index
+                if board_x_pos < 0 or board_x_pos > TETRIS_WIDTH or \
+                        board_y_pos < 0 or board_y_pos > TETRIS_HEIGHT:
+                    board_value = 0
+                else:
+                    board_value = self.board[board_x_pos][board_y_pos]
 
-        # TODO: This looks really overcomplicated lol, fix it yao
-        padding = BLOCK_MATRIX_WIDTH_HEIGHT
-        current_state_with_borders = []
-        for row in current_state:
-            row_with_borders = []
-            for column in row:
-                column_with_borders = [padding] + column + [padding]
-                row_with_borders.append(column_with_borders)
-            row_with_borders = [padding] + row_with_borders + [padding]
-            current_state_with_borders.append(row_with_borders)
-
-        block_position_considering_borders = (self.block.position[0] + padding,
-                                              self.block.position[1] + padding)
-
-        # Check so that the padded board with the offset block does not
-        # overlap in any place.
-
-        for row_index in range(BLOCK_MATRIX_WIDTH_HEIGHT):
-            for column_index in range(BLOCK_MATRIX_WIDTH_HEIGHT):
-                board_pixel = current_state_with_borders[
-                    block_position_considering_borders[0] + row_index][
-                        block_position_considering_borders[1] + column_index]
-                block_pixel = self.block.matrix[row_index][column_index]
-
-                if board_pixel and block_pixel:
+                if board_value and block_value:
                     return False
+
+        return True
+
+    def get_board(self):
+        '''
+        Gets a representation of the board that has the block baked into it,
+        ready to be rendered!
+        '''
+        view_board = deepcopy(self.board)
+        x, y = _get_x_y(self.block.position)
+
+        for x_index, x_list in enumerate(self.block.matrix):
+            for y_index, block_value in enumerate(x_list):
+                # Check that it is a position on the board
+                new_x = x + x_index
+                new_y = y + y_index
+                if new_x < TETRIS_WIDTH + 1 and new_x > -1 and \
+                        new_y < TETRIS_HEIGHT + 1 and new_y > -1:
+                    view_board[new_x][y + y_index] = block_value
+
+        return view_board
+
+
+class TetrisBoard(Effect):
+    def __init__(self, screen, block_renderer, bg=Screen.COLOUR_BLACK,
+                 **kwargs):
+        """
+        :param screen: The Screen being used for the Scene.
+        :param block_renderer: The renderer for a single block piece
+        :param bg: The default background colour to use for the text.
+
+        Also see the common keyword arguments in :py:obj:`.Effect`.
+        """
+        super(TetrisBoard, self).__init__(**kwargs)
+        self._screen = screen
+        self._block_renderer = block_renderer
+        self._bg = bg
+        self.logical_representation = Tetris()
+
+    def reset(self):
+        self.logical_representation.start_new_game()
+
+    def _render_board(self):
+        image, colours = self._block_renderer.rendered_text
+        block_width = max([len(row) for row in image]) + 1
+        block_height = len([row for row in image if row.strip()])
+        x = 0
+        y = 0
+        for row in self.logical_representation.get_board():
+            for pos in row:
+                for (i, line) in enumerate(image):
+                    if not pos:
+                        line = " " * len(line)
+                    self._screen.paint(line,
+                                       x,
+                                       y + i,
+                                       Screen.COLOUR_WHITE,
+                                       bg=self._bg,
+                                       colour_map=colours[i])
+                x += block_width
+            x = 0
+            y += block_height
+
+    def _update(self, frame_no):
+        self._render_board()
+
+    @property
+    def stop_frame(self):
+        return 0
+
+
+def get_scenes(screen):
+    effects = [
+        Cycle(
+                screen,
+                FigletText("TETRIS", font='big'),
+                screen.height // 2 - 8),
+        TetrisBoard(
+                screen,
+                FigletText("[]", font='pepper'),
+        )
+    ]
+    return [Scene(effects, -1)]
+
+
+def _get_x_y(coords):
+    y, x = coords
+    return x, y

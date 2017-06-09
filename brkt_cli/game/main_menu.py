@@ -1,72 +1,19 @@
-
-from asciimatics.renderers import FigletText, Fire
+from __future__ import division
+from asciimatics.effects import Cycle, Stars
+from asciimatics.renderers import FigletText
 from asciimatics.scene import Scene
-from asciimatics.screen import Screen
-from asciimatics.effects import Print
-from pyfiglet import Figlet
 
 
 def get_scenes(screen):
-    scenes = []
-
     effects = [
-        Print(screen,
-              Fire(screen.height, 80, "*" * 70, 0.8, 60, screen.colours,
-                   bg=screen.colours >= 256),
-              0,
-              speed=1,
-              transparent=False),
-        Print(screen,
-              FigletText("Help!", "banner3"),
-              (screen.height - 4) // 2,
-              colour=Screen.COLOUR_BLACK,
-              speed=1,
-              stop_frame=30),
-        Print(screen,
-              FigletText("I'm", "banner3"),
-              (screen.height - 4) // 2,
-              colour=Screen.COLOUR_BLACK,
-              speed=1,
-              start_frame=30,
-              stop_frame=50),
-        Print(screen,
-              FigletText("on", "banner3"),
-              (screen.height - 4) // 2,
-              colour=Screen.COLOUR_BLACK,
-              speed=1,
-              start_frame=50,
-              stop_frame=70),
-        Print(screen,
-              FigletText("Fire!", "banner3"),
-              (screen.height - 4) // 2,
-              colour=Screen.COLOUR_BLACK,
-              speed=1,
-              start_frame=70),
+        Cycle(
+            screen,
+            FigletText("MAIN MENU", font='big'),
+            screen.height // 2 - 8),
+        Cycle(
+            screen,
+            FigletText("PRESS SPACE FOR TETRIS!", font='big'),
+            screen.height // 2 + 3),
+        Stars(screen, (screen.width + screen.height) // 2)
     ]
-    scenes.append(Scene(effects, 100))
-
-    text = Figlet(font="banner", width=200).renderText("ASCIIMATICS")
-    width = max([len(x) for x in text.split("\n")])
-
-    effects = [
-        Print(screen,
-              Fire(screen.height, 80, text, 0.4, 40, screen.colours),
-              0,
-              speed=1,
-              transparent=False),
-        Print(screen,
-              FigletText("ASCIIMATICS", "banner"),
-              screen.height - 9, x=(screen.width - width) // 2 + 1,
-              colour=Screen.COLOUR_BLACK,
-              bg=Screen.COLOUR_BLACK,
-              speed=1),
-        Print(screen,
-              FigletText("ASCIIMATICS", "banner"),
-              screen.height - 9,
-              colour=Screen.COLOUR_WHITE,
-              bg=Screen.COLOUR_WHITE,
-              speed=1),
-    ]
-    scenes.append(Scene(effects, -1))
-
-    screen.play(scenes, stop_on_resize=True)
+    return [Scene(effects, -1)]
