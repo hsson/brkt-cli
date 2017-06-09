@@ -200,7 +200,6 @@ class YetiService(object):
         return self._create_token(
             _TOKEN_TYPE_API, expiry=expiry)
 
-
 def is_yeti(root_url, timeout=10.0):
     """ Return True if the root_url points to Yeti.
     :raise IOError if the url cannot be accessed
