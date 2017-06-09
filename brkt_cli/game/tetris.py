@@ -289,7 +289,7 @@ class TetrisBoard(Effect):
     def _update(self, frame_no):
         self.logical_representation.tick()
         if self.logical_representation.game_is_over:
-            raise NextScene("Tetris_Game_Over")
+            raise NextScene("Game_Over")
         self.draw_box()
         self._render_board()
 
@@ -331,14 +331,5 @@ def get_scenes(screen):
         )
     ]
     scenes.append(Scene(effects, -1, name="Tetris_Game"))
-
-    # GAME OVER SCREEN
-    effects = [
-        Cycle(
-                screen,
-                FigletText("GAME OVER", font='big'),
-                screen.height // 2 - 8),
-    ]
-    scenes.append(Scene(effects, -1, name="Tetris_Game_Over"))
 
     return scenes
