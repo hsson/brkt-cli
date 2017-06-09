@@ -3,9 +3,11 @@ import multiprocessing
 import os
 import sys
 import time
+import logging
 
 import game_controller
-from brkt_cli.game import TMP_LOG_FILE
+import brkt_cli.game as game
+from brkt_cli import brkt_env_from_values
 
 
 def gamify(func):
@@ -13,17 +15,26 @@ def gamify(func):
     being executed"""
 
     def func_wrapper(*args, **kwargs):
-        print "Game will start in:"
-        for i in reversed(range(1)):
-            print i + 1
-            time.sleep(1)
+        try:
+            brkt_env = brkt_env_from_values(args[0], args[1])
+            game.yeti_env = 'http://%s:30948' % (brkt_env.api_host)
+            token = args[0].token
+            if not token:
+                token = os.getenv('BRKT_API_TOKEN')
+            game.token = token
+        except Exception as e:
+            logging.error("You can play but you can't post to yeti :(. "
+                          "Error: %s", e)
+
+        logging.info("Starting BRKT Entertainment System")
+        time.sleep(1)
 
         def special_func(*args, **kwargs):
             root = logging.getLogger()
             map(root.removeHandler, root.handlers[:])
             map(root.removeFilter, root.filters[:])
-            logging.basicConfig(level=logging.INFO, filename=TMP_LOG_FILE)
-            log_file = open(TMP_LOG_FILE, 'w')
+            logging.basicConfig(level=logging.INFO, filename=game.TMP_LOG_FILE)
+            log_file = open(game.TMP_LOG_FILE, 'w')
             sys.stdout = sys.stderr = log_file
             func(*args, **kwargs)
 
@@ -35,8 +46,11 @@ def gamify(func):
         p_game = multiprocessing.Process(target=game_controller.main)
         p_game.start()
 
+        # We want to let the new process create the file before trying to
+        # read it. Kinda glitchy :(
+        time.sleep(1)
 
-        with open(TMP_LOG_FILE) as log_file:
+        with open(game.TMP_LOG_FILE) as log_file:
             while True:
                 if p_game.exitcode is not None:
                     new_data = log_file.readline().strip()
@@ -49,7 +63,7 @@ def gamify(func):
                     break
                 time.sleep(0.1)
 
-        os.remove(TMP_LOG_FILE)
+        os.remove(game.TMP_LOG_FILE)
 
         return p_cli.exitcode
 

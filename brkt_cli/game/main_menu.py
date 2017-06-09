@@ -1,27 +1,58 @@
 from __future__ import division
 
-from asciimatics.effects import Effect
+from asciimatics.effects import Effect, _Trail
 from asciimatics.event import KeyboardEvent
-from asciimatics.exceptions import NextScene
+from asciimatics.exceptions import NextScene, StopApplication
 from asciimatics.renderers import FigletText, Rainbow
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 
+from brkt_cli.game import ENTER
 from log_streamer import LogStreamer
-ENTER = 10
-SPACE = 32
+
+
+class SlowMatrix(Effect):
+    """
+    Matrix-like falling green letters.
+    """
+
+    def __init__(self, screen, **kwargs):
+        """
+        :param screen: The Screen being used for the Scene.
+
+        Also see the common keyword arguments in :py:obj:`.Effect`.
+        """
+        super(SlowMatrix, self).__init__(**kwargs)
+        self._screen = screen
+        self._chars = []
+
+    def reset(self):
+        self._chars = [_Trail(self._screen, x) for x in
+                       range(self._screen.width)]
+
+    def _update(self, frame_no):
+        if frame_no % 2 == 0:
+            for char in self._chars:
+                char.update((self._stop_frame == 0) or (
+                    self._stop_frame - frame_no > 100))
+
+    @property
+    def stop_frame(self):
+        return self._stop_frame
 
 
 class GameSelector(Effect):
     def __init__(self, screen, games, y, **kwargs):
         super(GameSelector, self).__init__(**kwargs)
         self.games = games
-        self.x = screen.width // 7
+        self.games.append(("EXIT", "exit"))
+        self.x = 3
         self.y = y
         self.selection = 0
         self._screen = screen
         self._header = Rainbow(self._screen,
-                               FigletText("CHOOSE GAME", font='big')
+                               FigletText("BRKT ENTERTAINMENT SYSTEM",
+                                          font='big')
                                ).rendered_text
         self._game_images = [FigletText(game, font='doom').rendered_text for
                              (game, _) in games]
@@ -45,7 +76,7 @@ class GameSelector(Effect):
     def _draw_arrow(self, color):
         image, _ = self._arrow
         y = self.y + 10 + self.selection * len(self._game_images[0][0])
-        self._draw_image(image, self.x - len(image[0]) - 2, y, color)
+        self._draw_image(image, self.x, y, color)
 
     def move_selection(self, up):
         self._draw_arrow(Screen.COLOUR_BLACK)
@@ -62,6 +93,7 @@ class GameSelector(Effect):
         x = self.x
         y = self.y
 
+        x += len(self._arrow[0][0]) + 2
         image, colour_map = self._header
         self._draw_image(image, x, y, Screen.COLOUR_WHITE,
                          colour_map=colour_map)
@@ -89,9 +121,12 @@ class GameSelector(Effect):
             elif key == Screen.KEY_DOWN:
                 self.move_selection(up=False)
             elif key == ENTER:
+                if self.games[self.selection][1] == 'exit':
+                    raise StopApplication("User initated exit")
                 raise NextScene(self.games[self.selection][1])
             else:
-                return event
+                # Consume output
+                pass
         else:
             return event
 
@@ -110,8 +145,8 @@ def get_scenes(screen):
                 ],
                 screen.height // 6),
         LogStreamer(
-            screen,
-            0,
-            screen.height - 5)
+                screen,
+                0,
+                screen.height - 5)
     ]
-    return [Scene(effects, -1)]
+    return [Scene(effects, -1, name='Main_Menu')]
