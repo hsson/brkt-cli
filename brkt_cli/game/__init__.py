@@ -8,6 +8,16 @@ import uuid
 import game_controller
 
 game_score = None
+yeti_env_target = None
+token_target = None
+
+
+def get_yeti_env():
+    return yeti_env_target
+
+
+def get_token():
+    return token_target
 
 
 def gamify(func):

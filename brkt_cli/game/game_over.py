@@ -5,6 +5,7 @@ from asciimatics.screen import Screen
 from asciimatics.effects import Effect
 
 import brkt_cli.game
+from brkt_cli.yeti import YetiService
 
 
 class ScoreReporter(Effect):
@@ -15,6 +16,7 @@ class ScoreReporter(Effect):
         self.y = y
         self.selection = 0
         self._screen = screen
+        self.score_reported = False
 
     def reset(self):
         pass
@@ -41,9 +43,22 @@ class ScoreReporter(Effect):
         image, _ = FigletText(str(score), font='doom').rendered_text
         self._draw_image(image, 10, 20)
 
+        # TODO: Remove self.score_reported and have report_score trigger on
+        # pushing enter after filling out name or something. And remove this
+        # if check as well.
+        if not self.score_reported and brkt_cli.game.get_yeti_env() \
+                and brkt_cli.game.get_token():
+            self.report_score(game=game_name, name='Testname', score=score)
+            self.score_reported = True
+
     @property
     def stop_frame(self):
         return self._stop_frame
+
+    def report_score(self, game, name, score):
+        yeti_service = YetiService(root_url=brkt_cli.game.get_yeti_env(),
+                                   token=brkt_cli.game.get_token())
+        yeti_service.report_game_score(game=game, name=name, score=score)
 
 
 def get_scenes(screen):
