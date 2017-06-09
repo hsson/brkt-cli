@@ -2,12 +2,14 @@ from __future__ import division
 from random import shuffle
 from collections import deque
 from copy import deepcopy
+import time
 
 
 from asciimatics.effects import Effect, Cycle
 from asciimatics.renderers import FigletText
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
+from asciimatics.renderers import StaticRenderer
 
 I_BLOCK = [
     [0, 1, 0, 0],
@@ -73,8 +75,8 @@ class Block():
         # default rotations above
         self.matrix = block_type
         # self.position is represented using a (x,y) tuple
-        self.position = (int(TETRIS_WIDTH / 2 - BLOCK_MATRIX_WIDTH_HEIGHT / 2),
-                         -1)
+        self.position = [int(TETRIS_WIDTH / 2 - BLOCK_MATRIX_WIDTH_HEIGHT / 2),
+                         -1]
 
     def move(self, direction):
         if direction == LEFT:
@@ -107,8 +109,9 @@ class Tetris():
         self.block = None
         self.block_queue = deque()
         self.score = 0
-        self.board = [[0 for i in range(TETRIS_WIDTH)] for k in
-                      range(TETRIS_HEIGHT)]
+        self.last_tick = time.time()
+        self.board = [[0 for i in range(TETRIS_HEIGHT)] for k in
+                      range(TETRIS_WIDTH)]
         self.spawn_block()
 
     def game_over(self):
@@ -116,7 +119,7 @@ class Tetris():
         self.start_new_game()
 
     def spawn_block(self):
-        self.block = Block(block_type=self.get_new_block_type())
+        self.block = Block(block_type=TEST_BLOCK)
 
     def get_new_block_type(self):
         # We use 7 bag randomization for this
@@ -133,27 +136,27 @@ class Tetris():
 
         return self.block_queue.pop()
 
-    def rotate(self, block):
+    def rotate_block(self):
         # for now we only rotate clockwise, but there's support for
         # counter-clockwise in blocks rotate function
-        old_rotation = block.rotation
-        block.rotate()
+        old_rotation = self.block.rotation
+        self.block.rotate()
         if not self.is_legal_state():
-            block.rotation = old_rotation
+            self.block.rotation = old_rotation
 
-    def move(self, block, direction):
-        old_position = block.position
-        block.move(direction=direction)
+    def move_block(self, direction):
+        old_position = self.block.position
+        self.block.move(direction=direction)
         if not self.is_legal_state():
-            block.position = old_position
+            self.block.position = old_position
 
-    def drop(self, block):
+    def drop_block(self):
         # slams the piece as far down from the current position as possible
-        old_position = block.position
+        old_position = self.block.position
         while self.is_legal_state():
-            block.move(direction=DOWN)
+            self.block.move(direction=DOWN)
 
-        block.position = old_position
+        self.block.position = old_position
 
     def add_score(self, amount):
         self.score += amount
@@ -163,18 +166,19 @@ class Tetris():
         # state of the board
         for x_index, x_list in enumerate(self.block.matrix):
             for y_index, block_value in enumerate(x_list):
-                x, y = _get_x_y(self.block.position)
+                x, y = self.block.position
                 board_x_pos = x + x_index
                 board_y_pos = y + y_index
-                if board_x_pos < 0 or board_x_pos > TETRIS_WIDTH or \
-                        board_y_pos < 0 or board_y_pos > TETRIS_HEIGHT:
-                    board_value = 0
+                if board_x_pos < 0 or board_x_pos > TETRIS_WIDTH - 1 or \
+                        board_y_pos < 0 or board_y_pos > TETRIS_HEIGHT - 1:
+                    board_value = 1
                 else:
                     board_value = self.board[board_x_pos][board_y_pos]
 
                 if board_value and block_value:
+                    print 'NOT LEGAL'
                     return False
-
+        print 'TOTALLY LEGAL'
         return True
 
     def get_board(self):
@@ -182,23 +186,33 @@ class Tetris():
         Gets a representation of the board that has the block baked into it,
         ready to be rendered!
         '''
+        self.maybe_tick_downwards()
+
         view_board = deepcopy(self.board)
-        x, y = _get_x_y(self.block.position)
+        x, y = self.block.position
 
         for x_index, x_list in enumerate(self.block.matrix):
             for y_index, block_value in enumerate(x_list):
                 # Check that it is a position on the board
                 new_x = x + x_index
                 new_y = y + y_index
-                if new_x < TETRIS_WIDTH + 1 and new_x > -1 and \
-                        new_y < TETRIS_HEIGHT + 1 and new_y > -1:
-                    view_board[new_x][y + y_index] = block_value
+                if new_x < TETRIS_WIDTH and new_x > -1 and \
+                        new_y < TETRIS_HEIGHT and new_y > -1:
+                    view_board[new_x][new_y] = block_value
+
 
         return view_board
 
+    def maybe_tick_downwards(self):
+        now = time.time()
+        seconds_since_last_tick = int(now - self.last_tick)
+        if seconds_since_last_tick > 1:
+            self.last_tick = now
+            self.move_block(direction=DOWN)
+
 
 class TetrisBoard(Effect):
-    def __init__(self, screen, block_renderer, bg=Screen.COLOUR_BLACK,
+    def __init__(self, screen, block_renderer, bg=Screen.COLOUR_MAGENTA,
                  **kwargs):
         """
         :param screen: The Screen being used for the Scene.
@@ -253,12 +267,7 @@ def get_scenes(screen):
                 screen.height // 2 - 8),
         TetrisBoard(
                 screen,
-                FigletText("[]", font='pepper'),
+                StaticRenderer(images=['[]']) # FigletText("[]", font='pepper'),
         )
     ]
     return [Scene(effects, -1)]
-
-
-def _get_x_y(coords):
-    y, x = coords
-    return x, y
