@@ -40,11 +40,6 @@ def gamify(func):
             sys.stdout = sys.stderr = log_file
             func(*args, **kwargs)
 
-        print "Game will start in:"
-        for i in reversed(range(1)):
-            print i + 1
-            time.sleep(1)
-
         p_cli = multiprocessing.Process(target=special_func,
                                         args=args,
                                         kwargs=kwargs)
@@ -67,6 +62,7 @@ def gamify(func):
                 #     with open(TMP_LOG_FILE, 'a') as log_file_append:
                 #         log_file_append.write('Command is done!')
                 if p_cli.exitcode is not None and p_game.exitcode is not None:
+                    print ''.join(log_file.readlines()),
                     break
                 time.sleep(0.1)
 
