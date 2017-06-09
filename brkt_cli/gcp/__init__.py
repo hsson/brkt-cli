@@ -13,7 +13,7 @@ from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
-from brkt_cli.game import gamify
+from brkt_cli.game.gamify_decorator import gamify
 from brkt_cli.gcp import (
     encrypt_gcp_image,
     encrypt_gcp_image_args,

@@ -37,7 +37,7 @@ from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
 )
 from brkt_cli.aws.update_ami import update_ami
-from brkt_cli.game import gamify
+from brkt_cli.game.gamify_decorator import gamify
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_UPDATER_MODE,

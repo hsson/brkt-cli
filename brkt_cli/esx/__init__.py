@@ -26,7 +26,7 @@ from brkt_cli import (
     instance_config_args,
     util
 )
-from brkt_cli.game import gamify
+from brkt_cli.game.gamify_decorator import gamify
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_UPDATER_MODE,

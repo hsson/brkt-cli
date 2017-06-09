@@ -12,6 +12,7 @@ from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 
 import brkt_cli.game
+from brkt_cli.game.log_streamer import LogStreamer
 
 I_BLOCK = [
     [0, 1, 0, 0],
@@ -393,7 +394,11 @@ def get_scenes(screen):
         TetrisBoard(
                 screen,
                 StaticRenderer(images=['[]'])
-        )
+        ),
+        LogStreamer(
+                screen,
+                0,
+                screen.height - 5)
     ]
     scenes.append(Scene(effects, -1, name="Tetris_Game"))
 

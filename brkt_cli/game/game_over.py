@@ -6,6 +6,7 @@ from asciimatics.effects import Effect
 
 import brkt_cli.game
 
+from log_streamer import LogStreamer
 
 class ScoreReporter(Effect):
 
@@ -55,7 +56,11 @@ def get_scenes(screen):
             screen.height // 4
         ),
         ScoreReporter(screen=screen,
-                      y=screen.height // 2)
+                      y=screen.height // 2),
+        LogStreamer(
+                screen,
+                0,
+                screen.height - 5)
     ]
     scenes.append(Scene(effects, -1, name="Game_Over"))
 

@@ -7,21 +7,25 @@ import main_menu
 import tetris
 
 
-def main_game(screen):
+def main_game(screen, scene):
     scenes = []
     scenes += main_menu.get_scenes(screen)
     scenes += game_over.get_scenes(screen)
     scenes += tetris.get_scenes(screen)
     scenes += duck_hunt.get_scenes(screen)
 
-    screen.play(scenes, stop_on_resize=True)
+    screen.play(scenes, stop_on_resize=True, start_scene=scene)
 
 
 def main():
-    try:
-        Screen.wrapper(main_game)
-    except ResizeScreenError:
-        pass
+    last_scene = None
+    while True:
+        try:
+            Screen.wrapper(main_game, catch_interrupt=True, arguments=[
+                last_scene])
+            break
+        except ResizeScreenError as e:
+            last_scene = e.scene
 
 
 if __name__ == "__main__":

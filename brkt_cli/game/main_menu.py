@@ -7,6 +7,7 @@ from asciimatics.renderers import FigletText, Rainbow
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 
+from log_streamer import LogStreamer
 ENTER = 10
 SPACE = 32
 
@@ -108,5 +109,9 @@ def get_scenes(screen):
                     ("DUCK HUNT", "Duck_Hunt_Game")
                 ],
                 screen.height // 6),
+        LogStreamer(
+            screen,
+            0,
+            screen.height - 5)
     ]
     return [Scene(effects, -1)]
