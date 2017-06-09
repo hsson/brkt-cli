@@ -71,6 +71,7 @@ BLOCK_MATRIX_WIDTH_HEIGHT = 4
 TETRIS_WIDTH = 10
 TETRIS_HEIGHT = 20
 BLOCKS_TO_DISPLAY_IN_QUEUE = 4
+DISTANCE_FROM_TOP = 6
 
 
 class Block():
@@ -217,7 +218,7 @@ class Tetris():
                 if not block_value:
                     continue
                 if new_x < TETRIS_WIDTH and new_x > -1 and \
-                                new_y < TETRIS_HEIGHT and new_y > -1:
+                        new_y < TETRIS_HEIGHT and new_y > -1:
                     view_board[new_y][new_x] = block_value
 
         return view_board
@@ -269,13 +270,14 @@ class TetrisBoard(Effect):
         width, height = self.block_dimensions
         width = width * len(self.logical_representation.board[0]) + 2
         height = height * len(self.logical_representation.board) + 2
-        self._draw_box(x_start=0, y_start=0, width=width, height=height)
+        self._draw_box(x_start=0, y_start=DISTANCE_FROM_TOP,
+                       width=width, height=height)
 
         image, colors = self._block_renderer.rendered_text
         block_width, block_height = self.block_dimensions
 
         x = 1
-        y = 1
+        y = DISTANCE_FROM_TOP + 1
         for row in self.logical_representation.get_board():
             for pos in row:
                 for (i, line) in enumerate(image):
@@ -290,6 +292,18 @@ class TetrisBoard(Effect):
                 x += block_width
             x = 1
             y += block_height
+
+    def _draw_image(self, image, x, y, color=Screen.COLOUR_WHITE,
+                    colour_map=None):
+        for (i, line) in enumerate(image):
+            cmap = colour_map[i] if colour_map else None
+            self._screen.paint(line,
+                               x,
+                               y + i,
+                               color,
+                               bg=Screen.COLOUR_BLACK,
+                               transparent=False,
+                               colour_map=cmap)
 
     def _draw_text(self, x, y, text):
         image, colors = StaticRenderer(images=[text]).rendered_text
@@ -334,7 +348,7 @@ class TetrisBoard(Effect):
         width = block_width + 10
 
         # Draw score bar
-        y_start = 0
+        y_start = DISTANCE_FROM_TOP
         height = block_height * 2 + 1
         self._draw_box(x_start=x_start, y_start=y_start, width=width,
                        height=height)
@@ -343,12 +357,16 @@ class TetrisBoard(Effect):
         self._draw_text(x=text_x_start, y=y_start + 1, text=text)
 
         # Draw queue bar
-        y_start = height
+        y_start = height + y_start
         height = (block_height * 4) * BLOCKS_TO_DISPLAY_IN_QUEUE + 3
         self._draw_box(x_start=x_start, y_start=y_start, width=width,
                        height=height)
         self._draw_tetris_blocks(x_start=x_start + 2, y_start=y_start + 1)
         return
+
+    def _render_title(self):
+        image, _ = FigletText('TETRIS', font='big').rendered_text
+        self._draw_image(image, 0, 0)
 
     def _update(self, frame_no):
         self.logical_representation.tick()
@@ -358,6 +376,7 @@ class TetrisBoard(Effect):
                 'game': 'tetris'
             }
             raise NextScene("Game_Over")
+        self._render_title()
         self._render_board()
         self._render_sidebar()
 
@@ -387,10 +406,6 @@ def get_scenes(screen):
 
     # MAIN GAME
     effects = [
-        Cycle(
-                screen,
-                FigletText("TETRIS", font='big'),
-                screen.height // 2 - 8),
         TetrisBoard(
                 screen,
                 StaticRenderer(images=['[]'])
