@@ -4,7 +4,7 @@ import time
 from copy import deepcopy
 from random import shuffle
 
-from asciimatics.effects import Cycle, Effect
+from asciimatics.effects import Effect
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import NextScene
 from asciimatics.renderers import Box, FigletText, StaticRenderer
@@ -218,7 +218,7 @@ class Tetris():
                 if not block_value:
                     continue
                 if new_x < TETRIS_WIDTH and new_x > -1 and \
-                        new_y < TETRIS_HEIGHT and new_y > -1:
+                                new_y < TETRIS_HEIGHT and new_y > -1:
                     view_board[new_y][new_x] = block_value
 
         return view_board
