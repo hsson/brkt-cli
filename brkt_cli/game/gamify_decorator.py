@@ -40,11 +40,6 @@ def gamify(func):
             sys.stdout = sys.stderr = log_file
             func(*args, **kwargs)
 
-        print "Game will start in:"
-        for i in reversed(range(1)):
-            print i + 1
-            time.sleep(1)
-
         p_cli = multiprocessing.Process(target=special_func,
                                         args=args,
                                         kwargs=kwargs)
