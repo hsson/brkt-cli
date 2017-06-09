@@ -15,7 +15,7 @@ def gamify(func):
         tmp_log_file = '%s.log' % uuid.uuid4()
 
         print "Game will start in:"
-        for i in reversed(range(3)):
+        for i in reversed(range(1)):
             print i + 1
             time.sleep(1)
 

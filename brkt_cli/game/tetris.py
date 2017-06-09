@@ -1,15 +1,16 @@
 from __future__ import division
-from random import shuffle
+
+import time
 from collections import deque
 from copy import deepcopy
-import time
+from random import shuffle
 
-
-from asciimatics.effects import Effect, Cycle
+from asciimatics.effects import Cycle, Effect
 from asciimatics.renderers import FigletText
+from asciimatics.renderers import StaticRenderer
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
-from asciimatics.renderers import StaticRenderer
+from asciimatics.exceptions import NextScene
 
 I_BLOCK = [
     [0, 1, 0, 0],
@@ -73,7 +74,7 @@ class Block():
     def __init__(self, block_type):
         # self.matrix represents the current rotation of the block, see
         # default rotations above
-        self.matrix = block_type
+        self.matrix = deepcopy(block_type)
         # self.position is represented using a (x,y) tuple
         self.position = [int(TETRIS_WIDTH / 2 - BLOCK_MATRIX_WIDTH_HEIGHT / 2),
                          -1]
@@ -101,6 +102,7 @@ class Tetris():
     well as keep track of our moving piece, until it becomes part of the
     board (is placed)
     '''
+
     def __init__(self):
         self.start_new_game()
 
@@ -110,16 +112,15 @@ class Tetris():
         self.block_queue = deque()
         self.score = 0
         self.last_tick = time.time()
-        self.board = [[0 for i in range(TETRIS_HEIGHT)] for k in
-                      range(TETRIS_WIDTH)]
+        self.board = [[0 for i in range(TETRIS_WIDTH)] for k in
+                      range(TETRIS_HEIGHT)]
         self.spawn_block()
-
-    def game_over(self):
-        # do stuff
-        self.start_new_game()
+        self.game_is_over = False
 
     def spawn_block(self):
-        self.block = Block(block_type=TEST_BLOCK)
+        self.block = Block(block_type=self.get_new_block_type())
+        if not self.is_legal_state():
+            self.game_is_over = True
 
     def get_new_block_type(self):
         # We use 7 bag randomization for this
@@ -139,73 +140,81 @@ class Tetris():
     def rotate_block(self):
         # for now we only rotate clockwise, but there's support for
         # counter-clockwise in blocks rotate function
-        old_rotation = self.block.rotation
+        old_rotation = self.block.rotation[:]
         self.block.rotate()
         if not self.is_legal_state():
             self.block.rotation = old_rotation
 
     def move_block(self, direction):
-        old_position = self.block.position
+        old_position = self.block.position[:]
         self.block.move(direction=direction)
         if not self.is_legal_state():
             self.block.position = old_position
+            if direction == DOWN:
+                self.freeze_block()
+            return False
+        return True
 
     def drop_block(self):
         # slams the piece as far down from the current position as possible
-        old_position = self.block.position
-        while self.is_legal_state():
-            self.block.move(direction=DOWN)
-
-        self.block.position = old_position
+        while self.move_block(direction=DOWN):
+            pass
 
     def add_score(self, amount):
         self.score += amount
 
+    def freeze_block(self):
+        self.board = self.get_board()
+        self.spawn_block()
+
     def is_legal_state(self):
         # Checks if the current state of the block is legal with the current
         # state of the board
-        for x_index, x_list in enumerate(self.block.matrix):
-            for y_index, block_value in enumerate(x_list):
+        for y_index, y_list in enumerate(self.block.matrix):
+            for x_index, block_value in enumerate(y_list):
                 x, y = self.block.position
                 board_x_pos = x + x_index
                 board_y_pos = y + y_index
-                if board_x_pos < 0 or board_x_pos > TETRIS_WIDTH - 1 or \
-                        board_y_pos < 0 or board_y_pos > TETRIS_HEIGHT - 1:
+                if board_y_pos < 0:
+                    board_value = 0
+                elif board_x_pos < 0 or board_x_pos > TETRIS_WIDTH - 1 \
+                        or board_y_pos > TETRIS_HEIGHT - 1:
                     board_value = 1
                 else:
-                    board_value = self.board[board_x_pos][board_y_pos]
+                    board_value = self.board[board_y_pos][board_x_pos]
 
                 if board_value and block_value:
-                    print 'NOT LEGAL'
                     return False
-        print 'TOTALLY LEGAL'
         return True
+
+    def tick(self):
+        self.maybe_tick_downwards()
 
     def get_board(self):
         '''
         Gets a representation of the board that has the block baked into it,
         ready to be rendered!
         '''
-        self.maybe_tick_downwards()
-
         view_board = deepcopy(self.board)
         x, y = self.block.position
 
-        for x_index, x_list in enumerate(self.block.matrix):
-            for y_index, block_value in enumerate(x_list):
+        for y_index, y_list in enumerate(self.block.matrix):
+            for x_index, block_value in enumerate(y_list):
                 # Check that it is a position on the board
                 new_x = x + x_index
                 new_y = y + y_index
+                if not block_value:
+                    continue
                 if new_x < TETRIS_WIDTH and new_x > -1 and \
-                        new_y < TETRIS_HEIGHT and new_y > -1:
-                    view_board[new_x][new_y] = block_value
+                                new_y < TETRIS_HEIGHT and new_y > -1:
+                    view_board[new_y][new_x] = block_value
 
         return view_board
 
     def maybe_tick_downwards(self):
         now = time.time()
-        seconds_since_last_tick = int(now - self.last_tick)
-        if seconds_since_last_tick > 1:
+        time_since_last_tick = now - self.last_tick
+        if time_since_last_tick > 0.1:
             self.last_tick = now
             self.move_block(direction=DOWN)
 
@@ -251,6 +260,9 @@ class TetrisBoard(Effect):
             y += block_height
 
     def _update(self, frame_no):
+        self.logical_representation.tick()
+        if self.logical_representation.game_is_over:
+            raise NextScene("Tetris_Game_Over")
         self._render_board()
 
     @property
@@ -259,6 +271,9 @@ class TetrisBoard(Effect):
 
 
 def get_scenes(screen):
+    scenes = []
+
+    # MAIN GAME
     effects = [
         Cycle(
                 screen,
@@ -269,4 +284,15 @@ def get_scenes(screen):
                 StaticRenderer(images=['[]'])
         )
     ]
-    return [Scene(effects, -1)]
+    scenes.append(Scene(effects, -1, name="Tetris_Game"))
+
+    # GAME OVER SCREEN
+    effects = [
+        Cycle(
+                screen,
+                FigletText("GAME OVER", font='big'),
+                screen.height // 2 - 8),
+    ]
+    scenes.append(Scene(effects, -1, name="Tetris_Game_Over"))
+
+    return scenes
