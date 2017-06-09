@@ -3,10 +3,9 @@ import multiprocessing
 import os
 import sys
 import time
-import logging
 
-import game_controller
 import brkt_cli.game as game
+import game_controller
 from brkt_cli import brkt_env_from_values
 
 
@@ -15,6 +14,9 @@ def gamify(func):
     being executed"""
 
     def func_wrapper(*args, **kwargs):
+        if not args[0].fun:
+            return func(*args, **kwargs)
+
         try:
             brkt_env = brkt_env_from_values(args[0], args[1])
             game.yeti_env = 'http://%s:30948' % (brkt_env.api_host)
@@ -37,6 +39,11 @@ def gamify(func):
             log_file = open(game.TMP_LOG_FILE, 'w')
             sys.stdout = sys.stderr = log_file
             func(*args, **kwargs)
+
+        print "Game will start in:"
+        for i in reversed(range(1)):
+            print i + 1
+            time.sleep(1)
 
         p_cli = multiprocessing.Process(target=special_func,
                                         args=args,
