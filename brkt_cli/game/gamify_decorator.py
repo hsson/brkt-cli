@@ -13,10 +13,8 @@ def gamify(func):
     being executed"""
 
     def func_wrapper(*args, **kwargs):
-        print "Game will start in:"
-        for i in reversed(range(1)):
-            print i + 1
-            time.sleep(1)
+        if not args[0].fun:
+            return func(*args, **kwargs)
 
         def special_func(*args, **kwargs):
             root = logging.getLogger()
@@ -27,6 +25,11 @@ def gamify(func):
             sys.stdout = sys.stderr = log_file
             func(*args, **kwargs)
 
+        print "Game will start in:"
+        for i in reversed(range(1)):
+            print i + 1
+            time.sleep(1)
+
         p_cli = multiprocessing.Process(target=special_func,
                                         args=args,
                                         kwargs=kwargs)
@@ -34,7 +37,6 @@ def gamify(func):
 
         p_game = multiprocessing.Process(target=game_controller.main)
         p_game.start()
-
 
         with open(TMP_LOG_FILE) as log_file:
             while True:
