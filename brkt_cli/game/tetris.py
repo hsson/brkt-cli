@@ -200,7 +200,6 @@ class Tetris():
                         new_y < TETRIS_HEIGHT and new_y > -1:
                     view_board[new_x][new_y] = block_value
 
-
         return view_board
 
     def maybe_tick_downwards(self):
@@ -267,7 +266,7 @@ def get_scenes(screen):
                 screen.height // 2 - 8),
         TetrisBoard(
                 screen,
-                StaticRenderer(images=['[]']) # FigletText("[]", font='pepper'),
+                StaticRenderer(images=['[]'])
         )
     ]
     return [Scene(effects, -1)]
