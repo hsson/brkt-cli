@@ -200,6 +200,19 @@ class YetiService(object):
         return self._create_token(
             _TOKEN_TYPE_API, expiry=expiry)
 
+    def report_game_score(self, game, name, score):
+        payload = {
+            'game': game,
+            'name': name,
+            'score': score
+        }
+        post_json(
+            self.root_url + '/api/v1/game/score',
+            token=self.token,
+            json=payload
+        )
+
+
 def is_yeti(root_url, timeout=10.0):
     """ Return True if the root_url points to Yeti.
     :raise IOError if the url cannot be accessed
