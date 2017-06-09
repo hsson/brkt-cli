@@ -6,11 +6,11 @@ from copy import deepcopy
 from random import shuffle
 
 from asciimatics.effects import Cycle, Effect
-from asciimatics.renderers import FigletText
-from asciimatics.renderers import StaticRenderer
+from asciimatics.event import KeyboardEvent
+from asciimatics.exceptions import NextScene
+from asciimatics.renderers import Box, FigletText, StaticRenderer
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
-from asciimatics.exceptions import NextScene
 
 I_BLOCK = [
     [0, 1, 0, 0],
@@ -103,6 +103,8 @@ class Tetris():
     board (is placed)
     '''
 
+    TICK_RATE = 0.5
+
     def __init__(self):
         self.start_new_game()
 
@@ -140,10 +142,10 @@ class Tetris():
     def rotate_block(self):
         # for now we only rotate clockwise, but there's support for
         # counter-clockwise in blocks rotate function
-        old_rotation = self.block.rotation[:]
+        old_matrix = deepcopy(self.block.matrix)
         self.block.rotate()
         if not self.is_legal_state():
-            self.block.rotation = old_rotation
+            self.block.matrix = old_matrix
 
     def move_block(self, direction):
         old_position = self.block.position[:]
@@ -163,8 +165,15 @@ class Tetris():
     def add_score(self, amount):
         self.score += amount
 
+    def simplify_board(self):
+        for row_ind, row in enumerate(self.board):
+            if all(row):
+                self.board[1:row_ind + 1] = self.board[:row_ind]
+                self.board[0] = [0 for _ in range(TETRIS_WIDTH)]
+
     def freeze_block(self):
         self.board = self.get_board()
+        self.simplify_board()
         self.spawn_block()
 
     def is_legal_state(self):
@@ -214,13 +223,13 @@ class Tetris():
     def maybe_tick_downwards(self):
         now = time.time()
         time_since_last_tick = now - self.last_tick
-        if time_since_last_tick > 0.1:
+        if time_since_last_tick > self.TICK_RATE:
             self.last_tick = now
             self.move_block(direction=DOWN)
 
 
 class TetrisBoard(Effect):
-    def __init__(self, screen, block_renderer, bg=Screen.COLOUR_MAGENTA,
+    def __init__(self, screen, block_renderer, bg=Screen.COLOUR_BLACK,
                  **kwargs):
         """
         :param screen: The Screen being used for the Scene.
@@ -238,12 +247,19 @@ class TetrisBoard(Effect):
     def reset(self):
         self.logical_representation.start_new_game()
 
-    def _render_board(self):
+    @property
+    def block_dimensions(self):
         image, colours = self._block_renderer.rendered_text
         block_width = max([len(row) for row in image]) + 1
         block_height = len([row for row in image if row.strip()])
-        x = 0
-        y = 0
+        return block_width, block_height
+
+    def _render_board(self):
+        image, colours = self._block_renderer.rendered_text
+        block_width, block_height = self.block_dimensions
+
+        x = 1
+        y = 1
         for row in self.logical_representation.get_board():
             for pos in row:
                 for (i, line) in enumerate(image):
@@ -256,18 +272,49 @@ class TetrisBoard(Effect):
                                        bg=self._bg,
                                        colour_map=colours[i])
                 x += block_width
-            x = 0
+            x = 1
             y += block_height
+
+    def draw_box(self):
+        width, height = self.block_dimensions
+        width = width * len(self.logical_representation.board[0]) + 2
+        height = height * len(self.logical_representation.board) + 2
+        image, colours = Box(width, height,
+                             uni=self._screen.unicode_aware).rendered_text
+        for (i, line) in enumerate(image):
+            self._screen.paint(line, 0, i, Screen.COLOUR_WHITE,
+                               bg=self._bg,
+                               colour_map=colours[i])
 
     def _update(self, frame_no):
         self.logical_representation.tick()
         if self.logical_representation.game_is_over:
             raise NextScene("Tetris_Game_Over")
+        self.draw_box()
         self._render_board()
 
     @property
     def stop_frame(self):
         return 0
+
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent):
+            key = event.key_code
+            if key == Screen.KEY_SHIFT:
+                self.logical_representation.drop_block()
+            if key == Screen.KEY_UP:
+                self.logical_representation.rotate_block()
+            elif key == Screen.KEY_DOWN:
+                self.logical_representation.move_block(DOWN)
+            elif key == Screen.KEY_LEFT:
+                self.logical_representation.move_block(LEFT)
+            elif key == Screen.KEY_RIGHT:
+                self.logical_representation.move_block(RIGHT)
+            else:
+                print key
+                return event
+        else:
+            return event
 
 
 def get_scenes(screen):
