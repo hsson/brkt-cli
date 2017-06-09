@@ -3,7 +3,6 @@ from asciimatics.exceptions import ResizeScreenError
 
 import main_menu
 import tetris
-import sys
 
 
 def main_game(screen):
@@ -15,9 +14,12 @@ def main_game(screen):
     screen.play(scenes, stop_on_resize=True)
 
 
-if __name__ == "__main__":
+def main():
     try:
         Screen.wrapper(main_game)
-        sys.exit(0)
     except ResizeScreenError:
         pass
+
+
+if __name__ == "__main__":
+    main()
