@@ -9,6 +9,7 @@ from brkt_cli.yeti import post_json
 
 from log_streamer import LogStreamer
 
+
 class ScoreReporter(Effect):
 
     def __init__(self, screen, y, **kwargs):
