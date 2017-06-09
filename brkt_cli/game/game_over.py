@@ -131,7 +131,7 @@ def get_scenes(screen):
         LogStreamer(
                 screen,
                 0,
-                screen.height - 5)
+                screen.height - 3)
     ]
     scenes.append(Scene(effects, -1, name="Game_Over"))
 

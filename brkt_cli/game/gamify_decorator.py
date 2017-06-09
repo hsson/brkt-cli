@@ -19,7 +19,11 @@ def gamify(func):
 
         try:
             brkt_env = brkt_env_from_values(args[0], args[1])
-            game.yeti_env = 'http://%s:30948' % (brkt_env.api_host)
+            game.yeti_env = 'https://api.%s' % (
+                '.'.join(brkt_env.public_api_host.split(
+                        '.')[1:]))
+            print game.yeti_env
+            time.sleep(1)
             token = args[0].token
             if not token:
                 token = os.getenv('BRKT_API_TOKEN')

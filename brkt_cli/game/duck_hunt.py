@@ -11,6 +11,8 @@ from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.sprites import Arrow
 
+from log_streamer import LogStreamer
+
 import brkt_cli.game
 
 MAX_MISSED_DUCKS = 5
@@ -146,7 +148,9 @@ class DuckSpawner(Effect):
             return event
 
     def reset(self):
-        pass
+        super(DuckSpawner, self).reset()
+        DuckHuntStats.missed_ducks = 0
+        DuckHuntStats.hit_ducks = 0
 
     @property
     def stop_frame(self):
@@ -163,7 +167,12 @@ def get_scenes(screen):
         Rain(
                 screen,
                 9999999
-        )
+        ),
+        LogStreamer(
+                screen,
+                0,
+                screen.height - 3)
+
     ]
     scenes.append(Scene(effects, -1, name="Duck_Hunt_Game"))
 

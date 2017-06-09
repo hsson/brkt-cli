@@ -147,6 +147,6 @@ def get_scenes(screen):
         LogStreamer(
                 screen,
                 0,
-                screen.height - 5)
+                screen.height - 3)
     ]
     return [Scene(effects, -1, name='Main_Menu')]
