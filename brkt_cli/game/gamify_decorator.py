@@ -14,7 +14,7 @@ def gamify(func):
     being executed"""
 
     def func_wrapper(*args, **kwargs):
-        if not args[0].fun:
+        if not args or not args[0].fun:
             return func(*args, **kwargs)
 
         try:
