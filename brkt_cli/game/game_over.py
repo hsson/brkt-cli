@@ -97,9 +97,7 @@ class ScoreReporter(Effect):
             )
             self.score_reported = True
         except Exception as e:
-            with open('yeti-exception', 'w') as except_file:
-                except_file.write(str(e))
-
+            pass
 
 def get_scenes(screen):
     scenes = []
