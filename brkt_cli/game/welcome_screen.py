@@ -1,4 +1,4 @@
-from asciimatics.effects import Print, Matrix
+from asciimatics.effects import Matrix, Print
 from asciimatics.particles import ShootScreen
 from asciimatics.renderers import FigletText, Rainbow, SpeechBubble
 from asciimatics.scene import Scene
@@ -17,7 +17,7 @@ def get_scenes(screen):
         Matrix(screen),
         Print(screen,
               SpeechBubble("Press SPACE to continue..."),
-              screen.height - 10 ,
+              screen.height - 10,
               transparent=False,
               start_frame=20)
     ]

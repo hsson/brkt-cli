@@ -74,7 +74,7 @@ BLOCKS_TO_DISPLAY_IN_QUEUE = 4
 DISTANCE_FROM_TOP = 6
 
 
-class Block():
+class Block(object):
     def __init__(self, block_type):
         # self.matrix represents the current rotation of the block, see
         # default rotations above
@@ -100,17 +100,23 @@ class Block():
             self.matrix = zip(*self.matrix)[::-1]
 
 
-class Tetris():
-    '''
+class Tetris(object):
+    """
     The boards state is stored in the renderer, we just handle actions here as
     well as keep track of our moving piece, until it becomes part of the
     board (is placed)
-    '''
+    """
 
     TICK_RATE = 0.5
 
     def __init__(self):
         self.start_new_game()
+        self.block = None
+        self.block_queue = None
+        self.score = None
+        self.last_tick = None
+        self.board = None
+        self.game_is_over = False
 
     def start_new_game(self):
         # The board has 'height' number of rows and 'width' number of colums
@@ -118,7 +124,7 @@ class Tetris():
         self.block_queue = []
         self.score = 0
         self.last_tick = time.time()
-        self.board = [[0 for i in range(TETRIS_WIDTH)] for k in
+        self.board = [[0 for _ in range(TETRIS_WIDTH)] for __ in
                       range(TETRIS_HEIGHT)]
         self.spawn_block()
         self.game_is_over = False
@@ -203,10 +209,10 @@ class Tetris():
         self.maybe_tick_downwards()
 
     def get_board(self):
-        '''
+        """
         Gets a representation of the board that has the block baked into it,
         ready to be rendered!
-        '''
+        """
         view_board = deepcopy(self.board)
         x, y = self.block.position
 
@@ -217,8 +223,7 @@ class Tetris():
                 new_y = y + y_index
                 if not block_value:
                     continue
-                if new_x < TETRIS_WIDTH and new_x > -1 and \
-                                new_y < TETRIS_HEIGHT and new_y > -1:
+                if TETRIS_WIDTH > new_x > -1 and TETRIS_HEIGHT > new_y > -1:
                     view_board[new_y][new_x] = block_value
 
         return view_board
@@ -315,7 +320,7 @@ class TetrisBoard(Effect):
                                bg=self._bg,
                                colour_map=colors[i])
 
-    def _draw_tetris_block(self, number, block_type, x_start, y_start):
+    def _draw_tetris_block(self, block_type, x_start, y_start):
         y_offset = y_start
         image, colors = self._block_renderer.rendered_text
         for row_index, row in enumerate(block_type):
@@ -336,8 +341,8 @@ class TetrisBoard(Effect):
     def _draw_tetris_blocks(self, x_start, y_start):
         block_queue = self.logical_representation.block_queue[
                       :BLOCKS_TO_DISPLAY_IN_QUEUE]
-        for index, block_type in enumerate(block_queue):
-            self._draw_tetris_block(number=index, block_type=block_type,
+        for block_type in block_queue:
+            self._draw_tetris_block(block_type=block_type,
                                     x_start=x_start, y_start=y_start)
             y_start += 4
 
@@ -357,7 +362,7 @@ class TetrisBoard(Effect):
         self._draw_text(x=text_x_start, y=y_start + 1, text=text)
 
         # Draw queue bar
-        y_start = height + y_start
+        y_start += height
         height = (block_height * 4) * BLOCKS_TO_DISPLAY_IN_QUEUE + 3
         self._draw_box(x_start=x_start, y_start=y_start, width=width,
                        height=height)

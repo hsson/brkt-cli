@@ -1,6 +1,6 @@
 from __future__ import division
 
-from asciimatics.effects import Effect, _Trail
+from asciimatics.effects import Effect
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import NextScene, StopApplication
 from asciimatics.renderers import FigletText, Rainbow
@@ -9,36 +9,6 @@ from asciimatics.screen import Screen
 
 from brkt_cli.game import ENTER
 from log_streamer import LogStreamer
-
-
-class SlowMatrix(Effect):
-    """
-    Matrix-like falling green letters.
-    """
-
-    def __init__(self, screen, **kwargs):
-        """
-        :param screen: The Screen being used for the Scene.
-
-        Also see the common keyword arguments in :py:obj:`.Effect`.
-        """
-        super(SlowMatrix, self).__init__(**kwargs)
-        self._screen = screen
-        self._chars = []
-
-    def reset(self):
-        self._chars = [_Trail(self._screen, x) for x in
-                       range(self._screen.width)]
-
-    def _update(self, frame_no):
-        if frame_no % 2 == 0:
-            for char in self._chars:
-                char.update((self._stop_frame == 0) or (
-                    self._stop_frame - frame_no > 100))
-
-    @property
-    def stop_frame(self):
-        return self._stop_frame
 
 
 class GameSelector(Effect):

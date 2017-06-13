@@ -1,7 +1,7 @@
 from asciimatics.effects import Effect, Print
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import NextScene
-from asciimatics.renderers import FigletText, Figlet, Fire
+from asciimatics.renderers import Figlet, FigletText, Fire
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 
@@ -96,8 +96,9 @@ class ScoreReporter(Effect):
                     json=payload
             )
             self.score_reported = True
-        except Exception as e:
+        except Exception:
             pass
+
 
 def get_scenes(screen):
     scenes = []

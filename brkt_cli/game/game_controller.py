@@ -7,6 +7,7 @@ import main_menu
 import tetris
 import welcome_screen
 
+
 def main_game(screen, scene):
     scenes = []
     scenes += welcome_screen.get_scenes(screen)

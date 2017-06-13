@@ -2,7 +2,7 @@ import random
 import time
 
 from asciimatics.effects import Effect, Sprite
-from asciimatics.event import MouseEvent, KeyboardEvent
+from asciimatics.event import KeyboardEvent, MouseEvent
 from asciimatics.exceptions import NextScene
 from asciimatics.particles import Explosion, Rain
 from asciimatics.paths import DynamicPath, Path
@@ -11,14 +11,13 @@ from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.sprites import Arrow
 
-from log_streamer import LogStreamer
-
 import brkt_cli.game
+from log_streamer import LogStreamer
 
 MAX_MISSED_DUCKS = 5
 
 
-class DuckHuntStats():
+class DuckHuntStats(object):
     missed_ducks = 0
     hit_ducks = 0
 
@@ -61,15 +60,18 @@ class Gun(Sprite):
 
     def shoot(self, powerful=True):
         x, y = self._path.next_pos()
-        for duck in [e for e in self._scene._effects if isinstance(e, Duck)]:
+        for duck in [e for e in self._scene.effects if isinstance(e, Duck)]:
             try:
                 if self.overlaps(duck, use_new_pos=True):
                     duck.get_shot()
             except TypeError:
                 # Probably compared against an unitialized sprite
                 pass
-        self._scene.add_effect(Explosion(self._screen, x, y, 25))
-
+        if powerful:
+            self._scene.add_effect(Explosion(self._screen, x, y, 25))
+        else:
+            #TODO(Adam): Does the same for now which is kinda lame
+            self._scene.add_effect(Explosion(self._screen, x, y, 25))
 
 class Duck(Arrow):
     def __init__(self, screen, path):

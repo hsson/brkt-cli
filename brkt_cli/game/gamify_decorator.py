@@ -35,14 +35,13 @@ def gamify(func):
         logging.info("Starting BRKT Entertainment System")
         time.sleep(1)
 
-        def special_func(*args, **kwargs):
+        def special_func(*inargs, **inkwargs):
             root = logging.getLogger()
             map(root.removeHandler, root.handlers[:])
             map(root.removeFilter, root.filters[:])
             logging.basicConfig(level=logging.INFO, filename=game.TMP_LOG_FILE)
-            log_file = open(game.TMP_LOG_FILE, 'w')
-            sys.stdout = sys.stderr = log_file
-            func(*args, **kwargs)
+            sys.stdout = sys.stderr = open(game.TMP_LOG_FILE, 'w')
+            func(*inargs, **inkwargs)
 
         p_cli = multiprocessing.Process(target=special_func,
                                         args=args,

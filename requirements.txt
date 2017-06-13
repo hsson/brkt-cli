@@ -1,3 +1,4 @@
+asciimatics==1.8.0
 boto == 2.38.0
 boto3 >= 1.4.4
 google-api-python-client >= 1.5.1
@@ -10,4 +11,3 @@ pyvmomi == 5.5.0; python_version <= '2.7.8'
 pyvmomi == 6.0.0; python_version >= '2.7.9'
 PyYAML >= 3.11
 requests >= 2.7.0
-asciimatics==1.8.0
