@@ -4,9 +4,50 @@ import os
 import sys
 import time
 
-import brkt_cli.game as game
-import game_controller
 from brkt_cli import brkt_env_from_values
+
+has_asciimatics = True
+try:
+    import brkt_cli.game as game
+    import game_controller
+except ImportError:
+    has_asciimatics = False
+
+
+def redirect_stream_logging():
+    root = logging.getLogger()
+    formatter = None
+    new_handler = None
+
+    original_handlers = []
+    for handler in root.handlers[:]:
+        if isinstance(handler, logging.StreamHandler):
+            original_handlers.append(handler)
+            formatter = handler.formatter
+            root.removeHandler(handler)
+    if formatter:
+        new_handler = logging.FileHandler(game.TMP_LOG_FILE)
+        logging.getLogger('asciimatics').setLevel(logging.FATAL)
+        logging.getLogger('brkt_cli.game').setLevel(logging.FATAL)
+        new_handler.setFormatter(formatter)
+        root.addHandler(new_handler)
+    return original_handlers, new_handler
+
+
+def restore_stream_logging(original_handlers, new_handler):
+    root = logging.getLogger()
+    root.removeHandler(new_handler)
+    for handler in original_handlers:
+        root.addHandler(handler)
+
+
+def print_all_new_lines(log_file):
+    while True:
+        new_data = log_file.readline().strip()
+        if new_data:
+            print new_data
+        else:
+            break
 
 
 def gamify(func):
@@ -17,17 +58,17 @@ def gamify(func):
         if not args or not args[0].fun:
             return func(*args, **kwargs)
 
+        if not has_asciimatics:
+            logging.error("The BRKT Entertainment System requires the"
+                          "asciimatics library. Please run:\n"
+                          "pip install asciimatics==1.8.0")
+            return 1
+
         try:
             brkt_env = brkt_env_from_values(args[0], args[1])
             game.yeti_env = 'https://api.%s' % (
-                '.'.join(brkt_env.public_api_host.split(
-                        '.')[1:]))
-            print game.yeti_env
-            time.sleep(1)
-            token = args[0].token
-            if not token:
-                token = os.getenv('BRKT_API_TOKEN')
-            game.token = token
+                '.'.join(brkt_env.public_api_host.split('.')[1:]))
+            game.token = os.getenv('BRKT_API_TOKEN', None)
         except Exception as e:
             logging.error("You can play but you can't post to yeti :(. "
                           "Error: %s", e)
@@ -36,13 +77,15 @@ def gamify(func):
         time.sleep(1)
 
         def special_func(*inargs, **inkwargs):
-            root = logging.getLogger()
-            map(root.removeHandler, root.handlers[:])
-            map(root.removeFilter, root.filters[:])
-            logging.basicConfig(level=logging.INFO, filename=game.TMP_LOG_FILE)
+            """
+            This replaces any StreamHandler with a FileHandler with the
+            same format. If no streamhandler exists we ignore logging and
+            just pipe all stdout and stdin to a file
+            """
             sys.stdout = sys.stderr = open(game.TMP_LOG_FILE, 'w')
             func(*inargs, **inkwargs)
 
+        original_handlers, new_handler = redirect_stream_logging()
         p_cli = multiprocessing.Process(target=special_func,
                                         args=args,
                                         kwargs=kwargs)
@@ -58,18 +101,14 @@ def gamify(func):
         with open(game.TMP_LOG_FILE) as log_file:
             while True:
                 if p_game.exitcode is not None:
-                    new_data = log_file.readline().strip()
-                    if new_data:
-                        print new_data
-                # if p_cli.exitcode is not None and p_game.exitcode is None:
-                #     with open(TMP_LOG_FILE, 'a') as log_file_append:
-                #         log_file_append.write('Command is done!')
+                    print_all_new_lines(log_file)
                 if p_cli.exitcode is not None and p_game.exitcode is not None:
-                    print ''.join(log_file.readlines()),
                     break
                 time.sleep(0.1)
 
         os.remove(game.TMP_LOG_FILE)
+
+        restore_stream_logging(original_handlers, new_handler)
 
         return p_cli.exitcode
 

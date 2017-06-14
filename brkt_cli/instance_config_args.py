@@ -138,7 +138,8 @@ def setup_instance_config_args(parser, parsed_config,
     token_group.add_argument(
         '--fun',
         help=(
-            'Run the BRKT Entertainment System (TM) while encrypting'
+            'Run the BRKT Entertainment System (TM) while you wait for the '
+            'command to complete.'
         ),
         dest='fun',
         action='store_true',
