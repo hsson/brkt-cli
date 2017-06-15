@@ -11,7 +11,8 @@ try:
     import asciimatics
 except ImportError:
     has_asciimatics = False
-else:
+
+if has_asciimatics:
     import brkt_cli.game as game
     import game_controller
 
