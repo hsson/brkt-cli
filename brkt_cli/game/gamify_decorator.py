@@ -9,6 +9,7 @@ from brkt_cli import brkt_env_from_values
 has_asciimatics = True
 try:
     import asciimatics
+    assert asciimatics
 except ImportError:
     has_asciimatics = False
 
