@@ -8,10 +8,12 @@ from brkt_cli import brkt_env_from_values
 
 has_asciimatics = True
 try:
-    import brkt_cli.game as game
-    import game_controller
+    import asciimatics
 except ImportError:
     has_asciimatics = False
+else:
+    import brkt_cli.game as game
+    import game_controller
 
 
 def redirect_stream_logging():
@@ -70,7 +72,7 @@ def gamify(func):
                 '.'.join(brkt_env.public_api_host.split('.')[1:]))
             game.token = os.getenv('BRKT_API_TOKEN', None)
         except Exception as e:
-            logging.error("You can play but you can't post to yeti :(. "
+            logging.error("You can play but high scores aren't available. "
                           "Error: %s", e)
 
         logging.info("Starting BRKT Entertainment System")
