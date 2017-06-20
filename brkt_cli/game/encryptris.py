@@ -68,8 +68,8 @@ RIGHT = 'right'
 UP = 'up'
 DOWN = 'down'
 BLOCK_MATRIX_WIDTH_HEIGHT = 4
-TETRIS_WIDTH = 10
-TETRIS_HEIGHT = 20
+ENCRYPTRIS_WIDTH = 10
+ENCRYPTRIS_HEIGHT = 20
 BLOCKS_TO_DISPLAY_IN_QUEUE = 4
 DISTANCE_FROM_TOP = 6
 
@@ -80,7 +80,7 @@ class Block(object):
         # default rotations above
         self.matrix = deepcopy(block_type)
         # self.position is represented using a (x,y) tuple
-        self.position = [int(TETRIS_WIDTH / 2 - BLOCK_MATRIX_WIDTH_HEIGHT / 2),
+        self.position = [int(ENCRYPTRIS_WIDTH / 2 - BLOCK_MATRIX_WIDTH_HEIGHT / 2),
                          -1]
 
     def move(self, direction):
@@ -100,7 +100,7 @@ class Block(object):
             self.matrix = zip(*self.matrix)[::-1]
 
 
-class Tetris(object):
+class Encryptris(object):
     """
     The boards state is stored in the renderer, we just handle actions here as
     well as keep track of our moving piece, until it becomes part of the
@@ -124,8 +124,8 @@ class Tetris(object):
         self.block_queue = []
         self.score = 0
         self.last_tick = time.time()
-        self.board = [[0 for _ in range(TETRIS_WIDTH)] for __ in
-                      range(TETRIS_HEIGHT)]
+        self.board = [[0 for _ in range(ENCRYPTRIS_WIDTH)] for __ in
+                      range(ENCRYPTRIS_HEIGHT)]
         self.spawn_block()
         self.game_is_over = False
 
@@ -177,7 +177,7 @@ class Tetris(object):
         for row_ind, row in enumerate(self.board):
             if all(row):
                 self.board[1:row_ind + 1] = self.board[:row_ind]
-                self.board[0] = [0 for _ in range(TETRIS_WIDTH)]
+                self.board[0] = [0 for _ in range(ENCRYPTRIS_WIDTH)]
 
     def freeze_block(self):
         self.board = self.get_board()
@@ -195,8 +195,8 @@ class Tetris(object):
                 board_y_pos = y + y_index
                 if board_y_pos < 0:
                     board_value = 0
-                elif board_x_pos < 0 or board_x_pos > TETRIS_WIDTH - 1 \
-                        or board_y_pos > TETRIS_HEIGHT - 1:
+                elif board_x_pos < 0 or board_x_pos > ENCRYPTRIS_WIDTH - 1 \
+                        or board_y_pos > ENCRYPTRIS_HEIGHT - 1:
                     board_value = 1
                 else:
                     board_value = self.board[board_y_pos][board_x_pos]
@@ -223,7 +223,7 @@ class Tetris(object):
                 new_y = y + y_index
                 if not block_value:
                     continue
-                if TETRIS_WIDTH > new_x > -1 and TETRIS_HEIGHT > new_y > -1:
+                if ENCRYPTRIS_WIDTH > new_x > -1 and ENCRYPTRIS_HEIGHT > new_y > -1:
                     view_board[new_y][new_x] = block_value
 
         return view_board
@@ -236,7 +236,7 @@ class Tetris(object):
             self.move_block(direction=DOWN)
 
 
-class TetrisBoard(Effect):
+class EncryptrisBoard(Effect):
     def __init__(self, screen, block_renderer, bg=Screen.COLOUR_BLACK,
                  **kwargs):
         """
@@ -246,11 +246,11 @@ class TetrisBoard(Effect):
 
         Also see the common keyword arguments in :py:obj:`.Effect`.
         """
-        super(TetrisBoard, self).__init__(**kwargs)
+        super(EncryptrisBoard, self).__init__(**kwargs)
         self._screen = screen
         self._block_renderer = block_renderer
         self._bg = bg
-        self.logical_representation = Tetris()
+        self.logical_representation = Encryptris()
 
     def reset(self):
         self.logical_representation.start_new_game()
@@ -320,7 +320,7 @@ class TetrisBoard(Effect):
                                bg=self._bg,
                                colour_map=colors[i])
 
-    def _draw_tetris_block(self, block_type, x_start, y_start):
+    def _draw_encryptris_block(self, block_type, x_start, y_start):
         y_offset = y_start
         image, colors = self._block_renderer.rendered_text
         for row_index, row in enumerate(block_type):
@@ -338,12 +338,12 @@ class TetrisBoard(Effect):
                 x_offset += 2
             y_offset += 1
 
-    def _draw_tetris_blocks(self, x_start, y_start):
+    def _draw_encryptris_blocks(self, x_start, y_start):
         block_queue = self.logical_representation.block_queue[
                       :BLOCKS_TO_DISPLAY_IN_QUEUE]
         for block_type in block_queue:
-            self._draw_tetris_block(block_type=block_type,
-                                    x_start=x_start, y_start=y_start)
+            self._draw_encryptris_block(block_type=block_type,
+                                        x_start=x_start, y_start=y_start)
             y_start += 4
 
     def _render_sidebar(self):
@@ -366,11 +366,11 @@ class TetrisBoard(Effect):
         height = (block_height * 4) * BLOCKS_TO_DISPLAY_IN_QUEUE + 3
         self._draw_box(x_start=x_start, y_start=y_start, width=width,
                        height=height)
-        self._draw_tetris_blocks(x_start=x_start + 2, y_start=y_start + 1)
+        self._draw_encryptris_blocks(x_start=x_start + 2, y_start=y_start + 1)
         return
 
     def _render_title(self):
-        image, _ = FigletText('TETRIS', font='big').rendered_text
+        image, _ = FigletText('ENCRYPTRIS', font='big').rendered_text
         self._draw_image(image, 0, 0)
 
     def _update(self, frame_no):
@@ -378,7 +378,7 @@ class TetrisBoard(Effect):
         if self.logical_representation.game_is_over:
             brkt_cli.game.game_score = {
                 'score': self.logical_representation.score,
-                'game': 'tetris'
+                'game': 'encryptris'
             }
             raise NextScene("Game_Over")
         self._render_title()
@@ -413,7 +413,7 @@ def get_scenes(screen):
 
     # MAIN GAME
     effects = [
-        TetrisBoard(
+        EncryptrisBoard(
                 screen,
                 StaticRenderer(images=['[]'])
         ),
@@ -422,6 +422,6 @@ def get_scenes(screen):
                 0,
                 screen.height - 3)
     ]
-    scenes.append(Scene(effects, -1, name="Tetris_Game"))
+    scenes.append(Scene(effects, -1, name="Encryptris_Game"))
 
     return scenes

@@ -1,10 +1,10 @@
 from asciimatics.exceptions import ResizeScreenError
 from asciimatics.screen import Screen
 
-import duck_hunt
+import bug_hunt
 import game_over
 import main_menu
-import tetris
+import encryptris
 import welcome_screen
 
 
@@ -13,8 +13,8 @@ def main_game(screen, scene):
     scenes += welcome_screen.get_scenes(screen)
     scenes += main_menu.get_scenes(screen)
     scenes += game_over.get_scenes(screen)
-    scenes += tetris.get_scenes(screen)
-    scenes += duck_hunt.get_scenes(screen)
+    scenes += encryptris.get_scenes(screen)
+    scenes += bug_hunt.get_scenes(screen)
 
     screen.play(scenes, stop_on_resize=True, start_scene=scene)
 

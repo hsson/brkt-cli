@@ -14,12 +14,12 @@ from asciimatics.sprites import Arrow
 import brkt_cli.game
 from log_streamer import LogStreamer
 
-MAX_MISSED_DUCKS = 5
+MAX_MISSED_BUGS = 5
 
 
-class DuckHuntStats(object):
-    missed_ducks = 0
-    hit_ducks = 0
+class BugHuntStats(object):
+    missed_bugs = 0
+    hit_bugs = 0
 
 
 class MouseController(DynamicPath):
@@ -60,10 +60,10 @@ class Gun(Sprite):
 
     def shoot(self, powerful=True):
         x, y = self._path.next_pos()
-        for duck in [e for e in self._scene.effects if isinstance(e, Duck)]:
+        for bug in [e for e in self._scene.effects if isinstance(e, Bug)]:
             try:
-                if self.overlaps(duck, use_new_pos=True):
-                    duck.get_shot()
+                if self.overlaps(bug, use_new_pos=True):
+                    bug.get_shot()
             except TypeError:
                 # Probably compared against an unitialized sprite
                 pass
@@ -73,55 +73,55 @@ class Gun(Sprite):
             #TODO(Adam): Does the same for now which is kinda lame
             self._scene.add_effect(Explosion(self._screen, x, y, 25))
 
-class Duck(Arrow):
+class Bug(Arrow):
     def __init__(self, screen, path):
-        super(Duck, self).__init__(screen, path)
+        super(Bug, self).__init__(screen, path)
 
     def _update(self, frame_no):
         last_y_pos = self.last_position()[1]
         if last_y_pos is not None and last_y_pos < -5:
-            DuckHuntStats.missed_ducks += 1
+            BugHuntStats.missed_bugs += 1
             self.delete_count = 1
-        super(Duck, self)._update(frame_no)
+        super(Bug, self)._update(frame_no)
 
     def get_shot(self):
-        DuckHuntStats.hit_ducks += 1
+        BugHuntStats.hit_bugs += 1
         self.delete_count = 1
 
 
-class DuckSpawner(Effect):
+class BugSpawner(Effect):
     def __init__(self, screen, spawn_rate):
         """
-        Spawns ducks with random paths
+        Spawns bugs with random paths
         :param screen: screen
-        :param spawn_rate: delay between new ducks
+        :param spawn_rate: delay between new bugs
         """
-        super(DuckSpawner, self).__init__()
+        super(BugSpawner, self).__init__()
         self._screen = screen
         self.spawn_rate = spawn_rate
         self.last_spawn_time = 0
 
-    def spawn_duck(self):
+    def spawn_bug(self):
         path = Path()
         path.jump_to(self._screen.width * random.randint(0, 1),
                      self._screen.height)
         target = int(self._screen.width * random.random())
         path.move_straight_to(target, -10, 100)
-        self._scene.add_effect(Duck(self._screen, path))
+        self._scene.add_effect(Bug(self._screen, path))
         self.last_spawn_time = time.time()
 
     def _update(self, frame_no):
-        if DuckHuntStats.missed_ducks >= MAX_MISSED_DUCKS:
+        if BugHuntStats.missed_bugs >= MAX_MISSED_BUGS:
             brkt_cli.game.game_score = {
-                'score': DuckHuntStats.hit_ducks,
-                'game': 'duck_hunt'
+                'score': BugHuntStats.hit_bugs,
+                'game': 'bug_hunt'
             }
             raise NextScene("Game_Over")
         if time.time() > self.last_spawn_time + self.spawn_rate:
-            self.spawn_duck()
+            self.spawn_bug()
 
         image, _ = SpeechBubble(
-                "Score: %d" % DuckHuntStats.hit_ducks).rendered_text
+                "Score: %d" % BugHuntStats.hit_bugs).rendered_text
         for i, line in enumerate(image):
             self._screen.paint(line,
                                (self._screen.width - len(line)) // 2,
@@ -129,8 +129,8 @@ class DuckSpawner(Effect):
                                Screen.COLOUR_WHITE)
 
         image, _ = SpeechBubble(
-                "Misses left: %d" % (MAX_MISSED_DUCKS -
-                                     DuckHuntStats.missed_ducks,)
+                "Misses left: %d" % (MAX_MISSED_BUGS -
+                                     BugHuntStats.missed_bugs,)
         ).rendered_text
         for i, line in enumerate(image):
             self._screen.paint(line,
@@ -150,9 +150,9 @@ class DuckSpawner(Effect):
             return event
 
     def reset(self):
-        super(DuckSpawner, self).reset()
-        DuckHuntStats.missed_ducks = 0
-        DuckHuntStats.hit_ducks = 0
+        super(BugSpawner, self).reset()
+        BugHuntStats.missed_bugs = 0
+        BugHuntStats.hit_bugs = 0
 
     @property
     def stop_frame(self):
@@ -164,7 +164,7 @@ def get_scenes(screen):
 
     # MAIN GAME
     effects = [
-        DuckSpawner(screen, 1),
+        BugSpawner(screen, 1),
         Gun(screen),
         Rain(
                 screen,
@@ -176,6 +176,6 @@ def get_scenes(screen):
                 screen.height - 3)
 
     ]
-    scenes.append(Scene(effects, -1, name="Duck_Hunt_Game"))
+    scenes.append(Scene(effects, -1, name="Bug_Hunt_Game"))
 
     return scenes

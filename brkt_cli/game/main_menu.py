@@ -110,8 +110,8 @@ def get_scenes(screen):
         GameSelector(
                 screen,
                 [
-                    ("TETRIS", "Tetris_Game"),
-                    ("DUCK HUNT", "Duck_Hunt_Game")
+                    ("ENCRYPTRIS", "Encryptris_Game"),
+                    ("BUG HUNT", "Bug_Hunt_Game")
                 ],
                 screen.height // 6),
         LogStreamer(
