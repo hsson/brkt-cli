@@ -27,6 +27,12 @@ def setup_encrypt_ami_args(parser, parsed_config):
         help='The guest AMI that will be encrypted'
     )
     parser.add_argument(
+        '--stock-image-version',
+        metavar='STOCK_IMAGE_VERSION',
+        help='The image version for a stock image, such as ubuntu or centos. On ubuntu, the default is 16.04. '
+             'On centos, the default is 7.'
+    )
+    parser.add_argument(
         '--encrypted-ami-name',
         metavar='NAME',
         dest='encrypted_ami_name',

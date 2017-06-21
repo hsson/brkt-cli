@@ -92,6 +92,12 @@ def _handle_aws_errors(func):
                     'Unauthorized operation.  Check the IAM policy for your '
                     'AWS account.'
                 )
+            elif e.error_code == 'OptInRequired':
+                log.debug('', exc_info=1)
+                log.error(e.error_message)
+                log.error(
+                    'Opt in required for the AMI. Go to the marketplace and subscribe to the AMI.'
+                )
             else:
                 raise
         return 1
@@ -217,6 +223,41 @@ def run_encrypt(values, config, verbose=False):
         _validate_region(aws_svc, values.region)
 
     aws_svc.connect(values.region, key_name=values.key_name)
+
+    if values.ami == 'ubuntu':
+        if not values.stock_image_version:
+            values.stock_image_version = '16.04'
+        resp = urllib2.urlopen("https://cloud-images.ubuntu.com/locator/ec2/releasesTable")
+        respStr = resp.read()
+        resp.close()
+        respStr = re.sub(",[ \t\r\n]+}", "}", respStr)
+        respStr = re.sub(",[ \t\r\n]+\]", "]", respStr)
+        amiData = json.loads(respStr)['aaData']
+        ubuntuAmi = ''
+        for ami in amiData:
+            if ami[0] == values.region and ami[2].startswith(values.stock_image_version) and ami[4] == 'hvm:ebs-ssd':
+                matchObj = re.match('^<.+>(ami-.+)</.+>$', ami[6])
+                ubuntuAmi = matchObj.group(1)
+        if not ubuntuAmi:
+            raise ValidationError(
+                'Unknown Ubuntu AMI passed.')
+        values.ami = ubuntuAmi
+    elif values.ami == 'centos':
+        if not values.stock_image_version:
+            values.stock_image_version = '7'
+        prod_code = ''
+        if values.stock_image_version == '6':
+            prod_code = '6x5jmcajty9edm3f211pqjfn2'
+        elif values.stock_image_version == '7':
+            prod_code = 'aw0evgkw8e5c1q413zgy5pjce'
+        else:
+            log.error("Unknown CentOS stock image version passed. (can only be 6,7).")
+            return 1
+        images = aws_svc.get_images(filters={'product-code': prod_code})
+        if len(images) == 0:
+            raise ValidationError(
+                'Unknown CentOS AMI passed.')
+        values.ami = images[-1].id
 
     if values.validate:
         guest_image = _validate_guest_ami(aws_svc, values.ami)
