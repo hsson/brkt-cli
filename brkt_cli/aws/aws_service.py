@@ -288,17 +288,6 @@ class AWSService(BaseAWSService):
         self.key_name = key_name
         self.conn = boto.vpc.connect_to_region(region)
 
-    def connect_as(self, role, region, session_name):
-        sts_conn = boto.sts.connect_to_region(region)
-        creds = sts_conn.assume_role(role, session_name)
-        conn = boto.vpc.connect_to_region(
-            region,
-            aws_access_key_id=creds.credentials.access_key,
-            aws_secret_access_key=creds.credentials.secret_key,
-            security_token=creds.credentials.session_token)
-        self.region = region
-        self.conn = conn
-
     def retry(self, function, error_code_regexp=None, timeout=None):
         """ Call the retry_boto function with this object's timeout and
         initial sleep time values.
