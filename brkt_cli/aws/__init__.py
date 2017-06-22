@@ -239,11 +239,11 @@ def get_centos_ami_id(stock_image_version, aws_svc):
     elif stock_image_version == '7':
         prod_code = 'aw0evgkw8e5c1q413zgy5pjce'
     else:
-        raise ValidationError('Unknown CentOS stock image version passed (%s). (can only be 6,7).' % stock_image_version)
+        raise ValidationError('CentOS version must be 6 or 7.')
     images = aws_svc.get_images(filters={'product-code': prod_code})
     if len(images) == 0:
         raise ValidationError(
-            'CentOS version must be 6 or 7.')
+            'Unable to find AMI for CentOS %s.' % stock_image_version)
     return images[-1].id
 
 
