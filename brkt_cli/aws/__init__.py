@@ -267,15 +267,16 @@ def run_encrypt(values, config, verbose=False):
     aws_svc.connect(values.region, key_name=values.key_name)
 
     # Keywords check
+    guest_ami_id = values.ami
     if values.ami == 'ubuntu':
-        values.ami = get_ubuntu_ami_id(values.stock_image_version, values.region)
+        guest_ami_id = get_ubuntu_ami_id(values.stock_image_version, values.region)
     elif values.ami == 'centos':
-        values.ami = get_centos_ami_id(values.stock_image_version, aws_svc)
+        guest_ami_id = get_centos_ami_id(values.stock_image_version, aws_svc)
 
     if values.validate:
-        guest_image = _validate_guest_ami(aws_svc, values.ami)
+        guest_image = _validate_guest_ami(aws_svc, guest_ami_id)
     else:
-        guest_image = _validate_ami(aws_svc, values.ami)
+        guest_image = _validate_ami(aws_svc, guest_ami_id)
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
                                                     values.metavisor_version)
     aws_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
