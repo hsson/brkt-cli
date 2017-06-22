@@ -225,8 +225,7 @@ def get_ubuntu_ami_id(stock_image_version, region):
             ubuntu_ami = match_obj.group(1)
     if not ubuntu_ami:
         raise ValidationError(
-            'Could not fild valid Ubuntu AMI: Unknown Ubuntu stock image version passed (%s). Try passing \'14.04\' or '
-            '\'16.04\' for a valid response' % stock_image_version)
+            'Could not find Ubuntu AMI version %s.' % stock_image_version)
     return ubuntu_ami
 
 
@@ -244,7 +243,7 @@ def get_centos_ami_id(stock_image_version, aws_svc):
     images = aws_svc.get_images(filters={'product-code': prod_code})
     if len(images) == 0:
         raise ValidationError(
-            'Could not find valid CentOS AMI: Unknown CentOS stock image version passed. (can only be 6,7).')
+            'CentOS version must be 6 or 7.')
     return images[-1].id
 
 
@@ -269,9 +268,9 @@ def run_encrypt(values, config, verbose=False):
 
     # Keywords check
     if values.ami == 'ubuntu':
-        get_ubuntu_ami_id(values.stock_image_version, values.region)
+        values.ami = get_ubuntu_ami_id(values.stock_image_version, values.region)
     elif values.ami == 'centos':
-        get_centos_ami_id(values.stock_image_version, aws_svc)
+        values.ami = get_centos_ami_id(values.stock_image_version, aws_svc)
 
     if values.validate:
         guest_image = _validate_guest_ami(aws_svc, values.ami)
