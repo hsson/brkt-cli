@@ -344,8 +344,7 @@ def run_update(values, config, verbose=False):
     encrypted_ami_name = values.encrypted_ami_name
     if encrypted_ami_name:
         # Check for name collision.
-        filters = {'name': encrypted_ami_name}
-        if aws_svc.get_images(filters=filters, owners=['self']):
+        if aws_svc.get_images(name=encrypted_ami_name, owners=['self']):
             raise ValidationError(
                 'You already own image named %s' % encrypted_ami_name)
     else:
@@ -650,8 +649,9 @@ def _validate(aws_svc, values, encryptor_ami_id):
         _validate_encryptor_ami(aws_svc, encryptor_ami_id)
 
         if values.encrypted_ami_name:
-            filters = {'name': values.encrypted_ami_name}
-            if aws_svc.get_images(filters=filters, owners=['self']):
+            images = aws_svc.get_images(
+                name=values.encrypted_ami_name, owners=['self'])
+            if images:
                 raise ValidationError(
                     'You already own an image named %s' %
                     values.encrypted_ami_name

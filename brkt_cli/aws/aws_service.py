@@ -146,7 +146,7 @@ class BaseAWSService(object):
         pass
 
     @abc.abstractmethod
-    def get_images(self, filters=None, owners=None):
+    def get_images(self, name=None, owners=None):
         pass
 
     @abc.abstractmethod
@@ -442,8 +442,11 @@ class AWSService(BaseAWSService):
                 raise
         return True
 
-    def get_images(self, filters=None, owners=None):
+    def get_images(self, name=None, owners=None):
         get_all_images = self.retry(self.conn.get_all_images)
+        filters = None
+        if name:
+            filters = {'name': name}
         return get_all_images(filters=filters, owners=owners)
 
     def get_image(self, image_id, retry=False):
