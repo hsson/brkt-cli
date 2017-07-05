@@ -34,6 +34,7 @@ from brkt_cli.validation import ValidationError
 # the brkt command and CSP-specific code.
 SUBCOMMAND_MODULE_PATHS = [
     'brkt_cli.auth',
+    'brkt_cli.shell',
     'brkt_cli.aws',
     'brkt_cli.make_token',
     'brkt_cli.config',
@@ -449,6 +450,9 @@ def main():
         config.save_config()
 
     result = 1
+
+    if subcommand.name() == 'shell':
+        subcommand.set_subparsers(subparsers)
 
     # Run the subcommand.
     allow_debug_log = True
