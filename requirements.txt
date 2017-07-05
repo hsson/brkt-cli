@@ -1,3 +1,6 @@
+termcolor
+pygments
+prompt_toolkit
 boto == 2.38.0
 boto3 >= 1.4.4
 google-api-python-client >= 1.5.1
