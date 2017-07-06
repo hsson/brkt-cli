@@ -699,19 +699,14 @@ def wait_for_image(aws_svc, image_id):
                 continue
             else:
                 log.warn('Unknown AWS error: %s', e)
-        # These two attributes are optional in the response and only
-        # show up sometimes. So we have to getattr them.
-        reason = repr(getattr(image, 'stateReason', None))
-        code = repr(getattr(image, 'code', None))
-        log.debug("%s: %s reason: %s code: %s",
-                  image.id, image.state, reason, code)
+        log.debug('%s: %s', image.id, image.state)
         if image.state == 'available':
             break
         if image.state == 'failed':
             raise BracketError('Image state became failed')
     else:
         raise BracketError(
-            'Image failed to become available (%s)' % (image.state,))
+            'Image failed to become available (%s)' % image.state)
 
 
 def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=\
