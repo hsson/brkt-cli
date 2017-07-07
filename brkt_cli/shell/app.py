@@ -17,6 +17,7 @@ import sys
 import subprocess
 from argparse import Namespace
 
+import pickle
 from prompt_toolkit import Application, AbortAction, CommandLineInterface, filters
 from prompt_toolkit.buffer import Buffer, AcceptAction
 from prompt_toolkit.document import Document
@@ -116,6 +117,11 @@ class App(object):
                                     description='The editing mode type for the prompt'),
         }
 
+        app_info = self.get_app_info()
+        if app_info is not None:
+            self.set_args = app_info['set_args']
+            self.saved_commands = app_info['saved_commands']
+
         self._cli = self.make_cli_interface()
 
     def run(self):
@@ -127,10 +133,12 @@ class App(object):
             try:
                 ret_doc = self._cli.run(reset_current_buffer=True)
             except (KeyboardInterrupt, EOFError):
+                self.run_shutdown()
                 self._cli.eventloop.close()
                 break
             else:
                 if ret_doc is self.MachineCommands.Exit:
+                    self.run_shutdown()
                     self._cli.eventloop.close()
                     break
                 if ret_doc.text == '':
@@ -144,6 +152,7 @@ class App(object):
                         try:
                             machine_cmd = inner_cmd.run_action(ret_doc.text, self)
                             if machine_cmd == self.MachineCommands.Exit:
+                                self.run_shutdown()
                                 self._cli.eventloop.close()
                                 break
                         except InnerCommandError as err:
@@ -236,6 +245,21 @@ class App(object):
                 else:
                     p = subprocess.Popen(sys.argv[0] + ' ' + cmd_text, shell=True, env=os.environ.copy())
                     p.communicate()
+
+    def run_shutdown(self):
+        app_info = {
+            'set_args': self.set_args,
+            'saved_commands': self.saved_commands,
+        }
+        with open('.brkt_shell_info.pkl', 'wb') as f:
+            pickle.dump(app_info, f, pickle.HIGHEST_PROTOCOL)
+
+    def get_app_info(self):
+        try:
+            with open('.brkt_shell_info.pkl', 'rb') as f:
+                return pickle.load(f)
+        except IOError:
+            return None
 
     def get_bottom_toolbar_tokens(self, _):
         """
