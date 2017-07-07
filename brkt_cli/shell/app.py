@@ -15,43 +15,74 @@ import os
 import sys
 
 import subprocess
+from argparse import Namespace
+
 from prompt_toolkit import Application, AbortAction, CommandLineInterface, filters
 from prompt_toolkit.buffer import Buffer, AcceptAction
-from prompt_toolkit.document import Document
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.filters import IsDone, Always, RendererHeightIsKnown
 from prompt_toolkit.key_binding.manager import KeyBindingManager
 from prompt_toolkit.keys import Keys
-from prompt_toolkit.layout import HSplit, ConditionalContainer, Window, FillControl, BufferControl, TokenListControl
+from prompt_toolkit.layout import HSplit, ConditionalContainer, Window, FillControl, TokenListControl
 from prompt_toolkit.layout.dimension import LayoutDimension
 from prompt_toolkit.layout.screen import Char
 from prompt_toolkit.shortcuts import create_prompt_layout, create_eventloop
 from pygments.token import Token
 
-from brkt_cli.shell.enum import enum
+from brkt_cli.shell.enum import Enum
+from brkt_cli.shell.get_set_inner_commmands import set_inner_command, get_inner_command
 from brkt_cli.shell.inner_commands import exit_inner_command, manpage_inner_command, InnerCommandError, \
-    help_inner_command
+    help_inner_command, dev_inner_command
+from brkt_cli.shell.manpage import Manpage
 
 
 class App:
     """
-    The app that controls the console UI and anything relating to the shell.
-    :param completer: the completer to suggest words
+    :type COMMAND_PREFIX: unicode
+    :type INNER_COMMANDS: dict[unicode, brkt_cli.shell.inner_commands.InnerCommand]
+    :type completer: brkt_cli.shell.completer.ShellCompleter
+    :type cmd: brkt_cli.shell.raw_commands.CommandPromptToolkit
+    :type has_manpage: bool
+    :type key_manager: prompt_toolkit.key_binding.manager.KeyBindingManager
+    :type dummy: bool
+    :type set_args: dict[unicode, dict[unicode, Any]]
+    :type _cli: prompt_toolkit.CommandLineInterface
     """
-    MACHINE_COMMANDS = enum(UNKNOWN=0, EXIT=1)
-    COMMAND_PREFIX = '/'
+
+    class MachineCommands(Enum):
+        """
+        An enumeration of the machine commands that are returned after a inner command
+        :type Unknown: int
+        :type Exit: int
+        """
+        Unknown, Exit = range(2)
+
+    COMMAND_PREFIX = u'/'
     INNER_COMMANDS = {
-        COMMAND_PREFIX + 'exit': exit_inner_command,
-        COMMAND_PREFIX + 'manpage': manpage_inner_command,
-        COMMAND_PREFIX + 'help': help_inner_command,
+        COMMAND_PREFIX + u'exit': exit_inner_command,
+        COMMAND_PREFIX + u'manpage': manpage_inner_command,
+        COMMAND_PREFIX + u'help': help_inner_command,
+        COMMAND_PREFIX + u'set': set_inner_command,
+        COMMAND_PREFIX + u'get': get_inner_command,
+        COMMAND_PREFIX + u'dev': dev_inner_command,
     }
 
-    def __init__(self, completer):
+    def __init__(self, completer, cmd):
+        """
+        The app that controls the console UI and anything relating to the shell.
+        :param completer: the completer to suggest words
+        :type completer: brkt_cli.shell.completer.ShellCompleter
+        :param cmd: the top command of the app.
+        :type cmd: brkt_cli.shell.raw_commands.CommandPromptToolkit
+        """
         self.completer = completer
-        self.manpage = u''
+        self.completer.app = self
+        self.cmd = cmd
         self.has_manpage = True
         self.key_manager = None
         self.dummy = False
+        self.set_args = {}
+
         self._cli = self.make_cli_interface()
 
     def run(self):
@@ -61,32 +92,111 @@ class App:
         """
         while True:
             try:
-                ret = self._cli.run(reset_current_buffer=True)
+                ret_doc = self._cli.run(reset_current_buffer=True)
             except (KeyboardInterrupt, EOFError):
                 self._cli.eventloop.close()
                 break
             else:
-                if ret is self.MACHINE_COMMANDS.EXIT:
+                if ret_doc is self.MachineCommands.Exit:
                     self._cli.eventloop.close()
                     break
-                if ret.text.startswith(self.COMMAND_PREFIX):
+                if ret_doc.text == '':
+                    continue
+                if ret_doc.text.startswith(self.COMMAND_PREFIX):
                     try:
-                        cmd = self.INNER_COMMANDS[ret.text.split()[0]]
-                        mac_cmd = cmd.run_action(ret.text, self)
-                        if mac_cmd == self.MACHINE_COMMANDS.EXIT:
-                            self._cli.eventloop.close()
-                            break
+                        inner_cmd = self.INNER_COMMANDS[ret_doc.text.split()[0]]
                     except KeyError:
                         print "Error: Unknown command."
-                    except InnerCommandError as err:
-                        print err.format_error()
+                    else:
+                        try:
+                            machine_cmd = inner_cmd.run_action(ret_doc.text, self)
+                            if machine_cmd == self.MachineCommands.Exit:
+                                self._cli.eventloop.close()
+                                break
+                        except InnerCommandError as err:
+                            print err.format_error()
+                        except AssertionError as err:
+                            print InnerCommandError.format(err.message)
+                        except:
+                            print InnerCommandError.format("unknown error - %s" % sys.exc_info()[0])
                     continue
-                self.manpage = u''
-                self._cli.buffers['manpage'].reset(initial_document=Document(self.manpage, cursor_position=0))
-                self._cli.request_redraw()
 
-                if not self.dummy:
-                    p = subprocess.Popen(sys.argv[0] + ' ' + ret.text, shell=True, env=os.environ.copy())
+                command = self.completer.get_current_command(ret_doc, True)
+                cmd_text = ret_doc.text
+
+                if command is not None and command.path in self.set_args:
+                    args_text = ret_doc.text[self.completer.get_current_command_location(ret_doc)[1]:].strip()
+                    try:
+                        existing_args = command.parse_args(args_text.split())
+                    except:
+                        existing_args = Namespace()
+                    set_args_dict = self.set_args[command.path]
+                    positional_idx = 0
+                    final_args = []
+                    final_arg_texts = []
+                    for arg in command.optional_arguments + command.positionals:
+                        new_arg = {
+                            'positional': None,
+                            'arg': arg,
+                            'value': None,
+                            'specified': False,
+                        }
+                        if arg.type == arg.Type.Help or arg.type == arg.Type.Version:
+                            continue
+
+                        if arg.__class__.__name__ == 'PositionalArgumentPromptToolkit':
+                            new_arg['positional'] = positional_idx
+                            positional_idx += 1
+
+                        if hasattr(existing_args, arg.dest):
+                            spec_arg_val = getattr(existing_args, arg.dest)
+
+                            if arg.default == spec_arg_val and spec_arg_val is not None:
+                                if new_arg['positional'] is None:
+                                    new_arg['specified'] = arg.tag in args_text
+                                else:
+                                    new_arg['specified'] = spec_arg_val in args_text
+                            else:
+                                new_arg['specified'] = True
+                            new_arg['value'] = spec_arg_val
+                        if arg.get_name() in set_args_dict and (not (
+                            hasattr(existing_args, arg.dest) and getattr(existing_args, arg.dest) is not None) or not
+                                new_arg['specified']):
+                            new_arg['value'] = set_args_dict[arg.get_name()]
+                            new_arg['specified'] = True
+
+                        if new_arg['value'] is not None and new_arg['specified']:
+                            final_args.append(new_arg)
+                            
+                    # FIXME: THIS DOESNT WORK WITH APPEND CONST
+
+                    for final_opt_arg in filter(lambda x: x['positional'] is None, final_args):
+                        arg = final_opt_arg['arg']
+                        if arg.type == arg.Type.Store:
+                            final_arg_texts.append(arg.tag + ' ' + str(final_opt_arg['value']))
+                        elif arg.type == arg.Type.StoreConst and final_opt_arg['value'] is True:
+                            final_arg_texts.append(arg.tag)
+                        elif arg.type == arg.Type.StoreFalse and final_opt_arg['value'] is False:
+                            final_arg_texts.append(arg.tag)
+                        elif arg.type == arg.Type.StoreTrue and final_opt_arg['value'] is True:
+                            final_arg_texts.append(arg.tag)
+                        elif arg.type == arg.Type.Append:
+                            final_arg_texts.append(
+                                ' '.join(map(lambda val: arg.tag + ' ' + val, final_opt_arg['value'])))
+                        elif arg.type == arg.Type.AppendConst or arg.type == arg.Type.Count:
+                            final_arg_texts.append(' '.join(map(lambda val: arg.tag, final_opt_arg['value'])))
+
+                    final_arg_texts.extend(map(lambda x: x['value'],
+                                               sorted(filter(lambda x: x['positional'] is not None, final_args),
+                                                      key=lambda x: x['positional'])))
+
+                    cmd_text = ret_doc.text[:self.completer.get_current_command_location(ret_doc)[1]] + ' ' + ' '.join(
+                        final_arg_texts)
+
+                if self.dummy:
+                    print sys.argv[0] + ' ' + cmd_text
+                else:
+                    p = subprocess.Popen(sys.argv[0] + ' ' + cmd_text, shell=True, env=os.environ.copy())
                     p.communicate()
 
     def get_bottom_toolbar_tokens(self, _):
@@ -94,6 +204,7 @@ class App:
         Constructs the bottom toolbar
         :param _:
         :return: A list of all elements in the toolbar
+        :rtype: list[(pygments.token._TokenType, unicode)]
         """
         ret = [
             (Token.Toolbar.Help, 'Press ctrl q to quit'),
@@ -108,6 +219,7 @@ class App:
         """
         Constructs the layout of the CLI UI
         :return: The layout in horizontal sections
+        :rtype: prompt_toolkit.layout.HSplit
         """
         return HSplit([
             create_prompt_layout(
@@ -119,18 +231,18 @@ class App:
                 content=Window(height=LayoutDimension.exact(1),
                                content=FillControl(u'\u2500',
                                                    token=Token.Separator)),
-                filter=~IsDone() & filters.Condition(lambda _: self.has_manpage)
+                filter=~IsDone() & filters.Condition(
+                    lambda _: self.has_manpage and self._cli.current_buffer.document.text != ''),
             ),  # A separator between the command prompt and the manpage view. This disappears when
             # self.has_manpage is False
             ConditionalContainer(
                 content=Window(
-                    content=BufferControl(
-                        buffer_name='manpage',
-                    ),
+                    content=Manpage(self),
                     height=LayoutDimension(max=15),
                 ),
-                filter=~IsDone() & filters.Condition(lambda _: self.has_manpage),
-            ),  # The manpage help display. This disappears when self.has_manpage is False
+                filter=~IsDone() & filters.Condition(
+                    lambda _: self.has_manpage and self._cli.current_buffer.document.text != ''),
+            ),
             ConditionalContainer(
                 content=Window(
                     TokenListControl(
@@ -143,56 +255,30 @@ class App:
             )  # The bottom toolbar, which displays useful info to the user
         ])
 
-    def make_buffer(self, completer):
+    @staticmethod
+    def make_buffer(completer):
         """
         This function makes a buffer for the app to use
         :param completer: the completer to suggest words
+        :type completer: prompt_toolkit.completion.Completer
         :return: the generated buffer
+        :rtype: prompt_toolkit.buffer.Buffer
         """
         return Buffer(
             enable_history_search=True,  # Allows the user to search through command history via the up and down arrows
             completer=completer,  # The completer to suggest words to the user
             complete_while_typing=Always(),  # Always give suggestions while typing
-            accept_action=AcceptAction.RETURN_DOCUMENT,  # Return the document (and the text) on enter/
-            on_text_changed=self.on_text_changed  # If the text in the user prompt is changed, run this function
+            accept_action=AcceptAction.RETURN_DOCUMENT,  # Return the document (and the text) on enter
         )
-
-    def on_text_changed(self, buff):
-        """
-        Called every time the user changes the text (via input, delete, etc.) in the prompt.
-        It gets the manpage of the command in progress and writes it to the manpage buffer area
-        :param buff: the buffer that is changed
-        """
-        document = buff.document
-        if document.text.strip() and document.text_before_cursor != '':  # If there is text in prompt
-            arg = self.completer.get_current_argument(document)  # Get current argument (if there is one)
-            if arg is not None:  # If there is a current argument, display the description
-                self.manpage = unicode(arg.description)
-            elif document.text_before_cursor.split()[-1].startswith('-'):  # While typing an argument, don't show any
-                # manpage description
-                self.manpage = u''
-            else:  # If a command is in the prompt (and no argument), display the manpage of the command
-                command = self.completer.get_current_command(document)
-                if command is not None:
-                    self.manpage = u''
-                    self.manpage += command.description
-                    self.manpage += u'\n\n' + command.usage
-                else:  # If there is no valid command, clear manpage
-                    self.manpage = u''
-        else:  # If there is no text in prompt, clear manpage
-            self.manpage = u''
-
-        # Update the manpage UI with the values
-        self._cli.buffers['manpage'].reset(
-            initial_document=Document(self.manpage, cursor_position=0))
-        self._cli.request_redraw()
 
     def make_app(self, completer):
         """
         Makes the application needed for the App. Creates a KeyBindingManager that traps key commands and pipes them to
         functions.
         :param completer: the completer to suggest words
+        :type completer: prompt_toolkit.completion.Completer
         :return: Application
+        :rtype: prompt_toolkit.Application
         """
         self.key_manager = KeyBindingManager()
 
@@ -202,13 +288,10 @@ class App:
             When ctrl q is pressed, return the EXIT machine_command to the cli.run() command.
             :param event:
             """
-            event.cli.set_return_value(self.MACHINE_COMMANDS.EXIT)
+            event.cli.set_return_value(self.MachineCommands.Exit)
 
         return Application(
             buffer=self.make_buffer(completer),
-            buffers={
-                'manpage': Buffer(read_only=True)
-            },
             key_bindings_registry=self.key_manager.registry,
             on_abort=AbortAction.RETRY,
             layout=self.make_layout(),
@@ -218,7 +301,8 @@ class App:
     def make_cli_interface(self):
         """
         Makes the CLI interface needed for the App
-        :return: CommandLineInterface
+        :return: command line interface
+        :rtype: prompt_toolkit.CommandLineInterface
         """
         loop = create_eventloop()
         app = self.make_app(self.completer)
