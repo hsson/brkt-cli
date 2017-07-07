@@ -53,6 +53,8 @@ class App(object):
     :type set_args: dict[unicode, dict[unicode, Any]]
     :type saved_commands: dict[unicode, unicode]
     :type _vi_mode: bool
+    :type mouse_support: bool
+    :type dev_mode: bool
     :type _cli: prompt_toolkit.CommandLineInterface
     """
 
@@ -71,14 +73,13 @@ class App(object):
         COMMAND_PREFIX + u'set': set_inner_command,
         COMMAND_PREFIX + u'get': get_inner_command,
         COMMAND_PREFIX + u'del': del_inner_command,
-        COMMAND_PREFIX + u'dev': dev_inner_command,
         COMMAND_PREFIX + u'alias': alias_inner_command,
         COMMAND_PREFIX + u'get_alias': get_alias_inner_command,
         COMMAND_PREFIX + u'unalias': unalias_inner_command,
         COMMAND_PREFIX + u'setting': setting_inner_command,
     }
 
-    def __init__(self, completer, cmd):
+    def __init__(self, completer, cmd, mouse_support=False):
         """
         The app that controls the console UI and anything relating to the shell.
         :param completer: the completer to suggest words
@@ -95,6 +96,8 @@ class App(object):
         self.set_args = {}
         self.saved_commands = {}
         self._vi_mode = False
+        self.mouse_support = mouse_support
+        self.dev_mode = False
 
         def manpage_on_changed(val):
             self._has_manpage = val
@@ -275,6 +278,8 @@ class App(object):
             (Token.Toolbar.Separator, ' | '),
             (Token.Toolbar.Help, 'Editing Mode: ' + ('VI' if self._vi_mode else 'Emacs')),
         ]
+        if self.dev_mode:
+            ret.extend([(Token.Toolbar.Separator, ' | '), (Token.Toolbar.Help, 'Dev Mode: ON')])
         if self.dummy:
             ret.extend([(Token.Toolbar.Separator, ' | '), (Token.Toolbar.Help, 'Dummy Mode: ON')])
         return ret
@@ -362,7 +367,7 @@ class App(object):
             on_abort=AbortAction.RETRY,
             layout=self.make_layout(),
             editing_mode=EditingMode.VI if self._vi_mode else EditingMode.EMACS,
-            mouse_support=False,
+            mouse_support=self.mouse_support,
         )
 
     def make_cli_interface(self):

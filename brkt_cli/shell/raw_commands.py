@@ -13,7 +13,7 @@
 # limitations under the License.
 from copy import copy
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, SUPPRESS
 
 from brkt_cli.shell.enum import Enum
 
@@ -250,6 +250,7 @@ class ArgumentPromptToolkit(object):
     :type metavar: unicode
     :type dest: unicode
     :type default: Any
+    :type dev: bool
     :type choices: list[unicode] | None
     :type type: int
     """
@@ -280,6 +281,7 @@ class ArgumentPromptToolkit(object):
         self.metavar = raw.metavar
         self.dest = raw.dest
         self.default = raw.default
+        self.dev = self.description == SUPPRESS
         self.choices = raw.choices  # choices can be either None or an array of strings. If it is not None, than the
         # completer will suggest those choices
 
