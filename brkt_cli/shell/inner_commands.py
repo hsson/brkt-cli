@@ -11,6 +11,8 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+import re
+
 from termcolor import colored
 
 
@@ -22,7 +24,7 @@ class InnerCommand(object):
     :type _action: (list[unicode], brkt_cli.shell.app.App) -> (int | None)
     :type completer: (int, brkt_cli.shell.app.App, list[unicode], prompt_toolkit.document.Document) -> list[unicode]
     """
-    def __init__(self, name, description, usage, action):
+    def __init__(self, name, description, usage, action, completer=None, param_regex=r'^$'):
         """
         The command type for commands in the shell itself (e.g. `/exit`)
         :param name: the name of the command without the identifier (in this case `/`) in front of it
@@ -33,12 +35,18 @@ class InnerCommand(object):
         :type usage: unicode
         :param action: the action to be run when the command is entered.
         :type action: (list[unicode], brkt_cli.shell.app.App) -> (int | None)
+        :param param_regex: the regexp for parsing a command
+        :type param_regex: str
         """
+        if completer is None:
+            completer = inner_command_completer_static(completions=[])
+
         self.name = name
         self.description = description
         self.usage = usage
         self._action = action
-        self.completer = inner_command_completer_static(completions=[])
+        self.completer = completer
+        self.param_regex = param_regex
 
     def run_action(self, cmd, app):
         """
@@ -50,8 +58,9 @@ class InnerCommand(object):
         :return: the result of the action
         :rtype: brkt_cli.shell.app.App.MachineCommands | None
         """
-        params = cmd.split()
-        del params[0]
+        params = re.match(self.param_regex, ' '.join(cmd.split()[1:]))
+        if params is None or params.group(0) is None:
+            raise InnerCommandError("Could not parse command.")
         return self._action(params, app)
 
 
@@ -123,54 +132,25 @@ def exit_inner_command_func(params, app):
     """
     Run exit command
     :param params: command parameters
-    :type params: list[unicode]
+    :type params: _sre.SRE_Match
     :param app: the app it is running from
     :type app: brkt_cli.shell.app.App
     :return: the exit machine_command
     :rtype: int
-    :raises: AssertionError
     """
-    assert len(params) == 0
     return app.MachineCommands.Exit
-
-
-def manpage_inner_command_func(params, app):
-    """
-    Modify the app.has_manpage field depending on the parameters. If there are no parameters, toggle the field. If a
-    parameter is specified and is either 'true or 'false', set it to that. If it isn't, throw error
-    :param params: command parameters
-    :type params: list[unicode]
-    :param app: the app it is running from
-    :type app: brkt_cli.shell.app.App
-    :return: nothing
-    :rtype: None
-    :raises: AssertionError
-    :raises: InnerCommandError
-    """
-    assert len(params) <= 1
-    if params and len(params) > 0:
-        if params[0].lower() == 'true':
-            app.has_manpage = True
-        elif params[0].lower() == 'false':
-            app.has_manpage = False
-        else:
-            raise InnerCommandError('Unknown option entered')
-    else:
-        app.has_manpage = not app.has_manpage
 
 
 def help_inner_command_func(params, app):
     """
     Prints help for the inner commands
     :param params: command parameters
-    :type params: list[unicode]
+    :type params: _sre.SRE_Match
     :param app: the app it is running from
     :type app: brkt_cli.shell.app.App
     :return: nothing
     :rtype: None
-    :raises: AssertionError
     """
-    assert len(params) == 0
     print colored('Brkt CLI Shell Inner Command Help', attrs=['bold'])
     for _, cmd in app.INNER_COMMANDS.iteritems():
         print cmd.name + '\t' + cmd.description
@@ -181,7 +161,7 @@ def dev_inner_command_func(params, app):
     """
     Under the hood developer tools to aid developers
     :param params: command parameters
-    :type params: list[unicode]
+    :type params: _sre.SRE_Match
     :param app: the app it is running from
     :type app: brkt_cli.shell.app.App
     :return: nothing
@@ -189,44 +169,19 @@ def dev_inner_command_func(params, app):
     :raises: AssertionError
     :raises: InnerCommandError
     """
-    assert len(params) >= 1
-    if params[0] == 'list_args':
-        assert len(params) >= 2
-        got_cmd = app.cmd.get_subcommand_from_path(params[1])
+    parsed_params = params.group(1).split()
+    assert parsed_params >= 1
+    if parsed_params[0] == 'list_args':
+        assert len(parsed_params) >= 2
+        got_cmd = app.cmd.get_subcommand_from_path(parsed_params[1])
         if got_cmd is None:
             raise InnerCommandError('Unknown path subcommand')
         for arg in got_cmd.optional_arguments+got_cmd.positionals:
             print arg.raw
 
 
-def editing_mode_inner_command_func(params, app):
-    """
-    Modify the app._vi_mode field depending on the parameters. If there are no parameters, error. If a
-    parameter is specified and is either 'vi or 'emacs', set it to that. If it isn't, throw error
-    :param params: command parameters
-    :type params: list[unicode]
-    :param app: the app it is running from
-    :type app: brkt_cli.shell.app.App
-    :return: nothing
-    :rtype: None
-    :raises: AssertionError
-    :raises: InnerCommandError
-    """
-    assert len(params) == 1
-    if params[0].lower() not in ['vi', 'emacs']:
-        raise InnerCommandError('Unknown option entered')
-    app.vi_mode = params[0].lower() == 'vi'
-
-
 # Commands that are prebuilt for the CLI
 exit_inner_command = InnerCommand('exit', 'Exits the shell.', 'exit', exit_inner_command_func)
-manpage_inner_command = InnerCommand('manpage', 'Passing "true" will enable the manpage, while "false" will disable '
-                                                'it. Passing nothing will toggle it.', 'manpage [true | false]',
-                                     manpage_inner_command_func)
-manpage_inner_command.completer = inner_command_completer_static([['true', 'false']])
 help_inner_command = InnerCommand('help', 'Get help for inner commands', 'help', help_inner_command_func)
-dev_inner_command = InnerCommand('dev', 'Under the hood access for developers', 'dev', dev_inner_command_func)
-editing_mode_inner_command = InnerCommand('editing_mode', 'Sets the keybinding type for the prompt. Can either be '
-                                                          'emacs or vi', 'editing_mode [emacs | vi]',
-                                     editing_mode_inner_command_func)
-editing_mode_inner_command.completer = inner_command_completer_static([['emacs', 'vi']])
+dev_inner_command = InnerCommand('dev', 'Under the hood access for developers', 'dev', dev_inner_command_func,
+                                 param_regex='^(.+)$')

@@ -14,11 +14,11 @@
 from brkt_cli.shell.inner_commands import InnerCommand, InnerCommandError
 
 
-def set_inner_command(params, app):
+def set_inner_command_func(params, app):
     """
     Sets an argument value for the shell session
     :param params: command parameters. Should have two parameters: path and value
-    :type params: list[unicode]
+    :type params: _sre.SRE_Match
     :param app: the app it is running from
     :type app: brkt_cli.shell.app.App
     :return: nothing
@@ -26,9 +26,8 @@ def set_inner_command(params, app):
     :raises: AssertionError
     :raises: InnerCommandError
     """
-    assert len(params) == 2
-    arg_name = params[0]
-    arg_val = params[1]
+    arg_name = params.group(1)
+    arg_val = params.group(2)
     arg_name_split = arg_name.split('.')
     cmd_path = '.'.join(arg_name_split[:-1])  # Get the just command path, not the full path with the argument
 
@@ -87,20 +86,18 @@ def complete_set_inner_command(arg_idx, app, full_args_text, document):
         return []
 
 
-def get_inner_command(params, app):
+def get_inner_command_func(params, app):
     """
     Gets an argument value for the shell session
     :param params: command parameters. Should have one parameter: a path to the command argument
-    :type params: list[unicode]
+    :type params: _sre.SRE_Match
     :param app: the app it is running from
     :type app: brkt_cli.shell.app.App
     :return: nothing
     :rtype: None
-    :raises: AssertionError
     :raises: InnerCommandError
     """
-    assert len(params) == 1
-    arg_name = params[0]
+    arg_name = params.group(1)
     arg_name_split = arg_name.split('.')
     cmd_path = '.'.join(arg_name_split[:-1])  # Get the just command path, not the full path with the argument
 
@@ -144,6 +141,61 @@ def complete_get_inner_command(arg_idx, app, full_args_text, document):
         return []
 
 
+def del_inner_command_func(params, app):
+    """
+    Deletes an argument value for the shell session
+    :param params: command parameters. Should have one parameter: a path to the command argument
+    :type params: _sre.SRE_Match
+    :param app: the app it is running from
+    :type app: brkt_cli.shell.app.App
+    :return: nothing
+    :rtype: None
+    :raises: InnerCommandError
+    """
+    arg_name = params.group(1)
+    arg_name_split = arg_name.split('.')
+    cmd_path = '.'.join(arg_name_split[:-1])  # Get the just command path, not the full path with the argument
+
+    # Validate the command
+    if cmd_path not in app.cmd.get_all_paths():
+        raise InnerCommandError('Unknown command in path')
+    sc = app.cmd.get_subcommand_from_path(cmd_path)
+    if arg_name_split[-1] not in map(lambda x: x.get_name(),
+                                     filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version,
+                                            sc.optional_arguments + sc.positionals)):  # Make sure the selected
+        # argument is not a help or version argument
+        raise InnerCommandError('Unknown argument in path')
+
+    if cmd_path not in app.set_args or arg_name_split[-1] not in app.set_args[cmd_path]:  # Check to see the passed
+        # argument is in the app database
+        raise InnerCommandError('Argument not found')
+    else:
+        del app.set_args[cmd_path][arg_name_split[-1]]
+
+
+def complete_del_inner_command(arg_idx, app, full_args_text, document):
+    """
+    Do completion for the /del command
+    :param arg_idx: the index of the current and selected argument
+    :type arg_idx: int
+    :param app: the app that is running
+    :type app: brkt_cli.shell.app.App
+    :param full_args_text: the text arguments that are finished
+    :type full_args_text: list[unicode]
+    :param document: the document of the current prompt/buffer
+    :type document: prompt_toolkit.document.Document
+    :return: a list of acceptable suggestions
+    :rtype: list[unicode]
+    """
+    if arg_idx == 0:  # If it is the first argument, list all keys in the app
+        arg_list = []
+        for key, cmd in app.set_args.iteritems():
+            arg_list.extend(map(lambda x: key + '.' + x, cmd.keys()))
+        return arg_list
+    else:
+        return []
+
+
 def parse_set_command_arg(val, arg):
     """
     Parse values that the /set command gives
@@ -156,13 +208,14 @@ def parse_set_command_arg(val, arg):
     """
     if arg.type is arg.Type.Store:
         return _parse_argument_type(val, arg)
-    elif arg.type is arg.Type.StoreConst or arg.type is arg.Type.StoreTrue or arg.Type.StoreFalse or \
-            arg.type == arg.Type.AppendConst:  # If the argument is one of these, it must be either true or false
+    elif arg.type is arg.Type.StoreConst or arg.type is arg.Type.StoreTrue or arg.type is arg.Type.StoreFalse or \
+                    arg.type is arg.Type.AppendConst:  # If the argument is one of these, it must be either
+        # true or false
         if val.lower() not in ['true', 'false']:
             raise InnerCommandError('Unknown value type. Can be either: "true", "false"')
         return val.lower() == 'true'
-    elif arg.type == arg.Type.Append:
-        return map(lambda x: _parse_argument_type(x.trim(), arg), val.split(','))
+    elif arg.type is arg.Type.Append:
+        return map(lambda x: _parse_argument_type(x.strip(), arg), val.split(','))
     else:
         return InnerCommandError('Unsupported argument type')
 
@@ -183,7 +236,12 @@ def _parse_argument_type(val, arg):
         return val
 
 
-set_inner_command = InnerCommand('set', 'Sets an argument for a command', 'set path value', set_inner_command)
-set_inner_command.completer = complete_set_inner_command
-get_inner_command = InnerCommand('get', 'Gets an argument for a command', 'get path', get_inner_command)
-get_inner_command.completer = complete_get_inner_command
+set_inner_command = InnerCommand('set', 'Sets an argument for a command', 'set PATH VALUE', set_inner_command_func,
+                                 completer=complete_set_inner_command,
+                                 param_regex=r'^(.+) (.+)$')
+get_inner_command = InnerCommand('get', 'Gets an argument for a command', 'get PATH', get_inner_command_func,
+                                 completer=complete_get_inner_command,
+                                 param_regex=r'^([^ ]+)$')
+del_inner_command = InnerCommand('del', 'Deletes an argument for a command', 'del PATH', del_inner_command_func,
+                                 completer=complete_del_inner_command,
+                                 param_regex=r'^([^ ]+)$')

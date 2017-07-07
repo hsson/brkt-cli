@@ -97,7 +97,7 @@ class Manpage(UIControl):
                 # manpage description
                 manpage = u''
             else:  # If a command is in the prompt (and no argument), display the manpage of the command
-                command = self.app.completer.get_current_command(document, False)
+                command = self.app.completer.get_current_command(document)
                 if command is not None:
                     manpage = u''
                     manpage += command.description
