@@ -14,7 +14,7 @@
 from termcolor import colored
 
 
-class InnerCommand:
+class InnerCommand(object):
     """
     :type name: unicode
     :type description: unicode
@@ -198,6 +198,26 @@ def dev_inner_command_func(params, app):
         for arg in got_cmd.optional_arguments+got_cmd.positionals:
             print arg.raw
 
+
+def editing_mode_inner_command_func(params, app):
+    """
+    Modify the app._vi_mode field depending on the parameters. If there are no parameters, error. If a
+    parameter is specified and is either 'vi or 'emacs', set it to that. If it isn't, throw error
+    :param params: command parameters
+    :type params: list[unicode]
+    :param app: the app it is running from
+    :type app: brkt_cli.shell.app.App
+    :return: nothing
+    :rtype: None
+    :raises: AssertionError
+    :raises: InnerCommandError
+    """
+    assert len(params) == 1
+    if params[0].lower() not in ['vi', 'emacs']:
+        raise InnerCommandError('Unknown option entered')
+    app.vi_mode = params[0].lower() == 'vi'
+
+
 # Commands that are prebuilt for the CLI
 exit_inner_command = InnerCommand('exit', 'Exits the shell.', 'exit', exit_inner_command_func)
 manpage_inner_command = InnerCommand('manpage', 'Passing "true" will enable the manpage, while "false" will disable '
@@ -206,3 +226,7 @@ manpage_inner_command = InnerCommand('manpage', 'Passing "true" will enable the 
 manpage_inner_command.completer = inner_command_completer_static([['true', 'false']])
 help_inner_command = InnerCommand('help', 'Get help for inner commands', 'help', help_inner_command_func)
 dev_inner_command = InnerCommand('dev', 'Under the hood access for developers', 'dev', dev_inner_command_func)
+editing_mode_inner_command = InnerCommand('editing_mode', 'Sets the keybinding type for the prompt. Can either be '
+                                                          'emacs or vi', 'editing_mode [emacs | vi]',
+                                     editing_mode_inner_command_func)
+editing_mode_inner_command.completer = inner_command_completer_static([['emacs', 'vi']])
