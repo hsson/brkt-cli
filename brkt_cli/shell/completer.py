@@ -109,7 +109,9 @@ class ShellCompleter(Completer):
                                         arg_specified = True
                                 if not arg_specified:  # If the argument hasn't been specified, add it to the suggested
                                     # list and go to next argument
-                                    completions.append(arg.tag)
+                                    if arg.dev is False or (arg.dev is True and self.app.dev_mode is True): # Filter out
+                                        # dev mode args when not in dev mode
+                                        completions.append(arg.tag)
                                     continue
                                 if arg.type is arg.Type.Append or arg.type is arg.Type.AppendConst or \
                                                 arg.type is arg.Type.Count:  # If the argument is an append or count

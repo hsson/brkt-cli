@@ -59,10 +59,27 @@ class ShellSubcommand(Subcommand):
             help=argparse.SUPPRESS
         )
 
+        parser.add_argument(
+            '--mouse-support',
+            dest='mouse_support',
+            action='store_true',
+            default=False,
+            help='Enables mouse support in the shell'
+        )
+
+        parser.add_argument(
+            '--dev',
+            dest='dev_mode',
+            action='store_true',
+            default=False,
+            help='Enables dev mode'
+        )
+
     def run(self, values):
         brkt_cmd = traverse_tree('brkt', self.subparsers, None, '', '', None, '', None)
-        brkt_app = App(ShellCompleter(brkt_cmd), brkt_cmd)
+        brkt_app = App(ShellCompleter(brkt_cmd), brkt_cmd, mouse_support=values.mouse_support)
         brkt_app.dummy = values.dummy
+        brkt_app.dev_mode = values.dev_mode
         brkt_app.run()
 
         return 0
