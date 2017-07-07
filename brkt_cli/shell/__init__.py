@@ -59,15 +59,6 @@ class ShellSubcommand(Subcommand):
             help=argparse.SUPPRESS
         )
 
-        parser.add_argument(
-            '--foo',
-            dest='foo',
-            action='store',
-            default=False,
-            type=int,
-            help=argparse.SUPPRESS
-        )
-
     def run(self, values):
         brkt_cmd = traverse_tree('brkt', self.subparsers, None, '', '', None, '', None)
         brkt_app = App(ShellCompleter(brkt_cmd), brkt_cmd)
