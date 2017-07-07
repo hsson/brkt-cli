@@ -32,15 +32,13 @@ class ShellCompleter(Completer):
         self._top_command = top_command
         self.app = None
 
-    def get_completions(self, document, complete_event):
+    def get_completions_list(self, document, include_aliases=True):
         """
-        Called when the App needs to suggest words for the user
+        Gets all suggested options in the completer
         :param document: the document of the UI (has the text, etc.)
         :type document: prompt_toolkit.document.Document
-        :param complete_event: the completed event
-        :type complete_event: prompt_toolkit.completion.CompleteEvent
-        :return: Completion objects that contain all matching suggestions
-        :rtype: prompt_toolkit.completion.Completion
+        :return: a list of all completions
+        :rtype: list[unicode]
         """
         word_before_cursor = document.get_word_before_cursor(WORD=True).lower()
         all_text = document.text_before_cursor
@@ -58,14 +56,14 @@ class ShellCompleter(Completer):
         if all_text.startswith(App.COMMAND_PREFIX):
             if len(split_text) > 1 or all_text.endswith(' '):
                 if split_text[0] in App.INNER_COMMANDS:
-                    completions = App.INNER_COMMANDS[split_text[0]].completer(len(full_split_text)-1, self.app,
+                    completions = App.INNER_COMMANDS[split_text[0]].completer(len(full_split_text) - 1, self.app,
                                                                               full_split_text[1:], document)
                 else:
                     completions = []
             else:
                 completions = App.INNER_COMMANDS.keys()
         else:
-            completions = self._top_command.list_subcommand_names()  # Possible completion values
+            completions = self._top_command.list_subcommand_names()+(self.app.saved_commands.keys() if include_aliases else [])  # Possible completion values
 
             tree_location = self._top_command  # Tree location is the current selected command that is narrowed down to
             # the exact command the user has typed in the prompt
@@ -114,7 +112,7 @@ class ShellCompleter(Completer):
                                     completions.append(arg.tag)
                                     continue
                                 if arg.type is arg.Type.Append or arg.type is arg.Type.AppendConst or \
-                                        arg.type is arg.Type.Count:  # If the argument is an append or count
+                                                arg.type is arg.Type.Count:  # If the argument is an append or count
                                     # type, add it regardless of if it has been specified by the user already
                                     completions.append(arg.tag)
                                     continue
@@ -148,6 +146,20 @@ class ShellCompleter(Completer):
                         completions = []
 
         completions.sort()  # Alphabetize the completions
+        return completions
+
+    def get_completions(self, document, complete_event):
+        """
+        Called when the App needs to suggest words for the user
+        :param document: the document of the UI (has the text, etc.)
+        :type document: prompt_toolkit.document.Document
+        :param complete_event: the completed event
+        :type complete_event: prompt_toolkit.completion.CompleteEvent
+        :return: Completion objects that contain all matching suggestions
+        :rtype: prompt_toolkit.completion.Completion
+        """
+        word_before_cursor = document.get_word_before_cursor(WORD=True).lower()
+        completions = self.get_completions_list(document)
 
         for completion in completions:  # Go through suggested completions
             if completion.startswith(word_before_cursor):  # If a suggested completion starts with the unfinished word
@@ -155,7 +167,7 @@ class ShellCompleter(Completer):
                 yield Completion(completion, -len(word_before_cursor))  # Return (yield) all completions with the
                 # completion name and the start position of the completion
 
-    def get_current_command(self, document, text_done):
+    def get_current_command(self, document, text_done=False):
         """
         Gets the current command that the user is in. For example, if the user enters `aws encrypt`, the command would
         be the AWS Encrypt command object. Does not matter if arguments are specified in the text. If the user enters

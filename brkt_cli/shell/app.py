@@ -19,6 +19,7 @@ from argparse import Namespace
 
 from prompt_toolkit import Application, AbortAction, CommandLineInterface, filters
 from prompt_toolkit.buffer import Buffer, AcceptAction
+from prompt_toolkit.document import Document
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.filters import IsDone, Always, RendererHeightIsKnown
 from prompt_toolkit.history import FileHistory
@@ -31,10 +32,12 @@ from prompt_toolkit.shortcuts import create_prompt_layout, create_eventloop
 from pygments.token import Token
 
 from brkt_cli.shell.enum import Enum
-from brkt_cli.shell.get_set_inner_commmands import set_inner_command, get_inner_command
-from brkt_cli.shell.inner_commands import exit_inner_command, manpage_inner_command, InnerCommandError, \
-    help_inner_command, dev_inner_command, editing_mode_inner_command
+from brkt_cli.shell.get_set_inner_commmands import set_inner_command, get_inner_command, del_inner_command
+from brkt_cli.shell.inner_commands import exit_inner_command, InnerCommandError, \
+    help_inner_command, dev_inner_command
 from brkt_cli.shell.manpage import Manpage
+from brkt_cli.shell.save_command import alias_inner_command, get_alias_inner_command, unalias_inner_command
+from brkt_cli.shell.settings import Setting, setting_inner_command, bool_parse_value
 
 
 class App(object):
@@ -43,7 +46,7 @@ class App(object):
     :type INNER_COMMANDS: dict[unicode, brkt_cli.shell.inner_commands.InnerCommand]
     :type completer: brkt_cli.shell.completer.ShellCompleter
     :type cmd: brkt_cli.shell.raw_commands.CommandPromptToolkit
-    :type has_manpage: bool
+    :type _has_manpage: bool
     :type key_manager: prompt_toolkit.key_binding.manager.KeyBindingManager
     :type dummy: bool
     :type set_args: dict[unicode, dict[unicode, Any]]
@@ -63,12 +66,15 @@ class App(object):
     COMMAND_PREFIX = u'/'
     INNER_COMMANDS = {
         COMMAND_PREFIX + u'exit': exit_inner_command,
-        COMMAND_PREFIX + u'manpage': manpage_inner_command,
         COMMAND_PREFIX + u'help': help_inner_command,
         COMMAND_PREFIX + u'set': set_inner_command,
         COMMAND_PREFIX + u'get': get_inner_command,
+        COMMAND_PREFIX + u'del': del_inner_command,
         COMMAND_PREFIX + u'dev': dev_inner_command,
-        COMMAND_PREFIX + u'editing_mode': editing_mode_inner_command,
+        COMMAND_PREFIX + u'alias': alias_inner_command,
+        COMMAND_PREFIX + u'get_alias': get_alias_inner_command,
+        COMMAND_PREFIX + u'unalias': unalias_inner_command,
+        COMMAND_PREFIX + u'setting': setting_inner_command,
     }
 
     def __init__(self, completer, cmd):
@@ -82,12 +88,33 @@ class App(object):
         self.completer = completer
         self.completer.app = self
         self.cmd = cmd
-        self.has_manpage = True
+        self._has_manpage = True
         self.key_manager = None
         self.dummy = False
         self.set_args = {}
         self.saved_commands = {}
-        self._vi_mode = False  # Determines if the prompt will run with emacs keybindings or vi ones
+        self._vi_mode = False
+
+        def manpage_on_changed(val):
+            self._has_manpage = val
+        def editing_mode_on_changed(val):
+            if val == 'vi':
+                self._vi_mode = True
+                self._cli.application.editing_mode = EditingMode.VI
+                self._cli.editing_mode = EditingMode.VI
+            else:
+                self._vi_mode = False
+                self._cli.application.editing_mode = EditingMode.EMACS
+                self._cli.editing_mode = EditingMode.EMACS
+        self.settings = {
+            'manpage': Setting('manpage', self._has_manpage, on_changed=manpage_on_changed,
+                               str_acceptable_values=['true', 'false'],
+                               parse_value=bool_parse_value,
+                               description='If "true" the manpage will be enabled so you can see command descriptions'),
+            'editing_mode': Setting('editing_mode', 'vi' if self._vi_mode else 'emacs', on_changed=editing_mode_on_changed,
+                                    str_acceptable_values=['vi', 'emacs'],
+                                    description='The editing mode type for the prompt'),
+        }
 
         self._cli = self.make_cli_interface()
 
@@ -127,8 +154,13 @@ class App(object):
                             print InnerCommandError.format("unknown error - %s" % sys.exc_info()[0])
                     continue
 
-                command = self.completer.get_current_command(ret_doc, True)
                 cmd_text = ret_doc.text
+
+                if cmd_text in self.saved_commands:
+                    ret_doc = Document(text=self.saved_commands[cmd_text])
+                    cmd_text = self.saved_commands[cmd_text]
+
+                command = self.completer.get_current_command(ret_doc, text_done=True)
 
                 if command is not None and command.path in self.set_args:
                     args_text = ret_doc.text[self.completer.get_current_command_location(ret_doc)[1]:].strip()
@@ -215,7 +247,7 @@ class App(object):
         ret = [
             (Token.Toolbar.Help, 'Press ctrl q to quit'),
             (Token.Toolbar.Separator, ' | '),
-            (Token.Toolbar.Help, 'Manpage Window: ' + ('ON' if self.has_manpage else 'OFF')),
+            (Token.Toolbar.Help, 'Manpage Window: ' + ('ON' if self._has_manpage else 'OFF')),
             (Token.Toolbar.Separator, ' | '),
             (Token.Toolbar.Help, 'Editing Mode: ' + ('VI' if self._vi_mode else 'Emacs')),
         ]
@@ -241,16 +273,16 @@ class App(object):
                                content=FillControl(u'\u2500',
                                                    token=Token.Separator)),
                 filter=~IsDone() & filters.Condition(
-                    lambda _: self.has_manpage and self._cli.current_buffer.document.text != ''),
+                    lambda _: self._has_manpage and self._cli.current_buffer.document.text != ''),
             ),  # A separator between the command prompt and the manpage view. This disappears when
-            # self.has_manpage is False
+            # self._has_manpage is False
             ConditionalContainer(
                 content=Window(
                     content=Manpage(self),
                     height=LayoutDimension(max=15),
                 ),
                 filter=~IsDone() & filters.Condition(
-                    lambda _: self.has_manpage and self._cli.current_buffer.document.text != ''),
+                    lambda _: self._has_manpage and self._cli.current_buffer.document.text != ''),
             ),
             ConditionalContainer(
                 content=Window(
@@ -306,23 +338,8 @@ class App(object):
             on_abort=AbortAction.RETRY,
             layout=self.make_layout(),
             editing_mode=EditingMode.VI if self._vi_mode else EditingMode.EMACS,
-            mouse_support=True,
+            mouse_support=False,
         )
-
-    @property
-    def vi_mode(self):
-        return self._vi_mode
-
-    @vi_mode.setter
-    def vi_mode(self, value):
-        self._vi_mode = value
-        if self._vi_mode:
-            self._cli.application.editing_mode = EditingMode.VI
-            self._cli.editing_mode = EditingMode.VI
-        else:
-            self._cli.application.editing_mode = EditingMode.EMACS
-            self._cli.editing_mode = EditingMode.EMACS
-        self._cli.request_redraw()
 
     def make_cli_interface(self):
         """
