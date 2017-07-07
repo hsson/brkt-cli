@@ -452,7 +452,7 @@ def main():
     result = 1
 
     if subcommand.name() == 'shell':
-        subcommand.set_subparsers(subparsers)
+        subcommand.subparsers = subparsers
 
     # Run the subcommand.
     allow_debug_log = True

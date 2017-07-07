@@ -27,15 +27,16 @@ SUBCOMMAND_NAME = 'shell'
 
 
 class ShellSubcommand(Subcommand):
+    """
+    :type subparsers: argparse._SubParsersAction
+    """
 
     def __init__(self):
+        self.subparsers = None
         self.cfg = None
 
     def name(self):
         return SUBCOMMAND_NAME
-
-    def set_subparsers(self, subparsers):
-        self.subparsers = subparsers
 
     def register(self, subparsers, parsed_config):
         self.cfg = parsed_config
@@ -58,9 +59,18 @@ class ShellSubcommand(Subcommand):
             help=argparse.SUPPRESS
         )
 
+        parser.add_argument(
+            '--foo',
+            dest='foo',
+            action='store',
+            default=False,
+            type=int,
+            help=argparse.SUPPRESS
+        )
+
     def run(self, values):
-        brkt_cmd = traverse_tree("brkt", self.subparsers, None, "", "", None)
-        brkt_app = App(ShellCompleter(brkt_cmd))
+        brkt_cmd = traverse_tree('brkt', self.subparsers, None, '', '', None, '', None)
+        brkt_app = App(ShellCompleter(brkt_cmd), brkt_cmd)
         brkt_app.dummy = values.dummy
         brkt_app.run()
 
