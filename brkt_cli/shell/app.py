@@ -21,6 +21,7 @@ from prompt_toolkit import Application, AbortAction, CommandLineInterface, filte
 from prompt_toolkit.buffer import Buffer, AcceptAction
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.filters import IsDone, Always, RendererHeightIsKnown
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding.manager import KeyBindingManager
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, ConditionalContainer, Window, FillControl, TokenListControl
@@ -32,11 +33,11 @@ from pygments.token import Token
 from brkt_cli.shell.enum import Enum
 from brkt_cli.shell.get_set_inner_commmands import set_inner_command, get_inner_command
 from brkt_cli.shell.inner_commands import exit_inner_command, manpage_inner_command, InnerCommandError, \
-    help_inner_command, dev_inner_command
+    help_inner_command, dev_inner_command, editing_mode_inner_command
 from brkt_cli.shell.manpage import Manpage
 
 
-class App:
+class App(object):
     """
     :type COMMAND_PREFIX: unicode
     :type INNER_COMMANDS: dict[unicode, brkt_cli.shell.inner_commands.InnerCommand]
@@ -46,6 +47,8 @@ class App:
     :type key_manager: prompt_toolkit.key_binding.manager.KeyBindingManager
     :type dummy: bool
     :type set_args: dict[unicode, dict[unicode, Any]]
+    :type saved_commands: dict[unicode, unicode]
+    :type _vi_mode: bool
     :type _cli: prompt_toolkit.CommandLineInterface
     """
 
@@ -65,6 +68,7 @@ class App:
         COMMAND_PREFIX + u'set': set_inner_command,
         COMMAND_PREFIX + u'get': get_inner_command,
         COMMAND_PREFIX + u'dev': dev_inner_command,
+        COMMAND_PREFIX + u'editing_mode': editing_mode_inner_command,
     }
 
     def __init__(self, completer, cmd):
@@ -82,6 +86,8 @@ class App:
         self.key_manager = None
         self.dummy = False
         self.set_args = {}
+        self.saved_commands = {}
+        self._vi_mode = False  # Determines if the prompt will run with emacs keybindings or vi ones
 
         self._cli = self.make_cli_interface()
 
@@ -210,6 +216,8 @@ class App:
             (Token.Toolbar.Help, 'Press ctrl q to quit'),
             (Token.Toolbar.Separator, ' | '),
             (Token.Toolbar.Help, 'Manpage Window: ' + ('ON' if self.has_manpage else 'OFF')),
+            (Token.Toolbar.Separator, ' | '),
+            (Token.Toolbar.Help, 'Editing Mode: ' + ('VI' if self._vi_mode else 'Emacs')),
         ]
         if self.dummy:
             ret.extend([(Token.Toolbar.Separator, ' | '), (Token.Toolbar.Help, 'Dummy Mode: ON')])
@@ -226,6 +234,7 @@ class App:
                 message=u'brkt> ',
                 reserve_space_for_menu=8,
                 wrap_lines=True,
+
             ),  # The command prompt
             ConditionalContainer(
                 content=Window(height=LayoutDimension.exact(1),
@@ -269,6 +278,7 @@ class App:
             completer=completer,  # The completer to suggest words to the user
             complete_while_typing=Always(),  # Always give suggestions while typing
             accept_action=AcceptAction.RETURN_DOCUMENT,  # Return the document (and the text) on enter
+            history=FileHistory('.brkt_cli_history')
         )
 
     def make_app(self, completer):
@@ -295,8 +305,24 @@ class App:
             key_bindings_registry=self.key_manager.registry,
             on_abort=AbortAction.RETRY,
             layout=self.make_layout(),
-            editing_mode=EditingMode.EMACS,
+            editing_mode=EditingMode.VI if self._vi_mode else EditingMode.EMACS,
+            mouse_support=True,
         )
+
+    @property
+    def vi_mode(self):
+        return self._vi_mode
+
+    @vi_mode.setter
+    def vi_mode(self, value):
+        self._vi_mode = value
+        if self._vi_mode:
+            self._cli.application.editing_mode = EditingMode.VI
+            self._cli.editing_mode = EditingMode.VI
+        else:
+            self._cli.application.editing_mode = EditingMode.EMACS
+            self._cli.editing_mode = EditingMode.EMACS
+        self._cli.request_redraw()
 
     def make_cli_interface(self):
         """

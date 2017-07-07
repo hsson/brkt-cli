@@ -80,7 +80,7 @@ def traverse_tree(name, node, arguments, description, usage, positionals, path, 
     return new_node
 
 
-class CommandPromptToolkit:
+class CommandPromptToolkit(object):
     """
     :type name: unicode
     :type description: unicode
@@ -242,7 +242,7 @@ def _get_all_subpaths(cmd):
     return ret
 
 
-class ArgumentPromptToolkit:
+class ArgumentPromptToolkit(object):
     """
     :type raw: argparse.Action
     :type tag: unicode
