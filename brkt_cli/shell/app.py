@@ -361,6 +361,14 @@ class App(object):
             """
             event.cli.set_return_value(self.MachineCommands.Exit)
 
+        @self.key_manager.registry.add_binding(Keys.ControlD, eager=True)
+        def exit_(event):
+            """
+            When ctrl d is pressed, return the EXIT machine_command to the cli.run() command.
+            :param event:
+            """
+            event.cli.set_return_value(self.MachineCommands.Exit)
+
         return Application(
             buffer=self.make_buffer(completer),
             key_bindings_registry=self.key_manager.registry,
