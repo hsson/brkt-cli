@@ -12,7 +12,6 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import os
-import re
 import sys
 
 import subprocess
@@ -179,7 +178,7 @@ class App(object):
                     continue
 
                 try:
-                    cmd_text = self.parse_command(ret_doc)
+                    cmd_text = self.parse_command(ret_doc).replace('\\$', '$').replace('\\(', '(').replace('\\)', ')')
                 except Exception as err:
                     print InnerCommandError.format(err.message)
                     continue
@@ -228,7 +227,8 @@ class App(object):
             for emb_cmd in embedded_commands:
                 adj_cmd_start = emb_cmd[0] - mod_len
                 adj_cmd_end = emb_cmd[1] - mod_len
-                parsed_emb_cmd = self.parse_command(Document(text=cmd_text[adj_cmd_start + 2:adj_cmd_end]))
+                in_text = cmd_text[adj_cmd_start + 2:adj_cmd_end]
+                parsed_emb_cmd = self.parse_command(Document(text=in_text))
                 if parsed_emb_cmd is None:
                     raise Exception('Unknown embedded command: $(%s)' % cmd_text[adj_cmd_start+2:adj_cmd_end])
                 if self.dummy:
@@ -324,9 +324,10 @@ class App(object):
                     final_arg_texts)
             return cmd_text
 
-    def parse_embedded_commands(self, text):
+    @staticmethod
+    def parse_embedded_commands(text):
         """
-
+        Parses embedded commands (`foo $(embedded) bar`) and returns the locations of them.
         :param text: the text to parse
         :type text: unicode
         :return: a list of embedded command start and end indexes
@@ -357,7 +358,6 @@ class App(object):
             raise Exception('Parentheses do not match and close')
 
         return embedded_commands
-
 
     def get_app_info(self):
         try:
