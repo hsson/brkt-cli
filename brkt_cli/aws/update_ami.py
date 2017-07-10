@@ -25,29 +25,33 @@ import json
 import logging
 import os
 
-from brkt_cli import encryptor_service
-from brkt_cli.aws.aws_service import (
-    wait_for_instance, stop_and_wait,
-    wait_for_image, create_encryptor_security_group, clean_up,
-    log_exception_console, wait_for_volume_attached
-)
+from brkt_cli.util import Deadline
+
 from brkt_cli.encryptor_service import (
     wait_for_encryptor_up,
-    wait_for_encryption,
+    wait_for_encryption
 )
+
+from brkt_cli import encryptor_service
+from brkt_cli.aws.aws_constants import (
+    NAME_GUEST_CREATOR, DESCRIPTION_GUEST_CREATOR, NAME_METAVISOR_UPDATER,
+    DESCRIPTION_METAVISOR_UPDATER,
+    NAME_METAVISOR_ROOT_SNAPSHOT, NAME_ENCRYPTED_ROOT_SNAPSHOT)
+from brkt_cli.aws.aws_service import (
+    wait_for_instance, wait_for_image, create_encryptor_security_group,
+    clean_up,
+    wait_for_volume_attached,
+    stop_and_wait, log_exception_console)
 from brkt_cli.instance_config import (
     InstanceConfig,
     INSTANCE_UPDATER_MODE,
 )
 from brkt_cli.user_data import gzip_user_data
-from brkt_cli.util import Deadline
-from brkt_cli.aws.aws_constants import (
-    NAME_GUEST_CREATOR, DESCRIPTION_GUEST_CREATOR, NAME_METAVISOR_UPDATER,
-    DESCRIPTION_METAVISOR_UPDATER, NAME_ENCRYPTED_ROOT_SNAPSHOT,
-    NAME_METAVISOR_ROOT_SNAPSHOT
-)
 
 log = logging.getLogger(__name__)
+
+MV_ROOT_DEVICE_NAME = '/dev/sda1'
+GUEST_ROOT_DEVICE_NAME = '/dev/sdf'
 
 
 def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
@@ -59,7 +63,7 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
                status_port=encryptor_service.ENCRYPTOR_STATUS_PORT):
     encrypted_guest = None
     updater = None
-    mv_root_id = None
+    new_mv_vol_id = None
     temp_sg_id = None
     if instance_config is None:
         instance_config = InstanceConfig(mode=INSTANCE_UPDATER_MODE)
@@ -146,6 +150,8 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             else:
                 os.environ['NO_PROXY'] = updater.private_ip_address
 
+        # Wait for the encryption service to start up, so that we know that
+        # Metavisor is done initializing.
         enc_svc = enc_svc_class(host_ips, port=status_port)
         log.info('Waiting for updater service on %s (port %s on %s)',
                  updater.id, enc_svc.port, ', '.join(host_ips))
@@ -171,59 +177,69 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
         guest_bdm = encrypted_guest.block_device_mapping
         updater_bdm = updater.block_device_mapping
 
-        # Step 3. Detach old BSD drive(s) and delete from encrypted guest
-        d_list = [encrypted_guest.root_device_name]
-        for d in d_list:
-            log.info("Detaching old metavisor disk: %s from %s" %
-                (guest_bdm[d].volume_id, encrypted_guest.id))
-            aws_svc.detach_volume(guest_bdm[d].volume_id,
-                    instance_id=encrypted_guest.id,
-                    force=True
-            )
-            aws_svc.delete_volume(guest_bdm[d].volume_id)
-
-        # Step 4. Snapshot MV volume(s)
-        log.info("Creating snapshots")
-        # Use guest_instance as base instance for create_image
-        boot_snap_name = NAME_METAVISOR_ROOT_SNAPSHOT
-        root_device_name = guest_image.root_device_name
-        guest_root = '/dev/sdf'
-        d_list.append(guest_root)
-
-        # Preserve volume type for any additional attached volumes
+        # Step 3. Preserve volume properties that may get reset to their
+        # defaults while updating block device mappings.
         for d in guest_bdm.keys():
-            if d not in d_list:
-                log.debug("Preserving volume type for disk %s", d)
-                vol_id = guest_bdm[d].volume_id
-                vol = aws_svc.get_volume(vol_id)
-                guest_bdm[d].volume_type = vol.type
+            vol_id = guest_bdm[d].volume_id
+            vol = aws_svc.get_volume(vol_id)
 
-        # Step 5. Move new MV boot disk to base instance
-        log.info("Detach boot volume from %s" % (updater.id,))
-        mv_root_id = updater_bdm['/dev/sda1'].volume_id
-        aws_svc.detach_volume(mv_root_id,
+            # Preserve volume type (YETI-942).
+            log.debug(
+                'Preserving volume type %s for disk %s',
+                vol.type,
+                d
+            )
+            guest_bdm[d].volume_type = vol.type
+
+            # Preserve IOPS for guest root volume (YETI-1334).
+            if d == GUEST_ROOT_DEVICE_NAME and vol.type == 'io1':
+                log.debug(
+                    'Preserving IOPS setting %s for %s',
+                    vol.iops,
+                    d
+                )
+                guest_bdm[d].iops = vol.iops
+
+        # Step 4. Detach old BSD drive(s) and delete from encrypted guest
+        old_mv_vol_id = guest_bdm[MV_ROOT_DEVICE_NAME].volume_id
+        log.info(
+            'Detaching old metavisor disk %s from %s',
+            old_mv_vol_id,
+            encrypted_guest.id
+        )
+        aws_svc.detach_volume(
+            old_mv_vol_id,
+            instance_id=encrypted_guest.id,
+            force=True
+        )
+        aws_svc.delete_volume(old_mv_vol_id)
+
+        # Step 5. Detach the Metavisor root from the updater instance.
+        log.info('Detaching boot volume from %s', updater.id)
+        new_mv_vol_id = updater_bdm[MV_ROOT_DEVICE_NAME].volume_id
+        aws_svc.detach_volume(
+            new_mv_vol_id,
             instance_id=updater.id,
             force=True
         )
 
-        # Step 6. Attach new boot disk to guest instance
-        log.info("Attaching new metavisor boot disk: %s to %s" %
-            (mv_root_id, encrypted_guest.id)
+        # Step 6. Attach new boot disk to guest instance.
+        log.info(
+            'Attaching new metavisor boot disk %s to %s',
+            new_mv_vol_id,
+            encrypted_guest.id
         )
-        aws_svc.attach_volume(mv_root_id, encrypted_guest.id, root_device_name)
+        aws_svc.attach_volume(
+            new_mv_vol_id,
+            encrypted_guest.id,
+            MV_ROOT_DEVICE_NAME
+        )
         encrypted_guest = wait_for_volume_attached(
-            aws_svc, encrypted_guest.id, root_device_name)
-        guest_bdm[root_device_name] = \
-            encrypted_guest.block_device_mapping[root_device_name]
-        guest_bdm[root_device_name].delete_on_termination = True
-        guest_bdm[root_device_name].volume_type = 'gp2'
-        guest_root_vol_id = guest_bdm[guest_root].volume_id
-        guest_root_vol = aws_svc.get_volume(guest_root_vol_id)
-        guest_bdm[guest_root].volume_type = guest_root_vol.type
-        if guest_root_vol.type == 'io1':
-            guest_bdm[guest_root].iops = guest_root_vol.iops
+            aws_svc, encrypted_guest.id, MV_ROOT_DEVICE_NAME)
+        guest_bdm[MV_ROOT_DEVICE_NAME].delete_on_termination = True
+        guest_bdm[MV_ROOT_DEVICE_NAME].volume_type = 'gp2'
 
-        # Step 7. Create new AMI. Preserve billing/license info
+        # Step 7. Create new AMI.
         log.info("Creating new AMI")
         ami = aws_svc.create_image(
             encrypted_guest.id,
@@ -233,16 +249,19 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             block_device_mapping=guest_bdm
         )
         wait_for_image(aws_svc, ami)
+
+        # Step 8. Tag the snapshots and image that we just created.
         image = aws_svc.get_image(ami, retry=True)
         aws_svc.create_tags(
-            image.block_device_mapping[root_device_name].snapshot_id,
-            name=boot_snap_name,
+            image.block_device_mapping[MV_ROOT_DEVICE_NAME].snapshot_id,
+            name=NAME_METAVISOR_ROOT_SNAPSHOT,
         )
         aws_svc.create_tags(
-            image.block_device_mapping[guest_root].snapshot_id,
+            image.block_device_mapping[GUEST_ROOT_DEVICE_NAME].snapshot_id,
             name=NAME_ENCRYPTED_ROOT_SNAPSHOT,
         )
         aws_svc.create_tags(ami)
+
         return ami
     finally:
         instance_ids = set()
@@ -253,8 +272,8 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             instance_ids.add(encrypted_guest.id)
         if updater:
             instance_ids.add(updater.id)
-        if mv_root_id:
-            volume_ids.add(mv_root_id)
+        if new_mv_vol_id:
+            volume_ids.add(new_mv_vol_id)
         if temp_sg_id:
             sg_ids.add(temp_sg_id)
 
