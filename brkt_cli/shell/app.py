@@ -12,6 +12,7 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import os
+import re
 import sys
 
 import subprocess
@@ -176,14 +177,21 @@ class App(object):
                     break
                 if ret_doc.text == '':
                     continue
-                if ret_doc.text.startswith(self.COMMAND_PREFIX):
+
+                try:
+                    cmd_text = self.parse_command(ret_doc)
+                except Exception as err:
+                    print InnerCommandError.format(err.message)
+                    continue
+
+                if cmd_text.startswith(self.COMMAND_PREFIX):
                     try:
                         inner_cmd = self.INNER_COMMANDS[ret_doc.text.split()[0]]
                     except KeyError:
                         print "Error: Unknown command."
                     else:
                         try:
-                            machine_cmd = inner_cmd.run_action(ret_doc.text, self)
+                            machine_cmd = inner_cmd.run_action(cmd_text, self)
                             if machine_cmd == self.MachineCommands.Exit:
                                 self.run_shutdown()
                                 self._cli.eventloop.close()
@@ -196,83 +204,6 @@ class App(object):
                             exec_info = sys.exc_info()
                             print InnerCommandError.format("unknown error - %s\n%s\n%s" % (exec_info[0], exec_info[1], exec_info[2]))
                     continue
-
-                cmd_text = ret_doc.text
-
-                if cmd_text in self.saved_commands:
-                    ret_doc = Document(text=self.saved_commands[cmd_text])
-                    cmd_text = self.saved_commands[cmd_text]
-
-                command = self.completer.get_current_command(ret_doc, text_done=True)
-
-                if command is not None and command.path in self.set_args:
-                    args_text = ret_doc.text[self.completer.get_current_command_location(ret_doc)[1]:].strip()
-                    try:
-                        existing_args = command.parse_args(args_text.split())
-                    except:
-                        existing_args = Namespace()
-                    set_args_dict = self.set_args[command.path]
-                    positional_idx = 0
-                    final_args = []
-                    final_arg_texts = []
-                    for arg in command.optional_arguments + command.positionals:
-                        new_arg = {
-                            'positional': None,
-                            'arg': arg,
-                            'value': None,
-                            'specified': False,
-                        }
-                        if arg.type == arg.Type.Help or arg.type == arg.Type.Version:
-                            continue
-
-                        if arg.__class__.__name__ == 'PositionalArgumentPromptToolkit':
-                            new_arg['positional'] = positional_idx
-                            positional_idx += 1
-
-                        if hasattr(existing_args, arg.dest):
-                            spec_arg_val = getattr(existing_args, arg.dest)
-
-                            if arg.default == spec_arg_val and spec_arg_val is not None:
-                                if new_arg['positional'] is None:
-                                    new_arg['specified'] = arg.tag in args_text
-                                else:
-                                    new_arg['specified'] = spec_arg_val in args_text
-                            else:
-                                new_arg['specified'] = True
-                            new_arg['value'] = spec_arg_val
-                        if arg.get_name() in set_args_dict and (not (
-                            hasattr(existing_args, arg.dest) and getattr(existing_args, arg.dest) is not None) or not
-                                new_arg['specified']):
-                            new_arg['value'] = set_args_dict[arg.get_name()]
-                            new_arg['specified'] = True
-
-                        if new_arg['value'] is not None and new_arg['specified']:
-                            final_args.append(new_arg)
-                            
-                    # FIXME: THIS DOESNT WORK WITH APPEND CONST
-
-                    for final_opt_arg in filter(lambda x: x['positional'] is None, final_args):
-                        arg = final_opt_arg['arg']
-                        if arg.type == arg.Type.Store:
-                            final_arg_texts.append(arg.tag + ' ' + str(final_opt_arg['value']))
-                        elif arg.type == arg.Type.StoreConst and final_opt_arg['value'] is True:
-                            final_arg_texts.append(arg.tag)
-                        elif arg.type == arg.Type.StoreFalse and final_opt_arg['value'] is False:
-                            final_arg_texts.append(arg.tag)
-                        elif arg.type == arg.Type.StoreTrue and final_opt_arg['value'] is True:
-                            final_arg_texts.append(arg.tag)
-                        elif arg.type == arg.Type.Append:
-                            final_arg_texts.append(
-                                ' '.join(map(lambda val: arg.tag + ' ' + val, final_opt_arg['value'])))
-                        elif arg.type == arg.Type.AppendConst or arg.type == arg.Type.Count:
-                            final_arg_texts.append(' '.join(map(lambda val: arg.tag, final_opt_arg['value'])))
-
-                    final_arg_texts.extend(map(lambda x: x['value'],
-                                               sorted(filter(lambda x: x['positional'] is not None, final_args),
-                                                      key=lambda x: x['positional'])))
-
-                    cmd_text = ret_doc.text[:self.completer.get_current_command_location(ret_doc)[1]] + ' ' + ' '.join(
-                        final_arg_texts)
 
                 if self.dummy:
                     print sys.argv[0] + ' ' + cmd_text
@@ -287,6 +218,146 @@ class App(object):
         }
         with open('.brkt_shell_info.pkl', 'wb') as f:
             pickle.dump(app_info, f, pickle.HIGHEST_PROTOCOL)
+
+    def parse_command(self, ret_doc):
+        cmd_text = ret_doc.text
+        embedded_commands = self.parse_embedded_commands(cmd_text)
+
+        if len(embedded_commands) > 0:
+            mod_len = 0
+            for emb_cmd in embedded_commands:
+                adj_cmd_start = emb_cmd[0] - mod_len
+                adj_cmd_end = emb_cmd[1] - mod_len
+                parsed_emb_cmd = self.parse_command(Document(text=cmd_text[adj_cmd_start + 2:adj_cmd_end]))
+                if parsed_emb_cmd is None:
+                    raise Exception('Unknown embedded command: $(%s)' % cmd_text[adj_cmd_start+2:adj_cmd_end])
+                if self.dummy:
+                    new_text = sys.argv[0] + ' ' + parsed_emb_cmd
+                else:
+                    p = subprocess.Popen(sys.argv[0] + ' ' + parsed_emb_cmd, shell=False, env=os.environ.copy(),
+                                         stdout=subprocess.PIPE)
+                    out, err = p.communicate()
+                    if err is not None:
+                        raise Exception('Could not run embedded command: $(%s)' % cmd_text[adj_cmd_start+2:adj_cmd_end])
+                    new_text = out
+
+                cmd_text = cmd_text[:adj_cmd_start] + new_text + cmd_text[adj_cmd_end + 1:]
+                cmd_len = emb_cmd[1] - emb_cmd[0] + 1
+                mod_len += cmd_len - len(new_text)
+
+        if cmd_text.startswith(self.COMMAND_PREFIX):
+            return cmd_text
+        elif cmd_text in self.saved_commands:
+            return self.parse_command(Document(text=self.saved_commands[cmd_text]))
+        else:
+            command = self.completer.get_current_command(ret_doc, text_done=True)
+            if command is None:
+                return None
+
+            if command.path in self.set_args:
+                args_text = ret_doc.text[self.completer.get_current_command_location(ret_doc)[1]:].strip()
+                try:
+                    existing_args = command.parse_args(args_text.split())
+                except:
+                    existing_args = Namespace()
+                set_args_dict = self.set_args[command.path]
+                positional_idx = 0
+                final_args = []
+                final_arg_texts = []
+                for arg in command.optional_arguments + command.positionals:
+                    new_arg = {
+                        'positional': None,
+                        'arg': arg,
+                        'value': None,
+                        'specified': False,
+                    }
+                    if arg.type == arg.Type.Help or arg.type == arg.Type.Version:
+                        continue
+
+                    if arg.__class__.__name__ == 'PositionalArgumentPromptToolkit':
+                        new_arg['positional'] = positional_idx
+                        positional_idx += 1
+
+                    if hasattr(existing_args, arg.dest):
+                        spec_arg_val = getattr(existing_args, arg.dest)
+
+                        if arg.default == spec_arg_val and spec_arg_val is not None:
+                            if new_arg['positional'] is None:
+                                new_arg['specified'] = arg.tag in args_text
+                            else:
+                                new_arg['specified'] = spec_arg_val in args_text
+                        else:
+                            new_arg['specified'] = True
+                        new_arg['value'] = spec_arg_val
+                    if arg.get_name() in set_args_dict and (not (
+                                hasattr(existing_args, arg.dest) and getattr(existing_args, arg.dest) is not None) or not
+                    new_arg['specified']):
+                        new_arg['value'] = set_args_dict[arg.get_name()]
+                        new_arg['specified'] = True
+
+                    if new_arg['value'] is not None and new_arg['specified']:
+                        final_args.append(new_arg)
+
+                # FIXME: THIS DOESNT WORK WITH APPEND CONST
+
+                for final_opt_arg in filter(lambda x: x['positional'] is None, final_args):
+                    arg = final_opt_arg['arg']
+                    if arg.type == arg.Type.Store:
+                        final_arg_texts.append(arg.tag + ' ' + str(final_opt_arg['value']))
+                    elif arg.type == arg.Type.StoreConst and final_opt_arg['value'] is True:
+                        final_arg_texts.append(arg.tag)
+                    elif arg.type == arg.Type.StoreFalse and final_opt_arg['value'] is False:
+                        final_arg_texts.append(arg.tag)
+                    elif arg.type == arg.Type.StoreTrue and final_opt_arg['value'] is True:
+                        final_arg_texts.append(arg.tag)
+                    elif arg.type == arg.Type.Append:
+                        final_arg_texts.append(
+                            ' '.join(map(lambda val: arg.tag + ' ' + val, final_opt_arg['value'])))
+                    elif arg.type == arg.Type.AppendConst or arg.type == arg.Type.Count:
+                        final_arg_texts.append(' '.join(map(lambda val: arg.tag, final_opt_arg['value'])))
+
+                final_arg_texts.extend(map(lambda x: x['value'],
+                                           sorted(filter(lambda x: x['positional'] is not None, final_args),
+                                                  key=lambda x: x['positional'])))
+
+                cmd_text = ret_doc.text[:self.completer.get_current_command_location(ret_doc)[1]] + ' ' + ' '.join(
+                    final_arg_texts)
+            return cmd_text
+
+    def parse_embedded_commands(self, text):
+        """
+
+        :param text: the text to parse
+        :type text: unicode
+        :return: a list of embedded command start and end indexes
+        :rtype: list[(int, int)]
+        :raises: Exception
+        """
+        recording_depth = 0
+        recording_start_idx = None
+        embedded_commands = []
+        for idx, letter in enumerate(text):
+            next_letter = text[idx + 1] if len(text) > idx + 1 else None
+            prev_letter = text[idx - 1] if idx != 0 else None
+            if letter == '$' and next_letter == '(' and prev_letter != '\\':
+                if recording_depth == 0:
+                    recording_start_idx = idx
+                    recording_depth = recording_depth + 1
+                else:
+                    recording_depth = recording_depth + 1
+            elif letter == ')' and prev_letter != '\\':
+                if recording_depth == 1:
+                    embedded_commands.append((recording_start_idx, idx))
+                    recording_start_idx = None
+                    recording_depth = 0
+                else:
+                    recording_depth = recording_depth - 1
+
+        if recording_depth != 0:
+            raise Exception('Parentheses do not match and close')
+
+        return embedded_commands
+
 
     def get_app_info(self):
         try:
