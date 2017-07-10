@@ -31,20 +31,27 @@ def set_inner_command_func(params, app):
     arg_name_split = arg_name.split('.')
     cmd_path = '.'.join(arg_name_split[:-1])  # Get the just command path, not the full path with the argument
 
-    if cmd_path not in app.cmd.get_all_paths():
+    if cmd_path in app.cmd.get_all_paths():
+        sc = app.cmd.get_subcommand_from_path(cmd_path)
+        if arg_name_split[-1] not in map(lambda x: x.get_name(),
+                                         filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version and
+                                                         v.dev is False or (v.dev is True and app.dev_mode is True),
+                                                sc.optional_arguments + sc.positionals)):  # Make sure the selected
+            # argument is not a help or version argument and if dev, dev mode is enables
+            raise InnerCommandError('Unknown argument in path key')
+        parsed_arg = parse_set_command_arg(arg_val, sc.make_pos_and_arg_name_to_dict()[arg_name_split[-1]])
+    elif cmd_path in app.manual_args.keys():
+        if arg_name_split[-1] not in app.manual_args[cmd_path]:
+            raise InnerCommandError('Unknown argument in path key')
+        parsed_arg = arg_val
+        app.manual_args[cmd_path][arg_name_split[-1]][0](parsed_arg)
+    else:
         raise InnerCommandError('Unknown command in path key')
-    sc = app.cmd.get_subcommand_from_path(cmd_path)
-    if arg_name_split[-1] not in map(lambda x: x.get_name(),
-                                     filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version,
-                                            sc.optional_arguments + sc.positionals)):  # Make sure the selected
-        # argument is not a help or version argument
-        raise InnerCommandError('Unknown argument in path key')
 
     if cmd_path not in app.set_args:  # If there is no command path set in the app, set it!
         app.set_args[cmd_path] = {}
 
-    app.set_args[cmd_path][arg_name_split[-1]] = parse_set_command_arg(
-        arg_val, sc.make_pos_and_arg_name_to_dict()[arg_name_split[-1]])  # Set the value
+    app.set_args[cmd_path][arg_name_split[-1]] = parsed_arg  # Set the value
 
 
 def complete_set_inner_command(arg_idx, app, full_args_text, document):
@@ -69,11 +76,14 @@ def complete_set_inner_command(arg_idx, app, full_args_text, document):
                 continue
             arg_list.extend(map(lambda x: path + '.' + x,
                                 map(lambda x: x.get_name(),
-                                    filter(lambda x: x.type is not x.Type.Help and x.type is not x.Type.Version,
+                                    filter(lambda x: x.type is not x.Type.Help and x.type is not x.Type.Version and
+                                           x.dev is False or (x.dev is True and app.dev_mode is True),
                                            got_cmd.optional_arguments + got_cmd.positionals)
                                     )
                                 ))  # Get All arguments that are not help or version and get their names and add them
             # to their command paths. This creates bunch of full paths
+        for k, v in app.manual_args.iteritems():
+            arg_list.extend(map(lambda x: k+'.'+x, v.keys()))
         return arg_list
     elif arg_idx == 1:  # If the user is on the second (and last) argument, suggest options if options are available or
         # nothing if they are not
@@ -102,14 +112,19 @@ def get_inner_command_func(params, app):
     cmd_path = '.'.join(arg_name_split[:-1])  # Get the just command path, not the full path with the argument
 
     # Validate the command
-    if cmd_path not in app.cmd.get_all_paths():
+    if cmd_path in app.cmd.get_all_paths():
+        sc = app.cmd.get_subcommand_from_path(cmd_path)
+        if arg_name_split[-1] not in map(lambda x: x.get_name(),
+                                         filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version and
+                                                         v.dev is False or (v.dev is True and app.dev_mode is True),
+                                                sc.optional_arguments + sc.positionals)):  # Make sure the selected
+            # argument is not a help or version argument and if dev, dev mode is enables
+            raise InnerCommandError('Unknown argument in path')
+    elif cmd_path in app.manual_args:
+        if arg_name_split[-1] not in app.manual_args[cmd_path]:
+            raise InnerCommandError('Unknown argument in path')
+    else:
         raise InnerCommandError('Unknown command in path')
-    sc = app.cmd.get_subcommand_from_path(cmd_path)
-    if arg_name_split[-1] not in map(lambda x: x.get_name(),
-                                     filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version,
-                                            sc.optional_arguments + sc.positionals)):  # Make sure the selected
-        # argument is not a help or version argument
-        raise InnerCommandError('Unknown argument in path')
 
     if cmd_path not in app.set_args or arg_name_split[-1] not in app.set_args[cmd_path]:  # Check to see the passed
         # argument is in the app database
@@ -157,20 +172,27 @@ def del_inner_command_func(params, app):
     cmd_path = '.'.join(arg_name_split[:-1])  # Get the just command path, not the full path with the argument
 
     # Validate the command
-    if cmd_path not in app.cmd.get_all_paths():
+    if cmd_path in app.cmd.get_all_paths():
+        sc = app.cmd.get_subcommand_from_path(cmd_path)
+        if arg_name_split[-1] not in map(lambda x: x.get_name(),
+                                         filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version and
+                                                         v.dev is False or (v.dev is True and app.dev_mode is True),
+                                                sc.optional_arguments + sc.positionals)):  # Make sure the selected
+            # argument is not a help or version argument and if dev, dev mode is enables
+            raise InnerCommandError('Unknown argument in path')
+    elif cmd_path in app.manual_args:
+        if arg_name_split[-1] not in app.manual_args[cmd_path]:
+            raise InnerCommandError('Unknown argument in path')
+    else:
         raise InnerCommandError('Unknown command in path')
-    sc = app.cmd.get_subcommand_from_path(cmd_path)
-    if arg_name_split[-1] not in map(lambda x: x.get_name(),
-                                     filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version,
-                                            sc.optional_arguments + sc.positionals)):  # Make sure the selected
-        # argument is not a help or version argument
-        raise InnerCommandError('Unknown argument in path')
 
     if cmd_path not in app.set_args or arg_name_split[-1] not in app.set_args[cmd_path]:  # Check to see the passed
         # argument is in the app database
         raise InnerCommandError('Argument not found')
     else:
         del app.set_args[cmd_path][arg_name_split[-1]]
+        if cmd_path in app.manual_args:
+            app.manual_args[cmd_path][arg_name_split[-1]][1]()
 
 
 def complete_del_inner_command(arg_idx, app, full_args_text, document):

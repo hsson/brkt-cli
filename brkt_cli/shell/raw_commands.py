@@ -161,6 +161,8 @@ class CommandPromptToolkit(object):
         :rtype: ArgumentPromptToolkit | None
         """
         cmd = self.get_subcommand_from_path(path[:-1])
+        if cmd is None:
+            return None
         return cmd.__get_argument_from_direct_path(path)
 
     def __get_argument_from_direct_path(self, path):

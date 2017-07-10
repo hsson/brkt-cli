@@ -179,7 +179,6 @@ def dev_inner_command_func(params, app):
         for arg in got_cmd.optional_arguments+got_cmd.positionals:
             print arg.raw
 
-
 # Commands that are prebuilt for the CLI
 exit_inner_command = InnerCommand('exit', 'Exits the shell.', 'exit', exit_inner_command_func)
 help_inner_command = InnerCommand('help', 'Get help for inner commands', 'help', help_inner_command_func)

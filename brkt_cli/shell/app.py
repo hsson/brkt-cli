@@ -35,7 +35,7 @@ from pygments.token import Token
 from brkt_cli.shell.enum import Enum
 from brkt_cli.shell.get_set_inner_commmands import set_inner_command, get_inner_command, del_inner_command
 from brkt_cli.shell.inner_commands import exit_inner_command, InnerCommandError, \
-    help_inner_command, dev_inner_command
+    help_inner_command
 from brkt_cli.shell.manpage import Manpage
 from brkt_cli.shell.save_command import alias_inner_command, get_alias_inner_command, unalias_inner_command
 from brkt_cli.shell.settings import Setting, setting_inner_command, bool_parse_value
@@ -51,6 +51,7 @@ class App(object):
     :type key_manager: prompt_toolkit.key_binding.manager.KeyBindingManager
     :type dummy: bool
     :type set_args: dict[unicode, dict[unicode, Any]]
+    :type manual_args: dict[unicode, dict[unicode, ((Any) -> None, () -> None)]]
     :type saved_commands: dict[unicode, unicode]
     :type _vi_mode: bool
     :type mouse_support: bool
@@ -98,6 +99,35 @@ class App(object):
         self._vi_mode = False
         self.mouse_support = mouse_support
         self.dev_mode = False
+
+        def token_on_changed(val):
+            token_list = []
+            for path in self.cmd.get_all_paths():
+                got_cmd = self.cmd.get_subcommand_from_path(path)
+                if got_cmd is None or got_cmd.has_subcommands() is True:
+                    continue
+                token_list.extend(map(lambda x: (path, x.get_name()),
+                                  filter(lambda x: x.type is not x.Type.Help and x.type is not x.Type.Version and
+                                         x.get_name() == 'token' and
+                                         x.dev is False or (x.dev is True and self.dev_mode is True),
+                                         got_cmd.optional_arguments + got_cmd.positionals))
+                                 )  # Get All arguments that are not help or version and get their names and add them
+                # to their command paths. This creates bunch of full paths
+            for cmd_path, token_arg in token_list:
+                if cmd_path not in self.set_args:
+                    self.set_args[cmd_path] = {}
+                self.set_args[cmd_path][token_arg] = val
+
+        def token_on_delete():
+            for cmd_path, val in self.set_args.iteritems():
+                for k in val.keys():
+                    if k == 'token':
+                        del self.set_args[cmd_path][k]
+        self.manual_args = {
+            'app': {
+                'token': (token_on_changed, token_on_delete),
+            }
+        }
 
         def manpage_on_changed(val):
             self._has_manpage = val
@@ -163,7 +193,8 @@ class App(object):
                         except AssertionError as err:
                             print InnerCommandError.format(err.message)
                         except:
-                            print InnerCommandError.format("unknown error - %s" % sys.exc_info()[0])
+                            exec_info = sys.exc_info()
+                            print InnerCommandError.format("unknown error - %s\n%s\n%s" % (exec_info[0], exec_info[1], exec_info[2]))
                     continue
 
                 cmd_text = ret_doc.text
