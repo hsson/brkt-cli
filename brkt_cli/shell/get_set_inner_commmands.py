@@ -260,7 +260,7 @@ def _parse_argument_type(val, arg):
 
 set_inner_command = InnerCommand('set', 'Sets an argument for a command', 'set PATH VALUE', set_inner_command_func,
                                  completer=complete_set_inner_command,
-                                 param_regex=r'^(.+) (.+)$')
+                                 param_regex=r'^([^ ]+) (.+)$')
 get_inner_command = InnerCommand('get', 'Gets an argument for a command', 'get PATH', get_inner_command_func,
                                  completer=complete_get_inner_command,
                                  param_regex=r'^([^ ]+)$')

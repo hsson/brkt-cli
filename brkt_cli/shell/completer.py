@@ -37,6 +37,8 @@ class ShellCompleter(Completer):
         Gets all suggested options in the completer
         :param document: the document of the UI (has the text, etc.)
         :type document: prompt_toolkit.document.Document
+        :param include_aliases: include command aliases in list
+        :type include_aliases: bool
         :return: a list of all completions
         :rtype: list[unicode]
         """
