@@ -183,4 +183,4 @@ def dev_inner_command_func(params, app):
 exit_inner_command = InnerCommand('exit', 'Exits the shell.', 'exit', exit_inner_command_func)
 help_inner_command = InnerCommand('help', 'Get help for inner commands', 'help', help_inner_command_func)
 dev_inner_command = InnerCommand('dev', 'Under the hood access for developers', 'dev', dev_inner_command_func,
-                                 param_regex='^(.+)$')
+                                 param_regex=r'^(.+)$')
