@@ -1120,6 +1120,13 @@ class VCenterService(BaseVCenterService):
                                  self.cluster_name)
         resource_pool = cluster.resourcePool
         destfolder = datacenter.vmFolder
+        if self.nic_type != "VirtualPort" and \
+           self.nic_type !=  "VirtualPortGroup":
+            network = self.__get_obj(content, [vim.Network], self.network_name)
+            network_map = vim.OvfManager.NetworkMapping()
+            network_map.name = self.network_name
+            network_map.network = network
+            spec_params.networkMapping = [network_map]
         import_spec = manager.CreateImportSpec(ovfd,
                                                resource_pool,
                                                datastore,
@@ -1127,6 +1134,11 @@ class VCenterService(BaseVCenterService):
         timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
         if vm_name is None:
             vm_name = "Encryptor-VM-" + timestamp
+        if import_spec.importSpec is None or \
+           import_spec.importSpec.configSpec is None:
+           log.error("Import specification error %s warning %s",
+                      import_spec.error, import_spec.warning)
+           raise Exception("Cannot import OVF specification")
         import_spec.importSpec.configSpec.name = vm_name
         if (self.nic_type == "VirtualPort"):
             pg_obj = self.__get_obj(content,
@@ -1152,10 +1164,6 @@ class VCenterService(BaseVCenterService):
                     device.device.backing = \
                         vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
                     device.device.backing.port = port_connection
-        else:
-            for device in import_spec.importSpec.configSpec.deviceChange:
-                if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
-                    device.device.backing.deviceName = self.network_name
         lease = resource_pool.ImportVApp(import_spec.importSpec, destfolder)
         self.upload_ovf_complete = False
         while (True):
