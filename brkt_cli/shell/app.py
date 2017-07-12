@@ -215,7 +215,11 @@ class App(object):
                     print sys.argv[0] + ' ' + cmd_text
                 else:
                     p = subprocess.Popen(sys.argv[0] + ' ' + cmd_text, shell=True, env=os.environ.copy())
-                    p.communicate()
+                    try:
+                        with self._cli.input.cooked_mode():
+                            p.communicate()
+                    except KeyboardInterrupt:
+                        pass
 
     def run_shutdown(self):
         app_info = {
@@ -281,14 +285,24 @@ class App(object):
             if self.dummy:  # If dummy mode enabled, don't acutually run the command
                 new_text = sys.argv[0] + ' ' + parsed_emb_cmd
             else:
-                print 'RUN: "' + sys.argv[0] + ' ' + parsed_emb_cmd + '"'
-                p = subprocess.Popen(sys.argv[0] + ' ' + parsed_emb_cmd, shell=False, env=os.environ.copy(),
-                                     stdout=subprocess.PIPE)  # Run the command and get the output
-                out, err = p.communicate()
-                if err is not None:
+                try:
+                    p = subprocess.Popen(sys.argv[0] + ' ' + parsed_emb_cmd, shell=True, env=os.environ.copy(),
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # Run the command and get
+                    # the output
+                except OSError as err:
+                    raise InnerCommandError(
+                        'Could not run embedded command: $(%s). Error: %s' %
+                        (cmd_text[adj_cmd_start + 2:adj_cmd_end], err.strerror))
+                try:
+                    with self._cli.input.cooked_mode():
+                        std_out, std_err = p.communicate()
+                except KeyboardInterrupt:
+                    raise InnerCommandError(
+                        'Embedded command run was interrupted: $(%s)' % cmd_text[adj_cmd_start + 2:adj_cmd_end])
+                if std_err is not None and std_err != '':
                     raise InnerCommandError(
                         'Could not run embedded command: $(%s)' % cmd_text[adj_cmd_start + 2:adj_cmd_end])
-                new_text = out
+                new_text = std_out
 
             cmd_text = cmd_text[:adj_cmd_start] + new_text + cmd_text[adj_cmd_end + 1:]  # Replace the `$()` in the
             # command text with the output of the command
@@ -533,6 +547,7 @@ class App(object):
             """
             When ctrl q or ctrl d is pressed, return the EXIT machine_command to the cli.run() command.
             :param event:
+            :type event: prompt_toolkit.key_binding.input_processor.KeyPressEvent
             """
             event.cli.set_return_value(self.MachineCommands.Exit)
 
