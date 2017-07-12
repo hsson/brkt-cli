@@ -47,7 +47,7 @@ class Setting(object):
         :type parse_value: (unicode) -> T
         :param description: description of setting
         :type description: unicode
-        :param str_acceptable_values: only these values will be accepted
+        :param str_acceptable_values: only these values will be accepted via the string method
         :type str_acceptable_values: list[unicode]
         :param suggestions: things to suggest in the completer
         :type suggestions: list[unicode]
@@ -81,17 +81,23 @@ class Setting(object):
         :param val: the new value
         :type val: T
         """
+        validated = True
         if self._validate_change is not None:
-            self._validate_change(val)
-        self._value = val
-        if self._on_changed is not None:
-            self._on_changed(self._value)
+            validated = self._validate_change(val)
+
+        if validated:
+            self._value = val
+            if self._on_changed is not None:
+                self._on_changed(self._value)
+        else:
+            raise InnerCommandError('Setting value was not validated')
+
 
     def set_value_with_str(self, val):
         """
         Sets the value of the setting from a unicode input
         :param val: the new value string
-        :type val: T
+        :type val: unicode
         """
         if self.str_acceptable_values is not None and val.lower() not in self.str_acceptable_values:
             raise InnerCommandError('Value is not an acceptable value')
@@ -99,6 +105,7 @@ class Setting(object):
             self.value = self._parse_value(val)
         else:
             self.value = self.type(val)
+
 
 def bool_parse_value(val):
     """
@@ -109,6 +116,18 @@ def bool_parse_value(val):
     :rtype: bool
     """
     return val.lower() == 'true'
+
+
+def bool_validate_change(val):
+    """
+    Setting validate change for booleans. Must also set up bool_parse_value.
+    :param val: the value
+    :type val: Any
+    :return: if it is validated
+    :rtype: bool
+    """
+    return isinstance(val, bool)
+
 
 def setting_inner_command_func(params, app):
     """
@@ -127,11 +146,13 @@ def setting_inner_command_func(params, app):
     setting = app.settings[setting_name]
     setting_value = params.group(2)
     if setting_value is None or setting_value == '':
+        accepted_values = ''
+        if setting.str_acceptable_values is not None:
+            accepted_values = '\n    Accepted Values: ' + ', '.join(setting.str_acceptable_values)
         print '%s - %s\n    Suggestions: %s' % (
             setting.name, 
-            setting.value + ('\n    Accepted Values: ' + ', '.join(setting.str_acceptable_values)
-                             if setting.str_acceptable_values is not None else ''),
-            ' ,'.join(setting.suggestions)
+            str(setting.value) + accepted_values,
+            ', '.join(setting.suggestions)
         )
     else:
         setting.set_value_with_str(setting_value)

@@ -18,12 +18,12 @@ from prompt_toolkit.document import Document
 from brkt_cli.shell import App
 from brkt_cli.shell.inner_commands import exit_inner_command_func, inner_command_completer_static, InnerCommand, \
     InnerCommandError
-from brkt_cli.shell.test_app import generate_app
+from brkt_cli.shell.test_utils import make_app
 
 
 class TestInnerCommand(unittest.TestCase):
     def test_run_action(self):
-        app = generate_app()
+        app = make_app()
         def action(params, app):
             return params, app
 
@@ -90,9 +90,8 @@ class TestInnerCommand(unittest.TestCase):
         self.assertEqual(InnerCommandError('').format_error(), 'Error: ')
         self.assertEqual(InnerCommandError.format(Exception('foo bar').message), 'Error: foo bar')
 
-
     def test_inner_command_completer_static(self):
-        app = generate_app()
+        app = make_app()
 
         res_func = inner_command_completer_static()
         res = res_func(0, app, [], Document())
@@ -117,8 +116,9 @@ class TestInnerCommand(unittest.TestCase):
         res_func = inner_command_completer_static([['foo', 'bar'], ['baz']])
         res = res_func(1, app, [], Document())
         self.assertListEqual(res, ['baz'])
+
     def test_exit_inner_command_func(self):
-        res = exit_inner_command_func([], generate_app())
+        res = exit_inner_command_func(None, make_app())
         self.assertEqual(res, App.MachineCommands.Exit)
 
 

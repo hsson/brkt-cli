@@ -57,15 +57,16 @@ class ShellCompleter(Completer):
 
         if all_text.startswith(App.COMMAND_PREFIX):
             if len(split_text) > 1 or all_text.endswith(' '):
-                if split_text[0] in App.INNER_COMMANDS:
-                    completions = App.INNER_COMMANDS[split_text[0]].completer(len(full_split_text) - 1, self.app,
-                                                                              full_split_text[1:], document)
+                if split_text[0] in self.app.inner_commands:
+                    completions = self.app.inner_commands[split_text[0]].completer(len(full_split_text) - 1, self.app,
+                                                                                   full_split_text[1:], document)
                 else:
                     completions = []
             else:
-                completions = App.INNER_COMMANDS.keys()
+                completions = self.app.inner_commands.keys()
         else:
-            completions = self._top_command.list_subcommand_names()+(self.app.saved_commands.keys() if include_aliases else [])  # Possible completion values
+            completions = self._top_command.list_subcommand_names() + (
+                self.app.saved_commands.keys() if include_aliases else [])  # Possible completion values
 
             tree_location = self._top_command  # Tree location is the current selected command that is narrowed down to
             # the exact command the user has typed in the prompt
@@ -93,8 +94,6 @@ class ShellCompleter(Completer):
                         # tree) to the new one that has been found
                         if tree_location.has_subcommands():  # If there are subcommands, list them
                             completions = tree_location.list_subcommand_names()
-                        elif len(full_split_text) == 0:
-                            completions = []
                         else:  # If there are no subcommands, suggest optional arguments
                             completions = []  # Reset completions because they are gonna be arguments now
                             for arg in tree_location.optional_arguments:  # Go through all arguments in the command and
@@ -111,13 +110,13 @@ class ShellCompleter(Completer):
                                         arg_specified = True
                                 if not arg_specified:  # If the argument hasn't been specified, add it to the suggested
                                     # list and go to next argument
-                                    if arg.dev is False or (arg.dev is True and self.app.dev_mode is True):  # Filter
-                                        # out dev mode args when not in dev mode
+                                    if arg.dev is False or self.app.dev_mode is True:  # Filter out dev mode args when
+                                        # not in dev mode
                                         completions.append(arg.tag)
                                     continue
-                                if arg.type is arg.Type.Append or arg.type is arg.Type.AppendConst or \
-                                                arg.type is arg.Type.Count:  # If the argument is an append or count
-                                    # type, add it regardless of if it has been specified by the user already
+                                if arg.type is arg.Type.Append or arg.type is arg.Type.Count:  # If the argument is an
+                                    # append or count type, add it regardless of if it has been specified by the
+                                    # user already
                                     completions.append(arg.tag)
                                     continue
                                 if arg.type is arg.Type.Help or arg.type is arg.Type.Version:  # If a death
@@ -126,10 +125,10 @@ class ShellCompleter(Completer):
                                     completions = []
                                     break
 
-                            last_full_arg = full_split_text[-1]  # Get the last fully specified argument in the list
-                            if last_full_arg and last_full_arg.startswith(
-                                    '-'):  # If there is a last argument and it is an
-                                # argument (this _should_ always be the case), then change some suggestions
+                            if len(full_split_text) > 0 and full_split_text[-1].startswith(
+                                    '-'):  # If there is a last argument and it is an argument,
+                                # then change some suggestions
+                                last_full_arg = full_split_text[-1]  # Get the last fully specified argument in the list
                                 try:
                                     arg = tree_location.make_tag_to_args_dict()[
                                         last_full_arg]  # Get the argument object
@@ -236,6 +235,7 @@ class ShellCompleter(Completer):
             return 0, 0
 
         # FIXME: This will break if the user inputs a double space or a different whitespace character
+        # because it's returning info that differs from the original text
         return 0, len(' '.join(all_text.split()[:cmd_end_word_index+1]))
 
     def get_current_argument(self, document):
@@ -256,7 +256,7 @@ class ShellCompleter(Completer):
         split_text = all_text.split()  # list of all values (commands, subcommands, arguments, etc.) separated by space
         full_split_text = split_text  # full_split_text is all values (see above for example) separated by space that
         # are complete.
-        if not all_text.endswith(' ') and not split_text[-1].startswith('-'):  # If the last word is unfinished and the
+        if not all_text.endswith(' ') and len(split_text) > 0 and not split_text[-1].startswith('-'):  # If the last word is unfinished and the
             # last word is not an argument, shorten the full text by one. This is to keep the manpage suggestions for
             # arguments with values. For example, `aws encrypt --aws-tag foob` (with `foob` being unfinished for
             # `foobar`), the manpage would be "--aws-tag" the entire time.
