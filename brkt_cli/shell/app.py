@@ -110,8 +110,8 @@ class App(object):
                     continue
                 token_list.extend(map(lambda x: (path, x.get_name()),
                                       filter(lambda x: x.type is not x.Type.Help and x.type is not x.Type.Version and
-                                                       x.get_name() == 'token' and
-                                                       x.dev is False or (x.dev is True and self.dev_mode is True),
+                                             x.get_name() == 'token' and
+                                             x.dev is False or (x.dev is True and self.dev_mode is True),
                                              got_cmd.optional_arguments + got_cmd.positionals))
                                   )  # Get All arguments that are not help or version and get their names and add them
                 # to their command paths. This creates bunch of full paths
@@ -515,17 +515,10 @@ class App(object):
         self.key_manager = KeyBindingManager()
 
         @self.key_manager.registry.add_binding(Keys.ControlQ, eager=True)
-        def exit_(event):
-            """
-            When ctrl q is pressed, return the EXIT machine_command to the cli.run() command.
-            :param event:
-            """
-            event.cli.set_return_value(self.MachineCommands.Exit)
-
         @self.key_manager.registry.add_binding(Keys.ControlD, eager=True)
         def exit_(event):
             """
-            When ctrl d is pressed, return the EXIT machine_command to the cli.run() command.
+            When ctrl q or ctrl d is pressed, return the EXIT machine_command to the cli.run() command.
             :param event:
             """
             event.cli.set_return_value(self.MachineCommands.Exit)

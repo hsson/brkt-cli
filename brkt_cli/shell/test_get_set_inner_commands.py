@@ -28,6 +28,7 @@ class TestGetSetInnerCommands(unittest.TestCase):
 
         def on_change_manual_arg(val):
             pass
+
         def on_delete_manual_arg():
             pass
         app.manual_args = {
@@ -101,6 +102,7 @@ class TestGetSetInnerCommands(unittest.TestCase):
 
         def on_change_manual_arg(val):
             pass
+
         def on_delete_manual_arg():
             pass
         app.manual_args = {
@@ -153,6 +155,7 @@ class TestGetSetInnerCommands(unittest.TestCase):
 
         def on_change_manual_arg(val):
             pass
+
         def on_delete_manual_arg():
             pass
         app.manual_args = {
@@ -241,6 +244,7 @@ class TestGetSetInnerCommands(unittest.TestCase):
 
         def on_change_manual_arg(val):
             pass
+
         def on_delete_manual_arg():
             pass
         app.manual_args = {
@@ -293,6 +297,7 @@ class TestGetSetInnerCommands(unittest.TestCase):
 
         def on_change_manual_arg(val):
             pass
+
         def on_delete_manual_arg():
             pass
         app.manual_args = {
@@ -375,6 +380,7 @@ class TestGetSetInnerCommands(unittest.TestCase):
 
         def on_change_manual_arg(val):
             pass
+
         def on_delete_manual_arg():
             pass
         app.manual_args = {

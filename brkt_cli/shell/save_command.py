@@ -55,7 +55,8 @@ def complete_alias_inner_command(arg_idx, app, full_args_text, document):
         cursor = document.cursor_position - len(''.join(split_doc[:3]))
         if cursor < 0:
             cursor = 0
-        return app.completer.get_completions_list(Document(text=unicode(text), cursor_position=cursor), include_aliases=False)
+        return app.completer.get_completions_list(Document(text=unicode(text), cursor_position=cursor),
+                                                  include_aliases=False)
     return []
 
 
@@ -132,12 +133,12 @@ def complete_unalias_inner_command(arg_idx, app, full_args_text, document):
     else:
         return []
 
-alias_inner_command = InnerCommand('alias', 'Creates an alias to a command', 'alias NAME COMMAND', alias_inner_command_func,
-                                 completer=complete_alias_inner_command,
-                                 param_regex=r'^([^ ]+) (.+)$')
-get_alias_inner_command = InnerCommand('get_alias', 'Gets an alias to a command', 'get_alias NAME', get_alias_inner_command_func,
-                                 completer=complete_get_alias_inner_command,
-                                 param_regex=r'^(.+)$')
-unalias_inner_command = InnerCommand('unalias', 'Removes alias to a command', 'unalias NAME', unalias_inner_command_func,
-                                 completer=complete_unalias_inner_command,
-                                 param_regex=r'^(.+)$')
+alias_inner_command = InnerCommand('alias', 'Creates an alias to a command', 'alias NAME COMMAND',
+                                   alias_inner_command_func, completer=complete_alias_inner_command,
+                                   param_regex=r'^([^ ]+) (.+)$')
+get_alias_inner_command = InnerCommand('get_alias', 'Gets an alias to a command', 'get_alias NAME',
+                                       get_alias_inner_command_func, completer=complete_get_alias_inner_command,
+                                       param_regex=r'^(.+)$')
+unalias_inner_command = InnerCommand('unalias', 'Removes alias to a command', 'unalias NAME',
+                                     unalias_inner_command_func, completer=complete_unalias_inner_command,
+                                     param_regex=r'^(.+)$')

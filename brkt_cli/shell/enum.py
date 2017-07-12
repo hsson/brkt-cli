@@ -11,6 +11,8 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+
+
 class Enum:
     @classmethod
     def format_enum(cls, enum):

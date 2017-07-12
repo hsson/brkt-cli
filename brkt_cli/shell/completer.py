@@ -256,10 +256,10 @@ class ShellCompleter(Completer):
         split_text = all_text.split()  # list of all values (commands, subcommands, arguments, etc.) separated by space
         full_split_text = split_text  # full_split_text is all values (see above for example) separated by space that
         # are complete.
-        if not all_text.endswith(' ') and len(split_text) > 0 and not split_text[-1].startswith('-'):  # If the last word is unfinished and the
-            # last word is not an argument, shorten the full text by one. This is to keep the manpage suggestions for
-            # arguments with values. For example, `aws encrypt --aws-tag foob` (with `foob` being unfinished for
-            # `foobar`), the manpage would be "--aws-tag" the entire time.
+        if not all_text.endswith(' ') and len(split_text) > 0 and not split_text[-1].startswith('-'):  # If the last
+            # word is unfinished and the last word is not an argument, shorten the full text by one. This is to keep
+            # the manpage suggestions for arguments with values. For example, `aws encrypt --aws-tag foob` (with `foob`
+            # being unfinished for `foobar`), the manpage would be "--aws-tag" the entire time.
             del full_split_text[-1]
         # The difference between these two is shown in this example:
         # In `aws encrypt --aws-tag foob` (with `foob` being unfinished for `foobar`), the result of split_text would

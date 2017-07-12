@@ -147,9 +147,14 @@ class TestAppClass(App):
 def make_app():
     top_cmd = make_top_cmd()
     app = TestAppClass(ShellCompleter(top_cmd), top_cmd)
+
+    def inner_command_run(params, the_app):
+        pass
+
     app.inner_commands = {
-        u'/test': InnerCommand('test', 'tests with no arguments', 'test', None),
-        u'/test_arg': InnerCommand('test_arg', 'tests with an arguments', 'test ARG', None),
+        u'/test': InnerCommand('test', 'tests with no arguments', 'test', inner_command_run),
+        u'/test_arg': InnerCommand('test_arg', 'tests with an arguments', 'test ARG', inner_command_run,
+                                   param_regex=r'^(.+)$'),
     }
     app.dummy = True
     return app

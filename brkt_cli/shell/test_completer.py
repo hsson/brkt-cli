@@ -15,7 +15,7 @@ import unittest
 
 from prompt_toolkit.document import Document
 
-from brkt_cli.shell.test_utils import make_top_cmd, make_app
+from brkt_cli.shell.test_utils import make_app
 
 
 class TestCompleter(unittest.TestCase):

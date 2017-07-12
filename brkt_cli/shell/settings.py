@@ -11,10 +11,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import re
-
-from prompt_toolkit.document import Document
-
 from brkt_cli.shell.inner_commands import InnerCommand, InnerCommandError
 
 
@@ -24,7 +20,7 @@ class Setting(object):
     :type default: T
     :type _value: T
     :type _on_changed: (T) -> None
-    :type _validate_change: (T) -> None
+    :type _validate_change: (Any) -> bool
     :type _parse_value: (unicode) -> T
     :type type: type
     :type description: unicode
@@ -42,7 +38,7 @@ class Setting(object):
         :param on_changed: called when there is a change to the value
         :type on_changed: (T) -> None
         :param validate_change: called to validate the new change
-        :type validate_change: (T) -> None
+        :type validate_change: (Any) -> bool
         :param parse_value: called to parse a new string as a value
         :type parse_value: (unicode) -> T
         :param description: description of setting
@@ -91,7 +87,6 @@ class Setting(object):
                 self._on_changed(self._value)
         else:
             raise InnerCommandError('Setting value was not validated')
-
 
     def set_value_with_str(self, val):
         """
@@ -184,6 +179,6 @@ def complete_setting_inner_command(arg_idx, app, full_args_text, document):
         return []
 
 
-setting_inner_command = InnerCommand('setting', 'Edit or view a setting', 'setting NAME [value]', setting_inner_command_func,
-                                 completer=complete_setting_inner_command,
-                                 param_regex=r'^([^ ]+)(?: (.+))?$')
+setting_inner_command = InnerCommand('setting', 'Edit or view a setting', 'setting NAME [value]',
+                                     setting_inner_command_func, completer=complete_setting_inner_command,
+                                     param_regex=r'^([^ ]+)(?: (.+))?$')
