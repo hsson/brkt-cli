@@ -110,8 +110,7 @@ class App(object):
                     continue
                 token_list.extend(map(lambda x: (path, x.get_name()),
                                       filter(lambda x: x.type is not x.Type.Help and x.type is not x.Type.Version and
-                                             x.get_name() == 'token' and
-                                             x.dev is False or (x.dev is True and self.dev_mode is True),
+                                             x.get_name() == 'token' and (x.dev is False or self.dev_mode is True),
                                              got_cmd.optional_arguments + got_cmd.positionals))
                                   )  # Get All arguments that are not help or version and get their names and add them
                 # to their command paths. This creates bunch of full paths
@@ -282,6 +281,7 @@ class App(object):
             if self.dummy:  # If dummy mode enabled, don't acutually run the command
                 new_text = sys.argv[0] + ' ' + parsed_emb_cmd
             else:
+                print 'RUN: "' + sys.argv[0] + ' ' + parsed_emb_cmd + '"'
                 p = subprocess.Popen(sys.argv[0] + ' ' + parsed_emb_cmd, shell=False, env=os.environ.copy(),
                                      stdout=subprocess.PIPE)  # Run the command and get the output
                 out, err = p.communicate()
@@ -298,7 +298,8 @@ class App(object):
 
     def _parse_set_args_commands(self, doc, command):
         """
-        Parses the command and builds the set arguments into the command
+        Parses the command and builds the set arguments into the command. Manually specified arguments trump overridden
+        arguments (set_args) and overridden arguments trump default arguments.
         :param doc: the document with the raw text. Usually manually created for this function to parse.
         :type doc: prompt_toolkit.document.Document
         :param command: the command of the text
@@ -317,68 +318,80 @@ class App(object):
         positional_idx = 0  # Count the number of positional (required too) arguments there are in a argparse command
         final_args = []
         final_arg_texts = []
-        for arg in command.optional_arguments + command.positionals:
-            new_arg = {
-                'positional': None,
-                'arg': arg,
-                'value': None,
-                'specified': False,
-            }
+        for arg in command.optional_arguments + command.positionals:  # Go through every argument in a command that is
+            # not help or version or dev mode when dev mode is off
             if arg.type == arg.Type.Help or arg.type == arg.Type.Version:
                 continue
 
             if arg.dev is True and self.dev_mode is False:
                 continue
 
-            if arg.__class__.__name__ == 'PositionalArgumentPromptToolkit':
+            new_arg = {
+                'positional': None,
+                'arg': arg,
+                'value': None,
+                'specified': False,
+            }
+
+            if arg.__class__.__name__ == 'PositionalArgumentPromptToolkit':  # If positional, mark its place
                 new_arg['positional'] = positional_idx
                 positional_idx += 1
 
-            if hasattr(existing_args, arg.dest):
+            if hasattr(existing_args, arg.dest):  # If the argument is manually specified
                 spec_arg_val = getattr(existing_args, arg.dest)
-                if arg.default == spec_arg_val and spec_arg_val is not None:
-                    if new_arg['positional'] is None:
+                if arg.default == spec_arg_val and spec_arg_val is not None:  # If the default is the specified
+                    # argument value. In positionals, we don't know if this is the user specifying the value or the
+                    # parser is. Ideally, the user would trump the override (set_args) and the override would trump
+                    # the parser
+                    if new_arg['positional'] is None:  # If the argument is an optional argument, look for the tag in
+                        # the text. If the tag is found, mark it as specified, trumping the override
                         new_arg['specified'] = arg.tag in args_text
-                    else:
+                    else:  # If the argument is a positional, look for the value in the text. This is not the most
+                        # ideal way to do it, but it is the only way
                         new_arg['specified'] = spec_arg_val in args_text
                 else:
                     new_arg['specified'] = True
 
-                new_arg['value'] = spec_arg_val
-                if arg.type == arg.Type.AppendConst and new_arg['value'] is not None:
+                new_arg['value'] = spec_arg_val  # Set the value to the manual value
+                if arg.type == arg.Type.AppendConst and new_arg['value'] is not None:  # If the argument type is
+                    # AppendConst, set the value to be either true or false, depending on if the flag was specified
                     new_arg['value'] = arg.raw.const in new_arg['value']
-                elif arg.type == arg.Type.StoreFalse:
+                elif arg.type == arg.Type.StoreFalse and new_arg['value'] is not None:  # If the argument type is
+                    # StoreFalse, it has been specified and therefore, set the value to True
                     new_arg['value'] = True
             if arg.get_name() in set_args_dict and (not (
                         hasattr(existing_args, arg.dest) and getattr(existing_args, arg.dest) is not None) or not
-                        new_arg['specified']):
+                        new_arg['specified']):  # If the value is in the overrides (set_args) and not already
+                # specified manually, set the value
                 new_arg['value'] = set_args_dict[arg.get_name()]
                 new_arg['specified'] = True
 
-            if new_arg['value'] is not None and new_arg['specified']:
+            if new_arg['value'] is not None and new_arg['specified']:  # Add all specified arguments with values
                 final_args.append(new_arg)
 
-        for final_opt_arg in filter(lambda x: x['positional'] is None, final_args):
+        for final_opt_arg in filter(lambda x: x['positional'] is None, final_args):  # Go through each specified
+            # optional argument and add it to the new command in its own way
             arg = final_opt_arg['arg']
-            if arg.type == arg.Type.Store:
+            if arg.type == arg.Type.Store:  # Adds the tag and value: `{tag} {value}`
                 final_arg_texts.append(arg.tag + ' ' + str(final_opt_arg['value']))
             elif arg.type == arg.Type.StoreConst and final_opt_arg['value'] is not None:
-                final_arg_texts.append(arg.tag)
+                final_arg_texts.append(arg.tag)  # Adds the tag if the value is not none: `{tag}`
             elif arg.type == arg.Type.StoreFalse and final_opt_arg['value'] is True:
-                final_arg_texts.append(arg.tag)
+                final_arg_texts.append(arg.tag)  # Adds the tag if the value passed says it can be specified: `{tag}`
             elif arg.type == arg.Type.StoreTrue and final_opt_arg['value'] is True:
-                final_arg_texts.append(arg.tag)
-            elif arg.type == arg.Type.Append:
+                final_arg_texts.append(arg.tag)  # Adds the tag if the value passed says it can be specified: `{tag}`
+            elif arg.type == arg.Type.Append:  # Adds the tag and value multiple times:
+                # `{tag} {value1} {tag} {value2}...`
                 final_arg_texts.append(
                     ' '.join(map(lambda val: arg.tag + ' ' + val, final_opt_arg['value'])))
-            elif arg.type == arg.Type.Count:
+            elif arg.type == arg.Type.Count:  # Adds the tag multiple times: `{tag} {tag}...`
                 final_arg_texts.append(' '.join([arg.tag] * final_opt_arg['value']))
             elif arg.type == arg.Type.AppendConst and final_opt_arg['value'] is True:
-                final_arg_texts.append(arg.tag)
+                final_arg_texts.append(arg.tag)  # Adds the tag if the value passed says it can be specified: `{tag}`
 
         final_arg_texts.extend(map(lambda x: x['value'],
                                    sorted(filter(lambda x: x['positional'] is not None, final_args),
-                                          key=lambda x: x['positional'])))
+                                          key=lambda x: x['positional'])))  # Add positionals in order
 
         return doc.text[:self.completer.get_current_command_location(doc)[1]] + ' ' + ' '.join(
             final_arg_texts)
