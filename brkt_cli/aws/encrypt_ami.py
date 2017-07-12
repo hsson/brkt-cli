@@ -423,23 +423,7 @@ def _register_ami(aws_svc, encryptor_instance, encryptor_image, name,
         description=description
     )
     aws_svc.create_tags(ami)
-
-    ami_info = {}
-    ami_info['volume_device_map'] = []
-    result_image = aws_svc.get_image(ami, retry=True)
-    for attach_point, bdt in result_image.block_device_mapping.iteritems():
-        if bdt.snapshot_id:
-            bdt_snapshot = aws_svc.get_snapshot(bdt.snapshot_id)
-            device_details = {
-                'attach_point': attach_point,
-                'description': bdt_snapshot.tags.get('Name', ''),
-                'size': bdt_snapshot.volume_size
-            }
-            ami_info['volume_device_map'].append(device_details)
-
-    ami_info['ami'] = ami
-    ami_info['name'] = name
-    return ami_info
+    return image
 
 
 def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
@@ -451,12 +435,12 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
     log.info('Starting encryptor session %s', aws_svc.session_id)
 
     encryptor_instance = None
-    ami = None
     snapshot_id = None
     guest_instance = None
     temp_sg_id = None
     guest_image = aws_svc.get_image(image_id)
     mv_image = aws_svc.get_image(encryptor_ami)
+    encrypted_image = None
 
     # Normal operation is both encryptor and guest match
     # on virtualization type, but we'll support a PV encryptor
@@ -546,7 +530,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
                 log.warn('Unable to enable sriovNetSupport for guest '
                          'instance %s with error %s', guest_instance.id, e)
 
-        ami_info = _register_ami(
+        encrypted_image = _register_ami(
             aws_svc,
             encryptor_instance,
             mv_image,
@@ -557,8 +541,9 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             mv_root_id=mv_root_id,
             mv_bdm=mv_bdm
         )
-        ami = ami_info['ami']
-        log.info('Created encrypted AMI %s based on %s', ami, image_id)
+        log.info('Created encrypted AMI %s based on %s',
+                 encrypted_image.id, image_id)
+        return encrypted_image.id
     finally:
         instance_ids = []
         if guest_instance:
@@ -566,7 +551,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
 
         terminate_encryptor = (
             encryptor_instance and
-            (ami or terminate_encryptor_on_failure)
+            (encrypted_image or terminate_encryptor_on_failure)
         )
 
         if terminate_encryptor:
@@ -609,6 +594,3 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             snapshot_ids=snapshot_ids,
             security_group_ids=sg_ids
         )
-
-    log.info('Done.')
-    return ami
