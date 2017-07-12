@@ -332,25 +332,6 @@ class TestRunEncryption(unittest.TestCase):
 
         self.assertTrue(self.terminate_instance_called)
 
-    def test_register_ami_hvm(self):
-        """ Test the new (non-legacy) code path in register_ami().
-        """
-        aws_svc, encryptor_image, guest_image = build_aws_service()
-        encryptor_instance = aws_svc.run_instance(encryptor_image.id)
-        guest_instance = aws_svc.run_instance(guest_image.id)
-        mv_bdm = encryptor_instance.block_device_mapping
-        mv_root_volume_id = mv_bdm['/dev/sda1'].volume_id
-        encrypt_ami._register_ami(
-            aws_svc,
-            encryptor_instance,
-            encryptor_image,
-            'Name',
-            'Description',
-            legacy=False,
-            guest_instance=guest_instance,
-            mv_root_id=mv_root_volume_id
-        )
-
     def test_clean_up_root_snapshot(self):
         """ Test that we clean up the root snapshot if an exception is
         raised while waiting for it to complete.
