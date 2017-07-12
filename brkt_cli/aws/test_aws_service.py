@@ -238,6 +238,9 @@ class DummyAWSService(aws_service.BaseAWSService):
 
     def attach_volume(self, vol_id, instance_id, device):
         instance = self.get_instance(instance_id)
+        if device in instance.block_device_mapping:
+            raise Exception(
+                '%s is already in use on %s' % (device, instance_id))
         bdt = BlockDeviceType(volume_id=vol_id, size=8)
         instance.block_device_mapping[device] = bdt
         return True
@@ -267,7 +270,12 @@ class DummyAWSService(aws_service.BaseAWSService):
         self.volumes[volume.id] = volume
         return volume
 
-    def detach_volume(self, vol_id, **kwargs):
+    def detach_volume(self, vol_id, instance_id, force=True):
+        instance = self.get_instance(instance_id)
+        for name, device in instance.block_device_mapping.items():
+            if device.volume_id == vol_id:
+                del instance.block_device_mapping[name]
+
         self.volumes[vol_id].status = 'available'
         return True
 

@@ -190,7 +190,7 @@ class BaseAWSService(object):
         pass
 
     @abc.abstractmethod
-    def detach_volume(self, vol_id, instance_id=None, force=True):
+    def detach_volume(self, vol_id, instance_id, force=True):
         pass
 
     @abc.abstractmethod
@@ -515,7 +515,7 @@ class AWSService(BaseAWSService):
             block_device_mapping=block_device_mapping
         )
 
-    def detach_volume(self, vol_id, instance_id=None, force=True):
+    def detach_volume(self, vol_id, instance_id, force=True):
         detach_volume = self.retry(self.conn.detach_volume)
         return detach_volume(
             vol_id, instance_id=instance_id, force=force)
