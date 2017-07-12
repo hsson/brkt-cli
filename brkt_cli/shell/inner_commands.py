@@ -152,7 +152,7 @@ def help_inner_command_func(params, app):
     :rtype: None
     """
     print colored('Brkt CLI Shell Inner Command Help', attrs=['bold'])
-    for _, cmd in app.INNER_COMMANDS.iteritems():
+    for _, cmd in app.inner_commands.iteritems():
         print cmd.name + '\t' + cmd.description
         print '\t' + app.COMMAND_PREFIX + cmd.usage
 

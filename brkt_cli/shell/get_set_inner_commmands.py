@@ -35,7 +35,7 @@ def set_inner_command_func(params, app):
         sc = app.cmd.get_subcommand_from_path(cmd_path)
         if arg_name_split[-1] not in map(lambda x: x.get_name(),
                                          filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version and
-                                                         v.dev is False or (v.dev is True and app.dev_mode is True),
+                                                (v.dev is False or app.dev_mode is True),
                                                 sc.optional_arguments + sc.positionals)):  # Make sure the selected
             # argument is not a help or version argument and if dev, dev mode is enables
             raise InnerCommandError('Unknown argument in path key')
@@ -77,7 +77,7 @@ def complete_set_inner_command(arg_idx, app, full_args_text, document):
             arg_list.extend(map(lambda x: path + '.' + x,
                                 map(lambda x: x.get_name(),
                                     filter(lambda x: x.type is not x.Type.Help and x.type is not x.Type.Version and
-                                           x.dev is False or (x.dev is True and app.dev_mode is True),
+                                           (x.dev is False or app.dev_mode is True),
                                            got_cmd.optional_arguments + got_cmd.positionals)
                                     )
                                 ))  # Get All arguments that are not help or version and get their names and add them
@@ -88,8 +88,14 @@ def complete_set_inner_command(arg_idx, app, full_args_text, document):
     elif arg_idx == 1:  # If the user is on the second (and last) argument, suggest options if options are available or
         # nothing if they are not
         arg = app.cmd.get_argument_from_full_path(full_args_text[0])
-        if arg is not None and arg.choices is not None and len(arg.choices) > 0:
-            return arg.choices
+        if arg is not None:
+            if arg.choices is not None and len(arg.choices) > 0:
+                return arg.choices
+            elif arg.type is arg.Type.StoreConst or arg.type is arg.Type.StoreTrue or arg.type is arg.Type.StoreFalse \
+                    or arg.type is arg.Type.AppendConst:
+                return ['true', 'false']
+            else:
+                return []
         else:
             return []
     else:
@@ -116,7 +122,7 @@ def get_inner_command_func(params, app):
         sc = app.cmd.get_subcommand_from_path(cmd_path)
         if arg_name_split[-1] not in map(lambda x: x.get_name(),
                                          filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version and
-                                                         v.dev is False or (v.dev is True and app.dev_mode is True),
+                                                (v.dev is False or app.dev_mode is True),
                                                 sc.optional_arguments + sc.positionals)):  # Make sure the selected
             # argument is not a help or version argument and if dev, dev mode is enables
             raise InnerCommandError('Unknown argument in path')
@@ -147,10 +153,16 @@ def complete_get_inner_command(arg_idx, app, full_args_text, document):
     :return: a list of acceptable suggestions
     :rtype: list[unicode]
     """
+    def check_if_path_is_usable(path):
+        arg = app.cmd.get_argument_from_full_path(path)
+        if arg is None:
+            return True
+        return arg.dev is False or app.dev_mode is True
+
     if arg_idx == 0:  # If it is the first argument, list all keys in the app
         arg_list = []
         for key, cmd in app.set_args.iteritems():
-            arg_list.extend(map(lambda x: key + '.' + x, cmd.keys()))
+            arg_list.extend(filter(lambda x: check_if_path_is_usable(x), map(lambda x: key + '.' + x, cmd.keys())))
         return arg_list
     else:
         return []
@@ -176,7 +188,7 @@ def del_inner_command_func(params, app):
         sc = app.cmd.get_subcommand_from_path(cmd_path)
         if arg_name_split[-1] not in map(lambda x: x.get_name(),
                                          filter(lambda v: v.type is not v.Type.Help and v.type is not v.Type.Version and
-                                                         v.dev is False or (v.dev is True and app.dev_mode is True),
+                                                (v.dev is False or app.dev_mode is True),
                                                 sc.optional_arguments + sc.positionals)):  # Make sure the selected
             # argument is not a help or version argument and if dev, dev mode is enables
             raise InnerCommandError('Unknown argument in path')
@@ -209,10 +221,16 @@ def complete_del_inner_command(arg_idx, app, full_args_text, document):
     :return: a list of acceptable suggestions
     :rtype: list[unicode]
     """
+    def check_if_path_is_usable(path):
+        arg = app.cmd.get_argument_from_full_path(path)
+        if arg is None:
+            return True
+        return arg.dev is False or app.dev_mode is True
+
     if arg_idx == 0:  # If it is the first argument, list all keys in the app
         arg_list = []
         for key, cmd in app.set_args.iteritems():
-            arg_list.extend(map(lambda x: key + '.' + x, cmd.keys()))
+            arg_list.extend(filter(lambda x: check_if_path_is_usable(x), map(lambda x: key + '.' + x, cmd.keys())))
         return arg_list
     else:
         return []
@@ -238,6 +256,8 @@ def parse_set_command_arg(val, arg):
         return val.lower() == 'true'
     elif arg.type is arg.Type.Append:
         return map(lambda x: _parse_argument_type(x.strip(), arg), val.split(','))
+    elif arg.type is arg.Type.Count:
+        return int(val)
     else:
         return InnerCommandError('Unsupported argument type')
 

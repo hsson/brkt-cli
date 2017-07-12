@@ -104,7 +104,7 @@ class CommandPromptToolkit(object):
         :param path: the path of the command. For example, `brkt.aws.encrypt`
         :type path: unicode
         :param parse_args: the parse arguments function from the raw argparse class
-        :type parse_args: (list[unicode], argparse.Namespace) -> argparse.Namespace
+        :type parse_args: ((list[unicode], argparse.Namespace) -> argparse.Namespace) | None
         """
         self.name = name
         self.description = description
@@ -191,7 +191,7 @@ class CommandPromptToolkit(object):
         :return: if the command has subcommands
         :rtype: bool
         """
-        return self.subcommands and len(self.subcommands) > 0
+        return self.subcommands is not None and len(self.subcommands) > 0
 
     def list_argument_names(self):
         """

@@ -11,16 +11,22 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-class Enum:
-    @classmethod
-    def format_enum(cls, enum):
-        """
-        Formats an enum as a string
-        :param enum: the enum integer
-        :type enum: int
-        :return: the string name of the enum
-        :rtype: unicode
-        """
-        for name, val in filter((lambda (key, value): not key.startswith('__')), cls.__dict__.items()):
-            if val == enum:
-                return name
+import unittest
+
+from brkt_cli.shell.enum import Enum
+
+
+class TestEnum(unittest.TestCase):
+    def test_format_enum(self):
+        class FakeEnum(Enum):
+            Unknown, Foo, Bar = range(3)
+
+        self.assertEqual(FakeEnum.format_enum(FakeEnum.Unknown), 'Unknown')
+        self.assertEqual(FakeEnum.format_enum(FakeEnum.Foo), 'Foo')
+        self.assertEqual(FakeEnum.format_enum(FakeEnum.Bar), 'Bar')
+        self.assertEqual(FakeEnum.format_enum(2), 'Bar')
+        self.assertIsNone(FakeEnum.format_enum(3))
+
+
+if __name__ == '__main__':
+    unittest.main()
