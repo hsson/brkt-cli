@@ -188,9 +188,6 @@ class DummyAWSService(aws_service.BaseAWSService):
             self.terminate_instance_callback(instance_id)
 
         instance = self.instances[instance_id]
-        if self.terminate_instance_callback:
-            self.terminate_instance_callback(instance)
-
         instance._state.code = 48
         instance._state.name = 'terminated'
         return instance
