@@ -24,6 +24,7 @@ from brkt_cli.shell.test_utils import make_app, trap_print_output
 class TestSettings(unittest.TestCase):
     def test_set_value(self):
         self.test_set_value_changed = False
+
         def on_changed(val):
             self.test_set_value_changed = True
         setting = Setting('test', True, str_acceptable_values=['true', 'false'], parse_value=bool_parse_value,
@@ -91,8 +92,6 @@ class TestSettings(unittest.TestCase):
         ret = complete_setting_inner_command(1, app, ['fake'], Document(u'/setting fake '))
         ret.sort()
         self.assertListEqual(ret, [])
-
-
 
 if __name__ == '__main__':
     unittest.main()

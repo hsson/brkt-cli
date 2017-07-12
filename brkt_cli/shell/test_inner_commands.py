@@ -24,8 +24,9 @@ from brkt_cli.shell.test_utils import make_app
 class TestInnerCommand(unittest.TestCase):
     def test_run_action(self):
         app = make_app()
-        def action(params, app):
-            return params, app
+
+        def action(params, the_app):
+            return params, the_app
 
         cmd = InnerCommand('test', 'a test', '/test', action)
         ret_params, ret_app = cmd.run_action('/test', app)
@@ -101,7 +102,7 @@ class TestInnerCommand(unittest.TestCase):
         res = res_func(100, app, [], Document())
         self.assertListEqual(res, [])
 
-        res_func = inner_command_completer_static([['foo','bar']])
+        res_func = inner_command_completer_static([['foo', 'bar']])
         res = res_func(0, app, [], Document())
         self.assertListEqual(res, ['foo', 'bar'])
 

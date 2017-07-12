@@ -249,8 +249,7 @@ def parse_set_command_arg(val, arg):
     if arg.type is arg.Type.Store:
         return _parse_argument_type(val, arg)
     elif arg.type is arg.Type.StoreConst or arg.type is arg.Type.StoreTrue or arg.type is arg.Type.StoreFalse or \
-                    arg.type is arg.Type.AppendConst:  # If the argument is one of these, it must be either
-        # true or false
+            arg.type is arg.Type.AppendConst:  # If the argument is one of these, it must be either true or false
         if val.lower() not in ['true', 'false']:
             raise InnerCommandError('Unknown value type. Can be either: "true", "false"')
         return val.lower() == 'true'
