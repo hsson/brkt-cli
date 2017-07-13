@@ -200,7 +200,7 @@ class ConfigCommandTestCase(unittest.TestCase):
         self.cfg.register_option('test-section.test-option', 'A test')
         self.cmd = ConfigSubcommand(stdout=self.out)
         parser = argparse.ArgumentParser()
-        self.cmd.register(parser.add_subparsers(), self.cfg)
+        self.cmd.register(parser.add_subparsers(), self.cfg, False)
         self.cmd._write_config = noop
 
     def test_set_list_get_unset(self):

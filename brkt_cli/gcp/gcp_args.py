@@ -11,7 +11,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import argparse
+from brkt_cli.dev_arg import add_hidden_argument
 
 
 def add_gcp_network(parser, parsed_config):
@@ -72,43 +72,52 @@ def add_gcp_image_project(parser):
         required=False
     )
 
-def add_gcp_encryptor_image(parser):
+def add_gcp_encryptor_image(parser, dev_help):
     # Optional encryptor image name, if it exists in the local GCP project
     # argument is hidden because it's only used for development.
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--encryptor-image',
         dest='encryptor_image',
         required=False,
-        help=argparse.SUPPRESS
+        help='Encryptor image name, if it exists in the local GCP project'
     )
 
-def add_gcp_encryptor_image_file(parser):
+def add_gcp_encryptor_image_file(parser, dev_help):
     # Optional Image Name that's used to launch the metavisor instance. This
     # argument is hidden because it's only used for development.
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--encryptor-image-file',
         dest='image_file',
         required=False,
-        help=argparse.SUPPRESS
+        help='Metavisor image name'
     )
 
-def add_gcp_encryptor_image_bucket(parser):
+def add_gcp_encryptor_image_bucket(parser, dev_help):
     # Optional bucket name to retrieve the metavisor image from
     # (prod, stage, shared, <custom>)
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--encryptor-image-bucket',
-        help=argparse.SUPPRESS,
+        help='Optional bucket name to retrieve the metavisor image from (prod, stage, shared, <custom>)',
         dest='bucket',
         default='prod',
         required=False
     )
 
-def add_no_cleanup(parser):
-    parser.add_argument(
+def add_no_cleanup(parser, dev_help):
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--no-cleanup',
         dest='cleanup',
         required=False,
         default=True,
         action='store_false',
-        help=argparse.SUPPRESS
+        help='Keep the downloaded artifacts. Can be used in cases where the same (downloaded) OVF is used for '
+             'multiple encryption/update jobs'
     )

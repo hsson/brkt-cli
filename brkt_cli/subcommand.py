@@ -48,7 +48,7 @@ class Subcommand(object):
         pass
 
     @abc.abstractmethod
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         """ Add a subcommand to the top-level command parser.
 
         :param subparsers: the ArgumentParser object returned by

@@ -467,7 +467,7 @@ class AWSSubcommand(Subcommand):
             'The AWS subnet metavisors will be launched into'
         )
 
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         self.config = parsed_config
 
         aws_parser = subparsers.add_parser(
@@ -489,8 +489,8 @@ class AWSSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         encrypt_ami_args.setup_encrypt_ami_args(
-            encrypt_ami_parser, parsed_config)
-        setup_instance_config_args(encrypt_ami_parser, parsed_config,
+            encrypt_ami_parser, parsed_config, dev_help)
+        setup_instance_config_args(encrypt_ami_parser, parsed_config, dev_help,
                                    mode=INSTANCE_CREATOR_MODE)
         encrypt_ami_parser.set_defaults(aws_subcommand='encrypt')
 
@@ -502,7 +502,7 @@ class AWSSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         share_logs_args.setup_share_logs_args(
-            share_logs_parser, parsed_config)
+            share_logs_parser, parsed_config, dev_help)
         share_logs_parser.set_defaults(aws_subcommand='share-logs')
 
         update_encrypted_ami_parser = aws_subparsers.add_parser(
@@ -515,9 +515,9 @@ class AWSSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         update_encrypted_ami_args.setup_update_encrypted_ami(
-            update_encrypted_ami_parser, parsed_config)
+            update_encrypted_ami_parser, parsed_config, dev_help)
         setup_instance_config_args(update_encrypted_ami_parser,
-                                   parsed_config,
+                                   parsed_config, dev_help,
                                    mode=INSTANCE_UPDATER_MODE)
         update_encrypted_ami_parser.set_defaults(aws_subcommand='update')
 
@@ -528,8 +528,8 @@ class AWSSubcommand(Subcommand):
             ),
             help='Launch guest image wrapped with Bracket Metavisor'
         )
-        wrap_image_args.setup_wrap_image_args(wrap_parser, parsed_config)
-        setup_instance_config_args(wrap_parser, parsed_config,
+        wrap_image_args.setup_wrap_image_args(wrap_parser, parsed_config, dev_help)
+        setup_instance_config_args(wrap_parser, parsed_config, dev_help,
                                    mode=INSTANCE_CREATOR_MODE)
         wrap_parser.set_defaults(aws_subcommand='wrap-guest-image')
 

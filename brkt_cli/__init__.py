@@ -320,6 +320,13 @@ def main():
         default=True,
         help="Don't check whether this version of brkt-cli is supported"
     )
+    # A flag to determine if --help should display hidden arguments
+    parser.add_argument(
+        '--dev',
+        action='store_true',
+        default=False,
+        help=argparse.SUPPRESS,
+    )
 
     # Batch up messages that are logged while loading modules.  We don't know
     # whether to log them yet, since we haven't parsed arguments.  argparse
@@ -377,13 +384,16 @@ def main():
         'Reading config from %s' % (CONFIG_PATH,))
     config.read()
 
+    dev_help = '--dev' in sys.argv
+
     # Add subcommands to the parser.
     for s in subcommands:
         subcommand_load_messages.append(
             'Registering subcommand %s' % s.name())
-        s.register(subparsers, config)
+        s.register(subparsers, config, dev_help)
 
     argv = sys.argv[1:]
+
     values = parser.parse_args(argv)
 
     # Find the matching subcommand.

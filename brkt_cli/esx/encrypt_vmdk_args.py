@@ -14,7 +14,7 @@
 from brkt_cli.esx import esx_args
 
 
-def setup_encrypt_vmdk_args(parser):
+def setup_encrypt_vmdk_args(parser, dev_help):
     parser.add_argument(
         'vmdk',
         metavar='VMDK-NAME',
@@ -57,13 +57,13 @@ def setup_encrypt_vmdk_args(parser):
     esx_args.add_metavisor_version(parser)
     esx_args.add_console_file_name(parser)
     esx_args.add_disk_type(parser)
-    esx_args.add_use_esx_host(parser)
-    esx_args.add_http_s3_proxy(parser)
-    esx_args.add_encryptor_vmdk(parser)
-    esx_args.add_ssh_public_key(parser)
-    esx_args.add_no_teardown(parser)
-    esx_args.add_bucket_name(parser)
-    esx_args.add_nic_type(parser)
-    esx_args.add_crypto_policy(parser)
-    esx_args.add_no_cleanup(parser)
-    esx_args.add_cdrom(parser)
+    esx_args.add_use_esx_host(parser, dev_help)
+    esx_args.add_http_s3_proxy(parser, dev_help)
+    esx_args.add_encryptor_vmdk(parser, dev_help)
+    esx_args.add_ssh_public_key(parser, dev_help)
+    esx_args.add_no_teardown(parser, dev_help)
+    esx_args.add_bucket_name(parser, dev_help)
+    esx_args.add_nic_type(parser, dev_help)
+    esx_args.add_crypto_policy(parser, dev_help)
+    esx_args.add_no_cleanup(parser, dev_help)
+    esx_args.add_cdrom(parser, dev_help)

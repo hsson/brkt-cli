@@ -11,8 +11,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-
-import argparse
+from brkt_cli.dev_arg import add_hidden_argument
 from brkt_cli.util import (
     CRYPTO_GCM,
     CRYPTO_XTS
@@ -20,7 +19,7 @@ from brkt_cli.util import (
 from brkt_cli.aws import aws_args
 
 
-def setup_encrypt_ami_args(parser, parsed_config):
+def setup_encrypt_ami_args(parser, parsed_config, dev_help):
     parser.add_argument(
         'ami',
         metavar='ID',
@@ -54,35 +53,42 @@ def setup_encrypt_ami_args(parser, parsed_config):
     aws_args.add_subnet(parser, parsed_config)
     aws_args.add_aws_tag(parser)
     aws_args.add_metavisor_version(parser)
-    aws_args.add_encryptor_ami(parser)
-    aws_args.add_key(parser)
-    aws_args.add_retry_timeout(parser)
-    aws_args.add_retry_initial_sleep_seconds(parser)
+    aws_args.add_encryptor_ami(parser, dev_help)
+    aws_args.add_key(parser, dev_help)
+    aws_args.add_retry_timeout(parser, dev_help)
+    aws_args.add_retry_initial_sleep_seconds(parser, dev_help)
 
-    parser.add_argument(
+    # TODO: Get a better help for this
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--save-encryptor-logs',
         dest='save_encryptor_logs',
         action='store_true',
-        help=argparse.SUPPRESS,
+        help='Saves encryptor logs',
         default=False
     )
 
     # Optional argument for development: if encryption fails, keep the
     # encryptor running so that we can debug it.
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--no-terminate-encryptor-on-failure',
         dest='terminate_encryptor_on_failure',
         action='store_false',
         default=True,
-        help=argparse.SUPPRESS
+        help='If encryption fails, keep the encryptor running so that we can debug it'
     )
     # Optional argument for root disk crypto policy. The supported values
     # currently are "gcm" and "xts" with "gcm" being the default
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--crypto-policy',
         dest='crypto',
         metavar='NAME',
         choices=[CRYPTO_GCM, CRYPTO_XTS],
-        help=argparse.SUPPRESS,
+        help='Root disk crypto policy: \'gcm\' or \'xts\'',
         default=None
     )

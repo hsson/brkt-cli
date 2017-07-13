@@ -602,7 +602,7 @@ class VMwareSubcommand(Subcommand):
     def name(self):
         return 'vmware'
 
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         self.config = parsed_config
         vmware_parser = subparsers.add_parser(
             self.name(),
@@ -629,8 +629,8 @@ class VMwareSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         encrypt_vmdk_args.setup_encrypt_vmdk_args(
-            encrypt_with_vcenter_parser)
-        setup_instance_config_args(encrypt_with_vcenter_parser, parsed_config)
+            encrypt_with_vcenter_parser, dev_help)
+        setup_instance_config_args(encrypt_with_vcenter_parser, parsed_config, dev_help)
 
         encrypt_with_esx_parser = vmware_subparsers.add_parser(
             'encrypt-with-esx-host',
@@ -641,8 +641,8 @@ class VMwareSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         encrypt_with_esx_host_args.setup_encrypt_with_esx_host_args(
-            encrypt_with_esx_parser)
-        setup_instance_config_args(encrypt_with_esx_parser, parsed_config)
+            encrypt_with_esx_parser, dev_help)
+        setup_instance_config_args(encrypt_with_esx_parser, parsed_config, dev_help)
 
         update_with_vcenter_parser = vmware_subparsers.add_parser(
             'update-with-vcenter',
@@ -653,8 +653,8 @@ class VMwareSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         update_encrypted_vmdk_args.setup_update_vmdk_args(
-            update_with_vcenter_parser)
-        setup_instance_config_args(update_with_vcenter_parser, parsed_config)
+            update_with_vcenter_parser, dev_help)
+        setup_instance_config_args(update_with_vcenter_parser, parsed_config, dev_help)
 
         update_with_esx_parser = vmware_subparsers.add_parser(
             'update-with-esx-host',
@@ -665,8 +665,8 @@ class VMwareSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         update_with_esx_host_args.setup_update_with_esx_host_args(
-            update_with_esx_parser)
-        setup_instance_config_args(update_with_esx_parser, parsed_config)
+            update_with_esx_parser, dev_help)
+        setup_instance_config_args(update_with_esx_parser, parsed_config, dev_help)
 
         wrap_with_vcenter_parser = vmware_subparsers.add_parser(
             'wrap-with-vcenter',
@@ -677,8 +677,8 @@ class VMwareSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         wrap_with_vcenter_args.setup_wrap_with_vcenter_args(
-            wrap_with_vcenter_parser)
-        setup_instance_config_args(wrap_with_vcenter_parser, parsed_config)
+            wrap_with_vcenter_parser, dev_help)
+        setup_instance_config_args(wrap_with_vcenter_parser, parsed_config, dev_help)
 
         wrap_with_esx_host_parser = vmware_subparsers.add_parser(
             'wrap-with-esx-host',
@@ -689,8 +689,8 @@ class VMwareSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         wrap_with_esx_host_args.setup_wrap_with_esx_host_args(
-            wrap_with_esx_host_parser)
-        setup_instance_config_args(wrap_with_esx_host_parser, parsed_config)
+            wrap_with_esx_host_parser, dev_help)
+        setup_instance_config_args(wrap_with_esx_host_parser, parsed_config, dev_help)
 
         rescue_metavisor_parser = vmware_subparsers.add_parser(
             # Don't specify the help field.  This is an internal command
@@ -703,7 +703,7 @@ class VMwareSubcommand(Subcommand):
         )
         rescue_metavisor_args.setup_rescue_metavisor_args(
             rescue_metavisor_parser)
-        setup_instance_config_args(rescue_metavisor_parser, parsed_config)
+        setup_instance_config_args(rescue_metavisor_parser, parsed_config, dev_help)
 
     def run(self, values):
         if values.vmware_subcommand == 'encrypt-with-vcenter':

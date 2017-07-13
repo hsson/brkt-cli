@@ -1,10 +1,23 @@
-import argparse
+# Copyright 2017 Bracket Computing, Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# A copy of the License is located at
+#
+# https://github.com/brkt/brkt-cli/blob/master/LICENSE
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and
+# limitations under the License.
+from brkt_cli.dev_arg import add_hidden_argument
 from brkt_cli.gcp import gcp_args
 
 
 # VERY EXPERIMENTAL FEATURE
 # It will not work for you
-def setup_launch_gcp_image_args(parser, parsed_config):
+def setup_launch_gcp_image_args(parser, parsed_config, dev_help):
     parser.add_argument(
         'image',
         metavar='ID',
@@ -46,18 +59,23 @@ def setup_launch_gcp_image_args(parser, parsed_config):
     # Optional startup script. Hidden because it is only used for development
     # and testing. It should be passed as a string containing a multi-line
     # script (bash, python etc.)
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--startup-script',
-        help=argparse.SUPPRESS,
+        help='Startup script. It should be passed as a string containing a multi-line script (bash, python etc.)',
         dest='startup_script',
         metavar='SCRIPT'
     )
     gcp_args.add_gcp_subnetwork(parser, parsed_config)
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--guest-fqdn',
         metavar='FQDN',
         dest='guest_fqdn',
-        help=argparse.SUPPRESS
+        help='Used by Metavisor as the CN field of the Subject DN in the cert requests it submits to an EST server '
+             '(for North-South VPN tunneling).'
     )
     # Optional (number of) SSD scratch disks because these can only be attached
     # at instance launch time, compared to the other (persistent) disks

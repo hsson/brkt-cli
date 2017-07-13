@@ -15,7 +15,7 @@
 from brkt_cli.aws import aws_args
 
 
-def setup_wrap_image_args(parser, parsed_config):
+def setup_wrap_image_args(parser, parsed_config, dev_help):
     parser.add_argument(
         'ami',
         metavar='ID',
@@ -41,11 +41,11 @@ def setup_wrap_image_args(parser, parsed_config):
     aws_args.add_subnet(parser, parsed_config)
     aws_args.add_aws_tag(parser)
     aws_args.add_metavisor_version(parser)
-    aws_args.add_key(parser, help='SSH key pair name')
+    aws_args.add_key(parser, dev_help, help='SSH key pair name')
 
     # Optional AMI ID that's used to launch the encryptor instance.  This
     # argument is hidden because it's only used for development.
-    aws_args.add_encryptor_ami(parser)
+    aws_args.add_encryptor_ami(parser, dev_help)
 
     # Optional IAM role for the instance
     parser.add_argument(
@@ -57,5 +57,5 @@ def setup_wrap_image_args(parser, parsed_config):
     # Optional arguments for changing the behavior of our retry logic.  We
     # use these options internally, to avoid intermittent AWS service failures
     # when running concurrent encryption processes in integration tests.
-    aws_args.add_retry_timeout(parser)
-    aws_args.add_retry_initial_sleep_seconds(parser)
+    aws_args.add_retry_timeout(parser, dev_help)
+    aws_args.add_retry_initial_sleep_seconds(parser, dev_help)

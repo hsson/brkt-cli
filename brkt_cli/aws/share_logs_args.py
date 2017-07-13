@@ -15,7 +15,7 @@
 from brkt_cli.aws import aws_args
 
 
-def setup_share_logs_args(parser, parsed_config):
+def setup_share_logs_args(parser, parsed_config, dev_help):
     parser.add_argument(
         '--snapshot',
         metavar='ID',
@@ -57,5 +57,5 @@ def setup_share_logs_args(parser, parsed_config):
         required=False
     )
     aws_args.add_no_validate(parser)
-    aws_args.add_retry_timeout(parser)
-    aws_args.add_retry_initial_sleep_seconds(parser)
+    aws_args.add_retry_timeout(parser, dev_help)
+    aws_args.add_retry_initial_sleep_seconds(parser, dev_help)

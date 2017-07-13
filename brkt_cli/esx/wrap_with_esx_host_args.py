@@ -11,11 +11,11 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import argparse
+from brkt_cli.dev_arg import add_hidden_argument
 from brkt_cli.esx import esx_args
 
 
-def setup_wrap_with_esx_host_args(parser):
+def setup_wrap_with_esx_host_args(parser, dev_help):
     parser.add_argument(
         'vmdk',
         metavar='VMDK-NAME',
@@ -38,15 +38,18 @@ def setup_wrap_with_esx_host_args(parser):
     esx_args.add_metavisor_ovf_image_name(parser)
     esx_args.add_metavisor_version(parser)
     esx_args.add_disk_type(parser)
-    esx_args.add_encryptor_vmdk(parser)
-    esx_args.add_ssh_public_key(parser)
-    esx_args.add_bucket_name(parser)
-    esx_args.add_nic_type(parser)
-    esx_args.add_http_s3_proxy(parser)
-    esx_args.add_no_cleanup(parser)
-    parser.add_argument(
+    esx_args.add_encryptor_vmdk(parser, dev_help)
+    esx_args.add_ssh_public_key(parser, dev_help)
+    esx_args.add_bucket_name(parser, dev_help)
+    esx_args.add_nic_type(parser, dev_help)
+    esx_args.add_http_s3_proxy(parser, dev_help)
+    esx_args.add_no_cleanup(parser, dev_help)
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--guest-fqdn',
         metavar='FQDN',
         dest='guest_fqdn',
-        help=argparse.SUPPRESS
+        help='Used by Metavisor as the CN field of the Subject DN in the cert requests it submits to an EST server '
+             '(for North-South VPN tunneling).'
     )

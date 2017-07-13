@@ -12,6 +12,8 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+
+from brkt_cli.dev_arg import add_hidden_argument
 from brkt_cli.util import (
     CRYPTO_GCM,
     CRYPTO_XTS
@@ -316,125 +318,238 @@ def add_disk_type(parser):
     )
 
 
-def add_nic_type(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--nic-type',
-        metavar='NAME',
-        dest='nic_type',
-        choices=["Port", "DistributedVirtualPort", "DistributedVirtualPortGroup"],
-        help='Port/DistributedVirtualPort/DistributedVirtualPortGroup',
-        default="Port",
-        required=False
-    )
+# Nic type to be used with VDS. Values can be Port, VirtualPort or VirtualPortGroup
+def add_nic_type(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--nic-type',
+            metavar='NAME',
+            dest='nic_type',
+            help='Port/DistributedVirtualPort/DistributedVirtualPortGroup',
+            choices=["Port", "DistributedVirtualPort", "DistributedVirtualPortGroup"],
+            default="Port",
+            required=False
+        )
+    else:
+        parser.add_argument(
+            '--nic-type',
+            metavar='NAME',
+            dest='nic_type',
+            help='Port/DistributedVirtualPort/DistributedVirtualPortGroup',
+            choices=["Port", "DistributedVirtualPort", "DistributedVirtualPortGroup"],
+            default="Port",
+            required=False
+        )
 
 
 # This argument is no longer required with the new command
 # syntax. Leaving it around for backwards compatibility.
-def add_use_esx_host(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--use-esx-host',
-        dest='esx_host',
-        action='store_true',
-        default=False,
-        help=help
-    )
+def add_use_esx_host(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--use-esx-host',
+            dest='esx_host',
+            action='store_true',
+            default=False,
+            help='Use an ESX host'
+        )
+    else:
+        parser.add_argument(
+            '--use-esx-host',
+            dest='esx_host',
+            action='store_true',
+            default=False,
+            help=help
+        )
 
 
 # Optional HTTP Proxy argument which can be used in proxied environments
 # Specifies the HTTP Proxy to use for S3/AWS connections
-def add_http_s3_proxy(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--http-s3-proxy',
-        dest='http_proxy',
-        metavar='HOST:PORT',
-        default=None,
-        help=help
-    )
-
+def add_http_s3_proxy(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--http-s3-proxy',
+            dest='http_proxy',
+            metavar='HOST:PORT',
+            default=None,
+            help='HTTP proxy for AWS connections'
+        )
+    else:
+        parser.add_argument(
+            '--http-s3-proxy',
+            dest='http_proxy',
+            metavar='HOST:PORT',
+            default=None,
+            help=help
+        )
 
 
 # Optional VMDK that's used to launch the encryptor instance.  This
 # argument is hidden because it's only used for development.
-def add_encryptor_vmdk(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--encryptor-vmdk',
-        metavar='VMDK-NAME',
-        dest='encryptor_vmdk',
-        help=help
-    )
+def add_encryptor_vmdk(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--encryptor-vmdk',
+            metavar='VMDK-NAME',
+            dest='encryptor_vmdk',
+            help='Metavisor VMDK'
+        )
+    else:
+        parser.add_argument(
+            '--encryptor-vmdk',
+            metavar='VMDK-NAME',
+            dest='encryptor_vmdk',
+            help=help
+        )
 
 
 # Optional ssh-public key to be put into the Metavisor.
 # Use only with debug instances.
 # Hidden because it is used only for development.
-def add_ssh_public_key(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--ssh-public-key',
-        metavar='PATH',
-        dest='ssh_public_key_file',
-        default=None,
-        help=help
-    )
+def add_ssh_public_key(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--ssh-public-key',
+            metavar='PATH',
+            dest='ssh_public_key_file',
+            default=None,
+            help='SSH public key to be put into the Metavisor. Use only with debug instances'
+        )
+    else:
+        parser.add_argument(
+            '--ssh-public-key',
+            metavar='PATH',
+            dest='ssh_public_key_file',
+            default=None,
+            help=help
+        )
 
 
 # Optional no-teardown will not tear down the
 # Encryptor/Updater VM in case of error.
 # Hidden because it is used only for development.
-def add_no_teardown(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--no-teardown',
-        dest='no_teardown',
-        action='store_true',
-        default=False,
-        help=help
-    )
+def add_no_teardown(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--no-teardown',
+            dest='no_teardown',
+            action='store_true',
+            default=False,
+            help='Will not tear down the Encryptor/Updater VM in case of error'
+        )
+    else:
+        parser.add_argument(
+            '--no-teardown',
+            dest='no_teardown',
+            action='store_true',
+            default=False,
+            help=help
+        )
 
 
 # Optional bucket-name in case dev/qa need to use
 # other internal buckets to fetch the MV image from
-def add_bucket_name(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--bucket-name',
-        metavar='NAME',
-        dest='bucket_name',
-        help=help,
-        default="solo-brkt-prod-ovf-image"
-    )
+def add_bucket_name(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--bucket-name',
+            metavar='NAME',
+            dest='bucket_name',
+            help='Bucket name in case dev/qa need to use other internal buckets to fetch the MV image from',
+            default="solo-brkt-prod-ovf-image"
+        )
+    else:
+        parser.add_argument(
+            '--bucket-name',
+            metavar='NAME',
+            dest='bucket_name',
+            help=help,
+            default="solo-brkt-prod-ovf-image"
+        )
 
 
 # Optional argument for root disk crypto policy. The supported values
 # currently are "gcm" and "xts" with "xts" being the default
-def add_crypto_policy(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--crypto-policy',
-        dest='crypto',
-        metavar='NAME',
-        choices=[CRYPTO_GCM, CRYPTO_XTS],
-        help=help,
-        default=None
-    )
+def add_crypto_policy(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--crypto-policy',
+            dest='crypto',
+            metavar='NAME',
+            choices=[CRYPTO_GCM, CRYPTO_XTS],
+            help='Root disk crypto policy: \'gcm\' or \'xts\'',
+            default=None
+        )
+    else:
+        parser.add_argument(
+            '--crypto-policy',
+            dest='crypto',
+            metavar='NAME',
+            choices=[CRYPTO_GCM, CRYPTO_XTS],
+            help=help,
+            default=None
+        )
 
 
-# Optional argument to keep the downloaded artifacts. Can we used in
+# Optional argument to keep the downloaded artifacts. Can be used in
 # cases where the same (downloaded) OVF is used for multiple
 # encryption/update jobs
-def add_no_cleanup(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--no-cleanup',
-        dest='cleanup',
-        default=True,
-        action='store_false',
-        help=help
-    )
+def add_no_cleanup(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--no-cleanup',
+            dest='cleanup',
+            default=True,
+            action='store_false',
+            help='Keep the downloaded artifacts. Can be used in cases where the same (downloaded) OVF is used for '
+                 'multiple encryption/update jobs'
+        )
+    else:
+        parser.add_argument(
+            '--no-cleanup',
+            dest='cleanup',
+            default=True,
+            action='store_false',
+            help=help
+        )
 
 
 # Optional argument to attach a CDROM device to the launched VM
 # Used currently only for PCF deployments
-def add_cdrom(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--cdrom',
-        dest='cdrom',
-        default=False,
-        action='store_true',
-        help=help
-    )
+def add_cdrom(parser, dev_help, help=argparse.SUPPRESS):
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--cdrom',
+            dest='cdrom',
+            default=False,
+            action='store_true',
+            help='Attach a CDROM device to the launched VM. Used currently only for PCF deployments'
+        )
+    else:
+        parser.add_argument(
+            '--cdrom',
+            dest='cdrom',
+            default=False,
+            action='store_true',
+            help=help
+        )

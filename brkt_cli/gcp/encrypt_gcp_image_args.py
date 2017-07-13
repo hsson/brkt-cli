@@ -11,7 +11,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import argparse
+from brkt_cli.dev_arg import add_hidden_argument
 from brkt_cli.gcp import gcp_args
 from brkt_cli.util import (
     CRYPTO_GCM,
@@ -19,7 +19,7 @@ from brkt_cli.util import (
 )
 
 
-def setup_encrypt_gcp_image_args(parser, parsed_config):
+def setup_encrypt_gcp_image_args(parser, parsed_config, dev_help):
     parser.add_argument(
         'image',
         metavar='ID',
@@ -36,7 +36,7 @@ def setup_encrypt_gcp_image_args(parser, parsed_config):
     gcp_args.add_no_validate(parser)
     gcp_args.add_gcp_project(parser, parsed_config)
     gcp_args.add_gcp_image_project(parser)
-    gcp_args.add_gcp_encryptor_image(parser)
+    gcp_args.add_gcp_encryptor_image(parser, dev_help)
     gcp_args.add_gcp_network(parser, parsed_config)
     gcp_args.add_gcp_subnetwork(parser, parsed_config)
     parser.add_argument(
@@ -49,22 +49,26 @@ def setup_encrypt_gcp_image_args(parser, parsed_config):
               ' multiple times.'
         )
     )
-    gcp_args.add_gcp_encryptor_image_file(parser)
-    gcp_args.add_gcp_encryptor_image_bucket(parser)
-    gcp_args.add_no_cleanup(parser)
-    parser.add_argument(
+    gcp_args.add_gcp_encryptor_image_file(parser, dev_help)
+    gcp_args.add_gcp_encryptor_image_bucket(parser, dev_help)
+    gcp_args.add_no_cleanup(parser, dev_help)
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--keep-encryptor',
         dest='keep_encryptor',
         action='store_true',
-        help=argparse.SUPPRESS
+        help='Keep encryptor'
     )
     # Optional argument for root disk crypto policy. The supported values
     # currently are "gcm" and "xts" with "gcm" being the default
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--crypto-policy',
         dest='crypto',
         metavar='NAME',
         choices=[CRYPTO_GCM, CRYPTO_XTS],
-        help=argparse.SUPPRESS,
+        help='Root disk crypto policy: \'gcm\' or \'xts\'',
         default=None
     )

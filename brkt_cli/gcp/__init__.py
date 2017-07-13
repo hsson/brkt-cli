@@ -364,7 +364,7 @@ class GCPSubcommand(Subcommand):
             '%s.zone' % (self.name(),),
             'The GCP zone metavisors will be launched into')
 
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         self.config = parsed_config
 
         gcp_parser = subparsers.add_parser(
@@ -384,8 +384,8 @@ class GCPSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         encrypt_gcp_image_args.setup_encrypt_gcp_image_args(
-            encrypt_gcp_image_parser, parsed_config)
-        setup_instance_config_args(encrypt_gcp_image_parser, parsed_config)
+            encrypt_gcp_image_parser, parsed_config, dev_help)
+        setup_instance_config_args(encrypt_gcp_image_parser, parsed_config, dev_help)
 
         update_gcp_image_parser = gcp_subparsers.add_parser(
             'update',
@@ -396,8 +396,8 @@ class GCPSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         update_encrypted_gcp_image_args.setup_update_gcp_image_args(
-            update_gcp_image_parser, parsed_config)
-        setup_instance_config_args(update_gcp_image_parser, parsed_config)
+            update_gcp_image_parser, parsed_config, dev_help)
+        setup_instance_config_args(update_gcp_image_parser, parsed_config, dev_help)
 
         launch_gcp_image_parser = gcp_subparsers.add_parser(
             'launch',
@@ -406,8 +406,8 @@ class GCPSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         launch_gcp_image_args.setup_launch_gcp_image_args(
-            launch_gcp_image_parser, parsed_config)
-        setup_instance_config_args(launch_gcp_image_parser, parsed_config,
+            launch_gcp_image_parser, parsed_config, dev_help)
+        setup_instance_config_args(launch_gcp_image_parser, parsed_config, dev_help,
                                    mode=INSTANCE_METAVISOR_MODE)
 
         wrap_image_parser = gcp_subparsers.add_parser(
@@ -419,8 +419,8 @@ class GCPSubcommand(Subcommand):
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         wrap_gcp_image_args.setup_wrap_gcp_image_args(
-            wrap_image_parser, parsed_config)
-        setup_instance_config_args(wrap_image_parser, parsed_config,
+            wrap_image_parser, parsed_config, dev_help)
+        setup_instance_config_args(wrap_image_parser, parsed_config, dev_help,
                                    mode=INSTANCE_METAVISOR_MODE)
 
         share_logs_parser = gcp_subparsers.add_parser(
@@ -432,7 +432,7 @@ class GCPSubcommand(Subcommand):
         )
         share_logs_gcp_args.setup_share_logs_gcp_args(share_logs_parser)
         setup_instance_config_args(
-            share_logs_parser, parsed_config, mode=INSTANCE_METAVISOR_MODE)
+            share_logs_parser, parsed_config, dev_help, mode=INSTANCE_METAVISOR_MODE)
 
     def debug_log_to_temp_file(self, values):
         return True

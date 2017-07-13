@@ -36,7 +36,7 @@ class AuthSubcommand(Subcommand):
     def name(self):
         return SUBCOMMAND_NAME
 
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         self.cfg = parsed_config
 
         parser = subparsers.add_parser(

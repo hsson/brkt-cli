@@ -13,6 +13,8 @@
 # limitations under the License.
 import argparse
 
+from brkt_cli.dev_arg import add_hidden_argument
+
 
 def add_region(parser, parsed_config):
     parser.add_argument(
@@ -82,47 +84,64 @@ def add_metavisor_version(parser):
     )
 
 
-def add_key(parser, help=argparse.SUPPRESS):
+def add_key(parser, dev_help, help=argparse.SUPPRESS):
     # Optional EC2 SSH key pair name to use for launching the guest
     # and encryptor instances.  This argument is hidden by default because
     # it's only used for development.
-    parser.add_argument(
-        '--key',
-        metavar='NAME',
-        help=help,
-        dest='key_name'
-    )
+    if help == argparse.SUPPRESS:
+        add_hidden_argument(
+            parser,
+            dev_help,
+            '--key',
+            metavar='NAME',
+            help='EC2 SSH key pair name to use for launching the guest and encryptor instances',
+            dest='key_name'
+        )
+    else:
+        parser.add_argument(
+            '--key',
+            metavar='NAME',
+            help=help,
+            dest='key_name'
+        )
 
 
-def add_encryptor_ami(parser):
+def add_encryptor_ami(parser, dev_help):
     # Optional AMI ID that's used to launch the encryptor instance.  This
     # argument is hidden because it's only used for development.
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--encryptor-ami',
         metavar='ID',
         dest='encryptor_ami',
-        help=argparse.SUPPRESS
+        help='Metavisor AMI ID'
     )
 
 
-def add_retry_timeout(parser):
+def add_retry_timeout(parser, dev_help):
     # Optional arguments for changing the behavior of our retry logic.  We
     # use these options internally, to avoid intermittent AWS service failures
     # when running concurrent encryption processes in integration tests.
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--retry-timeout',
         metavar='SECONDS',
         type=float,
-        help=argparse.SUPPRESS,
+        help='Default timeout for retrying AWS operations',
         default=10.0
     )
 
 
-def add_retry_initial_sleep_seconds(parser):
-    parser.add_argument(
+def add_retry_initial_sleep_seconds(parser, dev_help):
+    # TODO: Get a better help for this
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--retry-initial-sleep-seconds',
         metavar='SECONDS',
         type=float,
-        help=argparse.SUPPRESS,
+        help='Initial sleep time when retrying an AWS operation',
         default=0.25
     )

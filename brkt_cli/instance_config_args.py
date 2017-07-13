@@ -12,9 +12,10 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import logging
 import os
+
+from argparse import ArgumentParser
 
 import brkt_cli
 import brkt_cli.crypto
@@ -25,6 +26,7 @@ from brkt_cli import (
 from brkt_cli import argutil
 from brkt_cli import brkt_jwt
 from brkt_cli.config import CLIConfig
+from brkt_cli.dev_arg import add_hidden_argument
 from brkt_cli.instance_config import (
     InstanceConfig,
     INSTANCE_CREATOR_MODE,
@@ -38,7 +40,7 @@ from brkt_cli.validation import ValidationError
 log = logging.getLogger(__name__)
 
 
-def setup_instance_config_args(parser, parsed_config,
+def setup_instance_config_args(parser, parsed_config, dev_help,
                                mode=INSTANCE_CREATOR_MODE, brkt_tag=True):
     parser.add_argument(
         '--ntp-server',
@@ -80,19 +82,24 @@ def setup_instance_config_args(parser, parsed_config,
     # HSM proxy, Network RPC separated by commas:
     #
     # <rpc-host>:<rpc-port>,<hsmproxy-host>:<hsmproxy-port>,<network-host>:<network-port>
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--brkt-env',
         dest='brkt_env',
-        help=argparse.SUPPRESS
+        metavar='<RPC-HOST>:<RPC-PORT>,<HSMPROXY-HOST>:<HSMPROXY-PORT>,<NETWORK-HOST>:<NETWORK-PORT>',
+        help='Yeti endpoints contains the hosts and ports of the RPC, HSM proxy, Network RPC separated by commas'
     )
 
     # Optional domain that runs the Yeti service
     # (e.g. stage.mgmt.brkt.com). Hidden because it's only used for
     # development.
-    parser.add_argument(
+    add_hidden_argument(
+        parser,
+        dev_help,
         '--service-domain',
         metavar='DOMAIN',
-        help=argparse.SUPPRESS
+        help='Bracket service domain, e.g. mgmt.brkt.com'
     )
 
     if mode in (INSTANCE_CREATOR_MODE, INSTANCE_UPDATER_MODE):
@@ -281,19 +288,19 @@ def get_launch_token(values, cli_config):
     return token
 
 
-def instance_config_args_to_values(cli_args, mode=INSTANCE_CREATOR_MODE):
+def instance_config_args_to_values(cli_args, dev_help=False, mode=INSTANCE_CREATOR_MODE):
     """ Convenience function for testing instance_config settings
 
     :param cli_args: string with args separated by spaces
     :return the values object as returned from argparser.parse_args()
     """
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     config = CLIConfig()
     config.register_option(
         'token',
         'The default token to use when encrypting, updating, or launching'
         ' images')
-    setup_instance_config_args(parser, config, mode)
+    setup_instance_config_args(parser, config, dev_help, mode=mode)
     argv = cli_args.split()
     return parser.parse_args(argv)
 

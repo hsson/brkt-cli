@@ -11,7 +11,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import argparse
 import base64
 import logging
 import os
@@ -20,6 +19,7 @@ import re
 import brkt_cli
 from brkt_cli import argutil, crypto
 from brkt_cli import util
+from brkt_cli.dev_arg import add_hidden_argument
 from brkt_cli.instance_config import GuestFile
 from brkt_cli.instance_config import INSTANCE_METAVISOR_MODE
 from brkt_cli.instance_config_args import (
@@ -119,7 +119,7 @@ class MakeUserDataSubcommand(Subcommand):
     def name(self):
         return 'make-user-data'
 
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         self.config = parsed_config
 
         parser = subparsers.add_parser(
@@ -135,6 +135,7 @@ class MakeUserDataSubcommand(Subcommand):
         setup_instance_config_args(
             parser,
             parsed_config,
+            dev_help,
             mode=INSTANCE_METAVISOR_MODE,
         )
 
@@ -144,18 +145,22 @@ class MakeUserDataSubcommand(Subcommand):
             action='store_true',
             help='Base64-encode output (needed for instances in ESX)'
         )
-        parser.add_argument(
+        add_hidden_argument(
+            parser,
+            dev_help,
             '--unencrypted-guest',
             dest='unencrypted_guest',
             action='store_true',
-            help=argparse.SUPPRESS
+            help='Unencrypted guest'
         )
-        parser.add_argument(
+        add_hidden_argument(
+            parser,
+            dev_help,
             '--brkt-file',
             metavar='FILENAME',
             dest='make_user_data_brkt_files',
             action='append',
-            help=argparse.SUPPRESS
+            help='Bracket files'
         )
         parser.add_argument(
             '--guest-user-data-file',
@@ -169,21 +174,26 @@ class MakeUserDataSubcommand(Subcommand):
         # Certain customers need to set the FQDN of the guest instance, which
         # is used by Metavisor as the CN field of the Subject DN in the cert
         # requests it submits to an EST server (for North-South VPN tunneling).
-        parser.add_argument(
+        add_hidden_argument(
+            parser,
+            dev_help,
             '--guest-fqdn',
             metavar='FQDN',
             dest='make_user_data_guest_fqdn',
-            help=argparse.SUPPRESS
+            help='Used by Metavisor as the CN field of the Subject DN in the cert requests it submits to an EST server '
+                 '(for North-South VPN tunneling).'
         )
         # Optional ssh-public key to be put into the Metavisor.
         # Use only with debug instances for unencrypted guests
         # Hidden because it is used only for development.
-        parser.add_argument(
+        add_hidden_argument(
+            parser,
+            dev_help,
             '--ssh-public-key',
             metavar='PATH',
             dest='ssh_public_key_file',
             default=None,
-            help=argparse.SUPPRESS
+            help='SSH public key to be put into the Metavisor. Use only with debug instances for unencrypted guests'
         )
         argutil.add_out(parser)
 

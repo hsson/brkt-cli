@@ -15,7 +15,7 @@
 from brkt_cli.aws import aws_args
 
 
-def setup_update_encrypted_ami(parser, parsed_config):
+def setup_update_encrypted_ami(parser, parsed_config, dev_help):
     parser.add_argument(
         'ami',
         metavar='ID',
@@ -47,9 +47,9 @@ def setup_update_encrypted_ami(parser, parsed_config):
     aws_args.add_region(parser, parsed_config)
     aws_args.add_security_group(parser)
     aws_args.add_subnet(parser, parsed_config)
-    aws_args.add_key(parser)
+    aws_args.add_key(parser, dev_help)
     aws_args.add_aws_tag(parser)
     aws_args.add_metavisor_version(parser)
-    aws_args.add_encryptor_ami(parser)
-    aws_args.add_retry_timeout(parser)
-    aws_args.add_retry_initial_sleep_seconds(parser)
+    aws_args.add_encryptor_ami(parser, dev_help)
+    aws_args.add_retry_timeout(parser, dev_help)
+    aws_args.add_retry_initial_sleep_seconds(parser, dev_help)

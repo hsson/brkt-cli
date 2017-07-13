@@ -348,7 +348,7 @@ class ConfigSubcommand(Subcommand):
     def name(self):
         return 'config'
 
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         self.parsed_config = parsed_config
         config_parser = subparsers.add_parser(
             self.name(),

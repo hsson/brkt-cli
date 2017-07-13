@@ -38,7 +38,7 @@ class MakeTokenSubcommand(Subcommand):
     def name(self):
         return SUBCOMMAND_NAME
 
-    def register(self, subparsers, parsed_config):
+    def register(self, subparsers, parsed_config, dev_help):
         self.config = parsed_config
         _setup_args(subparsers, parsed_config)
 
