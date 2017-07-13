@@ -36,9 +36,11 @@ Before running brkt encrypt-ami, set the AWS_ACCESS_KEY_ID and
 AWS_SECRET_ACCESS_KEY environment variables, like you would when
 running the AWS command line utility.
 """
-
+import json
 import logging
 import os
+import re
+import urllib2
 
 from boto.ec2.blockdevicemapping import (
     BlockDeviceMapping,
@@ -99,6 +101,23 @@ def get_encrypted_suffix():
     """
     return NAME_ENCRYPTED_IMAGE_SUFFIX % {'nonce': make_nonce()}
 
+
+# Gets the list of official non-AWS Marketplace Ubuntu AMIs
+def get_ubuntu_amis():
+    resp = urllib2.urlopen("https://cloud-images.ubuntu.com/locator/ec2/releasesTable")
+    resp_str = resp.read()
+    resp.close()
+    # This API endpoint returns faulty JSON with a trailing comma. This regex removes this trailing comma
+    resp_str = re.sub(",[ \t\r\n]+}", "}", resp_str)
+    resp_str = re.sub(",[ \t\r\n]+\]", "]", resp_str)
+    ami_data = json.loads(resp_str)['aaData']
+    return ami_data
+
+
+# The API endpoint returns an HTML tag with the AMI ID in it. This regex just gets the AMI ID
+def get_ubuntu_ami_id_from_row(ami_row):
+    match_obj = re.match('^<.+>(ami-.+)</.+>$', ami_row[6])
+    return match_obj.group(1)
 
 def _get_name_from_image(image):
     name = append_suffix(

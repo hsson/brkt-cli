@@ -36,8 +36,8 @@ from brkt_cli.aws import (
 from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
 )
-from brkt_cli.aws.encrypt_ami_interactive import run_interactive as run_interactive_encrypt_ami, get_ubuntu_amis, \
-    get_ubuntu_ami_id_from_row
+from brkt_cli.aws.encrypt_ami import get_ubuntu_amis, get_ubuntu_ami_id_from_row
+from brkt_cli.aws.encrypt_ami_interactive import run_interactive_encrypt_ami
 from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
