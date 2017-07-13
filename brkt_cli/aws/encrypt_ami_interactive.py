@@ -15,7 +15,7 @@ import os
 import boto.ec2
 
 from brkt_cli.aws.encrypt_ami import get_ubuntu_amis, get_ubuntu_ami_id_from_row
-from brkt_cli.interactive_mode import InteractiveTextField, InteractivePasswordField, InteractiveSelectionMenu, \
+from brkt_cli.interactive_mode import InteractiveTextField, InteractivePasswordField, \
     InteractiveSelectionNameValueMenu, InteractiveSuperMenu
 from brkt_cli.yeti import YetiService
 
@@ -39,9 +39,15 @@ def run_interactive_encrypt_ami(values, parsed_config):
         token = y.auth(email, password)
         os.environ['BRKT_API_TOKEN'] = token
 
-    regions = map(lambda x: x.name, boto.ec2.regions())  # Ask which region
+    regions = map(lambda x: (x.name, x.name), boto.ec2.regions())  # Ask which region
     regions.sort()
-    region = InteractiveSelectionMenu('Region', regions).run()
+    config_region = parsed_config.get_option('aws.region')
+    region_ids = [x[0] for x in regions]
+    if config_region is not None and config_region in region_ids:
+        idx = region_ids.index(config_region)
+        regions[idx] = ('%s ** Default' % regions[idx][1], regions[idx][1])
+
+    region = InteractiveSelectionNameValueMenu('Region', regions).run()
 
     def run_get_ami_lib():  # Get all AMIs in library
         conn = boto.ec2.connect_to_region(region)
