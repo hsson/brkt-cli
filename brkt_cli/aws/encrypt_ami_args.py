@@ -24,6 +24,7 @@ def setup_encrypt_ami_args(parser, parsed_config):
     parser.add_argument(
         'ami',
         metavar='ID',
+        nargs=argparse.OPTIONAL,
         help='The guest AMI that will be encrypted. This can be the AMI ID, "ubuntu", or "centos".'
     )
     parser.add_argument(

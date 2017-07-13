@@ -36,6 +36,8 @@ from brkt_cli.aws import (
 from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
 )
+from brkt_cli.aws.encrypt_ami_interactive import run_interactive as run_interactive_encrypt_ami, get_ubuntu_amis, \
+    get_ubuntu_ami_id_from_row
 from brkt_cli.aws.update_ami import update_ami
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
@@ -208,21 +210,11 @@ def run_wrap_image(values, config):
 # Get the AMI ID if the CLI is passed "ubuntu" instead of an AMI. This function grabs the official, non-AWS Marketplace
 # version of the AMI from an API endpoint
 def get_ubuntu_ami_id(stock_image_version, region):
-    if not stock_image_version:
-        stock_image_version = '16.04'
-    resp = urllib2.urlopen("https://cloud-images.ubuntu.com/locator/ec2/releasesTable")
-    resp_str = resp.read()
-    resp.close()
-    # This API endpoint returns faulty JSON with a trailing comma. This regex removes this trailing comma
-    resp_str = re.sub(",[ \t\r\n]+}", "}", resp_str)
-    resp_str = re.sub(",[ \t\r\n]+\]", "]", resp_str)
-    ami_data = json.loads(resp_str)['aaData']
+    ami_data = get_ubuntu_amis()
     ubuntu_ami = ''
     for ami in ami_data:
         if ami[0] == region and ami[2].startswith(stock_image_version) and ami[4] == 'hvm:ebs-ssd':
-            # The API endpoint returns an HTML tag with the AMI ID in it. This regex just gets the AMI ID
-            match_obj = re.match('^<.+>(ami-.+)</.+>$', ami[6])
-            ubuntu_ami = match_obj.group(1)
+            ubuntu_ami = get_ubuntu_ami_id_from_row(ami)
     if not ubuntu_ami:
         raise ValidationError(
             'Could not find Ubuntu AMI version %s.' % stock_image_version)
@@ -537,16 +529,24 @@ class AWSSubcommand(Subcommand):
         return values.aws_subcommand in ('encrypt', 'update')
 
     def run(self, values):
-        if not values.region:
-            raise ValidationError(
-                'Specify --region or set the aws.region config key')
+        interactive_mode = False
         if values.aws_subcommand == 'encrypt':
+            interactive_mode = values.ami is None
+
+        if interactive_mode is False:
+            if not values.region:
+                raise ValidationError(
+                    'Specify --region or set the aws.region config key')
+        if values.aws_subcommand == 'encrypt':
+            if interactive_mode:
+                values = run_interactive_encrypt_ami(values, self.config)
+
             return run_encrypt(values, self.config, self.verbose)
-        if values.aws_subcommand == 'update':
+        elif values.aws_subcommand == 'update':
             return run_update(values, self.config, self.verbose)
-        if values.aws_subcommand == 'share-logs':
+        elif values.aws_subcommand == 'share-logs':
             return run_share_logs(values)
-        if values.aws_subcommand == 'wrap-guest-image':
+        elif values.aws_subcommand == 'wrap-guest-image':
             return run_wrap_image(values, self.config)
 
 
