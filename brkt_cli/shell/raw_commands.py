@@ -340,6 +340,12 @@ class ShellArgumentParser(ArgumentParser):
     A wrapper around the argparse.ArgumentParser so that commands can be parsed without the default mechanics of
     argparse being utilized
     """
+    def print_help(self, file=None):
+        """
+        Silenced print help method so it does not disturb the shell
+        """
+        raise Exception('print_help')
+
     def error(self, message):
         """
         Silenced error method so it does not disturb the shell
