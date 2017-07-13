@@ -16,7 +16,7 @@ import boto.ec2
 
 from brkt_cli.aws.encrypt_ami import get_ubuntu_amis, get_ubuntu_ami_id_from_row
 from brkt_cli.interactive_mode import InteractiveTextField, InteractivePasswordField, \
-    InteractiveSelectionNameValueMenu, InteractiveSuperMenu
+    InteractiveSelectionNameValueMenu, InteractiveSuperMenu, InteractiveYNField, InteractiveMultiKeyValueTextField
 from brkt_cli.yeti import YetiService
 
 
@@ -83,9 +83,16 @@ def run_interactive_encrypt_ami(values, parsed_config):
         ('Input a Custom AMI', run_get_custom_ami),
     ]).run()
 
+    raw_brkt_tags = InteractiveMultiKeyValueTextField('Brkt Tags', 'Name', 'Value').run()
+    brkt_tags = map(lambda (k, v): k + '=' + v, raw_brkt_tags)
+
+    if InteractiveYNField('Run Command', question_mark=True).run() is not True:
+        return 0
+
     # Set the values
     values.ami = ami
     values.region = region
+    values.brkt_tags = brkt_tags
 
     return values
 

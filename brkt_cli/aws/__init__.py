@@ -539,7 +539,11 @@ class AWSSubcommand(Subcommand):
                     'Specify --region or set the aws.region config key')
         if values.aws_subcommand == 'encrypt':
             if interactive_mode:
-                values = run_interactive_encrypt_ami(values, self.config)
+                ret = run_interactive_encrypt_ami(values, self.config)
+                if isinstance(ret, int):
+                    return ret
+                else:
+                    values = ret
 
             return run_encrypt(values, self.config, self.verbose)
         elif values.aws_subcommand == 'update':
