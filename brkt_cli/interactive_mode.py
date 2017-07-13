@@ -101,6 +101,31 @@ class InteractiveDoneTextField(InteractiveArgument):
         return val
 
 
+class InteractiveSkipTextField(InteractiveArgument):
+    def __init__(self, prompt, indent=0):
+        """
+        Text field argument with a skip option
+        :param prompt: the prompt to ask the user
+        :type prompt: str
+        """
+        self.prompt = prompt
+        super(InteractiveSkipTextField, self).__init__(indent)
+
+    def run(self, has_back=False):
+        """
+        Run the widget and return the value for the argument
+        :param has_back: If the argument has the ability to go back (which returns None)
+        :type has_back: bool
+        :return: the inputted text
+        :rtype: str | None
+        """
+        print (' '*self.indent) + self.prompt + ' (leave blank to skip' + (' and go back' if has_back else '') + '):',
+        val = raw_input()
+        if val == '':
+            return None
+        return val
+
+
 class InteractiveYNField(InteractiveArgument):
     def __init__(self, prompt, question_mark=False, indent=0):
         """
