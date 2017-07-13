@@ -325,18 +325,17 @@ class App(object):
         # the text
         try:  # Try to parse the manually specified arguments via the actual raw argparse function
             existing_args = command.parse_args(args_text.split())
-        except:
-            existing_args = Namespace()
+        except Exception as err:
+            if err.message == 'print_help':
+                existing_args = Namespace(help=True)
+            else:
+                existing_args = Namespace()
 
         set_args_dict = self.set_args[command.path]  # Get the set arguments from the app
         positional_idx = 0  # Count the number of positional (required too) arguments there are in a argparse command
         final_args = []
         final_arg_texts = []
-        for arg in command.optional_arguments + command.positionals:  # Go through every argument in a command that is
-            # not help or version or dev mode when dev mode is off
-            if arg.type == arg.Type.Help or arg.type == arg.Type.Version:
-                continue
-
+        for arg in command.optional_arguments + command.positionals:  # Go through every argument in a command
             if arg.dev is True and self.dev_mode is False:
                 continue
 
@@ -402,6 +401,8 @@ class App(object):
                 final_arg_texts.append(' '.join([arg.tag] * final_opt_arg['value']))
             elif arg.type == arg.Type.AppendConst and final_opt_arg['value'] is True:
                 final_arg_texts.append(arg.tag)  # Adds the tag if the value passed says it can be specified: `{tag}`
+            elif arg.type == arg.Type.Help or arg.type == arg.Type.Version:
+                final_arg_texts.append(arg.tag)  # Adds the tag if it is help or version: `{tag}`
 
         final_arg_texts.extend(map(lambda x: x['value'],
                                    sorted(filter(lambda x: x['positional'] is not None, final_args),
