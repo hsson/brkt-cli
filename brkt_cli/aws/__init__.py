@@ -11,18 +11,16 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import json
 import logging
 import re
 import tempfile
-import urllib2
 
 import boto
 from boto.exception import EC2ResponseError, NoAuthHandlerFound
 from brkt_cli import instance_config_args
 
 import brkt_cli
-from brkt_cli import encryptor_service, util, mv_version
+from brkt_cli import encryptor_service, util
 from brkt_cli.aws import (
     aws_service,
     encrypt_ami,
@@ -33,6 +31,7 @@ from brkt_cli.aws import (
     share_logs_args,
     update_encrypted_ami_args
 )
+from brkt_cli.aws.aws import _get_encryptor_amis_list
 from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
 )
@@ -50,7 +49,6 @@ from brkt_cli.instance_config_args import (
 )
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.util import (
-    BracketError,
     CRYPTO_GCM,
     CRYPTO_XTS
 )
@@ -58,8 +56,6 @@ from brkt_cli.validation import ValidationError
 
 log = logging.getLogger(__name__)
 
-
-ENCRYPTOR_AMIS_AWS_BUCKET = 'solo-brkt-prod-net'
 
 def _handle_aws_errors(func):
     """Provides common error handling to subcommands that interact with AWS
@@ -739,15 +735,7 @@ def _get_encryptor_ami(region_name, version):
     :raise ValidationError if the region is not supported
     :raise BracketError if the list of AMIs cannot be read
     """
-    bucket = ENCRYPTOR_AMIS_AWS_BUCKET
-    amis_url = mv_version.get_amis_url(version, bucket)
-
-    log.debug('Getting encryptor AMI list from %s', amis_url)
-    r = urllib2.urlopen(amis_url)
-    if r.getcode() not in (200, 201):
-        raise BracketError(
-            'Getting %s gave response: %s' % (amis_url, r.text))
-    resp_json = json.loads(r.read())
+    resp_json = _get_encryptor_amis_list(version)
     ami = resp_json.get(region_name)
 
     if not ami:

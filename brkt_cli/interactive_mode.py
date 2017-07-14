@@ -14,8 +14,10 @@
 from abc import abstractmethod, ABCMeta
 from getpass import getpass
 
+import sys
 
-def format_error(message):
+
+def error_print(message):
     """
     Formats an error for output on the interactive mode
     :param message: the error message
@@ -23,7 +25,7 @@ def format_error(message):
     :return: the formatted error
     :rtype: str
     """
-    return 'Error: ' + message
+    sys.stderr.write(message + '\n')
 
 
 class InteractiveArgument(object):
@@ -86,7 +88,7 @@ class InteractiveDoneTextField(InteractiveArgument):
         self.prompt = prompt
         super(InteractiveDoneTextField, self).__init__(indent)
 
-    def run(self, has_back=False):
+    def run(self, has_back=False, show_message=True):
         """
         Run the widget and return the value for the argument
         :param has_back: If the argument has the ability to go back (which returns None)
@@ -94,7 +96,11 @@ class InteractiveDoneTextField(InteractiveArgument):
         :return: the inputted text
         :rtype: str | None
         """
-        print (' '*self.indent) + self.prompt + ' (leave blank to finish' + (' and go back' if has_back else '') + '):',
+        prompt = (' '*self.indent) + self.prompt
+        if show_message:
+            prompt += ' (leave blank to finish' + (' and go back' if has_back else '') + ')'
+
+        print prompt + ':',
         val = raw_input()
         if val == '':
             return None
@@ -225,19 +231,19 @@ class InteractiveSelectionNameValueMenu(InteractiveArgument):
                 continue
 
             if not val.isdigit():
-                print format_error('Value is not digit')
+                error_print('Value is not digit')
                 val = ''
                 continue
 
             try:
                 val_idx = int(val)
             except AssertionError as err:
-                print format_error(err.message)
+                error_print(err.message)
                 val = ''
                 continue
 
             if val_idx >= len(option_list):
-                print format_error('Value is not an option')
+                error_print('Value is not an option')
                 val = ''
                 continue
 
@@ -327,12 +333,13 @@ class InteractiveMultiKeyValueTextField(InteractiveArgument):
         :return: the value of the chosen option
         :rtype: list[(str, str)] | None
         """
-        print self.title + (' (press enter to skip)' if self.skippable else '')
+        print self.title + (' (press enter to skip or finish)' if self.skippable else ' (press enter to finish)')
         key_arg = InteractiveDoneTextField(self.key_prompt, indent=2)
         val_arg = InteractiveTextField(self.value_prompt, indent=2)
         value_list = []
+        show_key_msg = False
         while True:
-            key_val = key_arg.run(has_back=has_back)
+            key_val = key_arg.run(has_back=has_back, show_message=show_key_msg)
             if key_val is None:
                 if has_back:
                     return None
@@ -340,3 +347,4 @@ class InteractiveMultiKeyValueTextField(InteractiveArgument):
                     return value_list
             val_val = val_arg.run()
             value_list.append((key_val, val_val))
+            show_key_msg = True

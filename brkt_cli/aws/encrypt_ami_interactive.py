@@ -14,11 +14,11 @@
 import os
 
 from brkt_cli import util
-from brkt_cli.aws import aws_service
+from brkt_cli.aws import aws_service, _get_encryptor_amis_list
 from brkt_cli.aws.encrypt_ami import get_ubuntu_amis, get_ubuntu_ami_id_from_row
 from brkt_cli.interactive_mode import InteractiveTextField, InteractivePasswordField, \
     InteractiveSelectionNameValueMenu, InteractiveSuperMenu, InteractiveYNField, InteractiveMultiKeyValueTextField, \
-    InteractiveSkipTextField, InteractiveSelectionMenu, format_error
+    InteractiveSkipTextField, InteractiveSelectionMenu, error_print
 from brkt_cli.yeti import YetiService
 
 
@@ -44,30 +44,27 @@ def run_interactive_encrypt_ami(values, parsed_config):
     session_id = util.make_nonce()
     aws_svc = aws_service.AWSService(session_id)
 
-    regions = map(lambda reg: reg.name, aws_svc.get_regions())  # Ask which region
+    amis_resp_json = _get_encryptor_amis_list(values.metavisor_version)
+    regions = amis_resp_json.keys()  # Ask which region
     regions.sort()
     config_region = values.region
-    default_region_formatted = ''
-    default_region_unformatted = ''
+    config_region_idx = None
     if config_region is not None and config_region in regions:
-        idx = regions.index(config_region)
-        default_region_unformatted = regions[idx]
-        default_region_formatted = '%s ** Default' % regions[idx]
-        regions[idx] = default_region_formatted
+        config_region_idx = regions.index(config_region)
 
-    region = InteractiveSelectionMenu('Region', regions).run()
-    if region == default_region_formatted:
-        region = default_region_unformatted
+    region = InteractiveSelectionMenu(
+        'Region' + (' [%d]' % config_region_idx if config_region_idx is not None else ''),
+        regions).run()
 
     aws_svc.connect(region)
 
     def run_get_ami_lib():  # Get all AMIs in library
         images = aws_svc.get_images(owners=['self'])
         if len(images) > 50:
-            print format_error('Too many images. Please manually write the AMI.')
+            error_print('Too many images. Please manually write the AMI.')
             return None
-        formatted_images = map(lambda x: (x.name if x.name else x.id, x.id), images)
-        return InteractiveSelectionNameValueMenu('AMI', formatted_images).run(has_back=True)
+        formatted_images = map(lambda x: ((x.name if x.name else x.id), x.id), images)
+        return InteractiveSelectionNameValueMenu('My AMI', formatted_images).run(has_back=True)
 
     def run_get_ubuntu_ami():  # Get all working Ubuntu AMIs
         amis = filter(lambda x: x[0] == region and x[4] == 'hvm:ebs-ssd', get_ubuntu_amis())
@@ -88,7 +85,7 @@ def run_interactive_encrypt_ami(values, parsed_config):
         return InteractiveTextField('Enter Custom AMI').run(has_back=True)
 
     ami = InteractiveSuperMenu('AMI', [
-        ('Select an AMI from Library Owned by Me', run_get_ami_lib),
+        ('Select my AMI', run_get_ami_lib),
         ('Select an Ubuntu AMI', run_get_ubuntu_ami),
         ('Select a CentOS AMI', run_get_centos_ami),
         ('Input a Custom AMI', run_get_custom_ami),
