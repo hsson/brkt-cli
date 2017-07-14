@@ -12,12 +12,13 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import os
-import boto.ec2
 
+from brkt_cli import util
+from brkt_cli.aws import aws_service
 from brkt_cli.aws.encrypt_ami import get_ubuntu_amis, get_ubuntu_ami_id_from_row
 from brkt_cli.interactive_mode import InteractiveTextField, InteractivePasswordField, \
     InteractiveSelectionNameValueMenu, InteractiveSuperMenu, InteractiveYNField, InteractiveMultiKeyValueTextField, \
-    InteractiveSkipTextField
+    InteractiveSkipTextField, InteractiveSelectionMenu, format_error
 from brkt_cli.yeti import YetiService
 
 
@@ -40,23 +41,33 @@ def run_interactive_encrypt_ami(values, parsed_config):
         token = y.auth(email, password)
         os.environ['BRKT_API_TOKEN'] = token
 
-    regions = map(lambda x: (x.name, x.name), boto.ec2.regions())  # Ask which region
-    regions.sort()
-    config_region = parsed_config.get_option('aws.region')
-    region_ids = [x[0] for x in regions]
-    if config_region is not None and config_region in region_ids:
-        idx = region_ids.index(config_region)
-        regions[idx] = ('%s ** Default' % regions[idx][1], regions[idx][1])
+    session_id = util.make_nonce()
+    aws_svc = aws_service.AWSService(session_id)
 
-    region = InteractiveSelectionNameValueMenu('Region', regions).run()
+    regions = map(lambda reg: reg.name, aws_svc.get_regions())  # Ask which region
+    regions.sort()
+    config_region = values.region
+    default_region_formatted = ''
+    default_region_unformatted = ''
+    if config_region is not None and config_region in regions:
+        idx = regions.index(config_region)
+        default_region_unformatted = regions[idx]
+        default_region_formatted = '%s ** Default' % regions[idx]
+        regions[idx] = default_region_formatted
+
+    region = InteractiveSelectionMenu('Region', regions).run()
+    if region == default_region_formatted:
+        region = default_region_unformatted
+
+    aws_svc.connect(region)
 
     def run_get_ami_lib():  # Get all AMIs in library
-        conn = boto.ec2.connect_to_region(region)
-        images = conn.get_all_images(owners=['self'])
-        return InteractiveSelectionNameValueMenu('AMI',
-                                               map(lambda x:
-                                                   (x.name if x.name is not None and x.name != '' else x.id, x.id),
-                                                   images)).run(has_back=True)
+        images = aws_svc.get_images(owners=['self'])
+        if len(images) > 50:
+            print format_error('Too many images. Please manually write the AMI.')
+            return None
+        formatted_images = map(lambda x: (x.name if x.name else x.id, x.id), images)
+        return InteractiveSelectionNameValueMenu('AMI', formatted_images).run(has_back=True)
 
     def run_get_ubuntu_ami():  # Get all working Ubuntu AMIs
         amis = filter(lambda x: x[0] == region and x[4] == 'hvm:ebs-ssd', get_ubuntu_amis())
@@ -66,9 +77,8 @@ def run_interactive_encrypt_ami(values, parsed_config):
                                                    amis)).run(has_back=True)
 
     def run_get_centos_ami():  # Get all working CentOS AMIs
-        conn = boto.ec2.connect_to_region(region)
-        centos_6_images = conn.get_all_images(filters={'product-code': '6x5jmcajty9edm3f211pqjfn2'})
-        centos_7_images = conn.get_all_images(filters={'product-code': 'aw0evgkw8e5c1q413zgy5pjce'})
+        centos_6_images = aws_svc.get_images(filters={'product-code': '6x5jmcajty9edm3f211pqjfn2'})
+        centos_7_images = aws_svc.get_images(filters={'product-code': 'aw0evgkw8e5c1q413zgy5pjce'})
         amis = map(lambda x: (x.name if x.name is not None and x.name != '' else x.id, x.id),
                    centos_6_images+centos_7_images)
         amis.sort(key=lambda x: x[0])

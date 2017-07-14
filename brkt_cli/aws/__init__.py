@@ -531,9 +531,9 @@ class AWSSubcommand(Subcommand):
     def run(self, values):
         interactive_mode = False
         if values.aws_subcommand == 'encrypt':
-            interactive_mode = values.ami is None
+            interactive_mode = not values.ami
 
-        if interactive_mode is False:
+        if not interactive_mode:
             if not values.region:
                 raise ValidationError(
                     'Specify --region or set the aws.region config key')
