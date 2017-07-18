@@ -17,15 +17,13 @@ import os
 import unittest
 import zlib
 
-from boto.exception import EC2ResponseError
-
 import brkt_cli
 import brkt_cli.aws
 import brkt_cli.util
 from brkt_cli import ValidationError, encryptor_service
 from brkt_cli.aws import (
-    aws_service, encrypt_ami, update_ami, test_aws_service
-)
+    aws_service, encrypt_ami, update_ami, test_aws_service,
+    boto3_device)
 from brkt_cli.aws.aws_constants import TAG_ENCRYPTOR_SESSION_ID
 from brkt_cli.aws.model import Subnet, Volume
 from brkt_cli.aws.test_aws_service import build_aws_service
@@ -87,7 +85,12 @@ class TestRunEncryption(unittest.TestCase):
             encryptor_ami=encryptor_image.id,
             crypto_policy=CRYPTO_GCM
         )
-        self.assertIsNotNone(encrypted_ami_id)
+
+        image = aws_svc.get_image(encrypted_ami_id)
+        dev_names = boto3_device.get_device_names(image.block_device_mappings)
+        self.assertEqual(2, len(dev_names))
+        self.assertTrue('/dev/sda1' in dev_names)
+        self.assertTrue('/dev/sdf' in dev_names)
 
     def test_encryption_error_console_output_available(self):
         """ Test that when an encryption failure occurs, we write the
@@ -566,9 +569,8 @@ class TestBrktEnv(unittest.TestCase):
                 if self.call_count < 3:
                     # Simulate eventual consistency error while creating
                     # security group.
-                    e = EC2ResponseError(None, None)
-                    e.error_code = 'InvalidGroup.NotFound'
-                    raise e
+                    raise test_aws_service.new_client_error(
+                        'InvalidGroup.NotFound')
 
         aws_svc.run_instance_callback = run_instance_callback
 
