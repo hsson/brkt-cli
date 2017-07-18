@@ -617,10 +617,11 @@ class AWSService(BaseAWSService):
 
     def get_default_vpc(self):
         filter = self.retry(self.ec2.vpcs.filter)
-        vpcs = filter(IsDefault=True)
+        vpcs = filter(Filters=[{'Name': 'isDefault', 'Values': ['true']}])
         if vpcs:
-            vpcs[0].load()
-            return vpcs[0]
+            vpc = list(vpcs)[0]
+            vpc.load()
+            return vpc
 
         return None
 
