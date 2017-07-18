@@ -328,6 +328,8 @@ class AWSService(BaseAWSService):
                 kwargs['EbsOptimized'] = ebs_optimized
             if instance_profile_name:
                 kwargs['IamInstanceProfile'] = instance_profile_name
+            if self.key_name:
+                kwargs['KeyName'] = self.key_name
 
             if log.isEnabledFor(logging.DEBUG):
                 # User-data is long and can have binary content.
