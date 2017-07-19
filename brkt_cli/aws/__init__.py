@@ -616,6 +616,18 @@ def _validate_guest_ami(aws_svc, ami_id):
     :raise: ValidationError if the AMI id is invalid
     """
     image = _validate_ami(aws_svc, ami_id)
+
+    if image.virtualization_type != 'hvm':
+        raise ValidationError(
+            'Unsupported virtualization type: %s.  Must be hvm.' %
+            image.virtualization_type
+        )
+    if image.architecture != 'x86_64':
+        raise ValidationError(
+            'Unsupported architecture: %s.  Must be x86_64.' %
+            image.architecture
+        )
+
     tags = boto3_tag.tags_to_dict(image.tags)
     if tags and TAG_ENCRYPTOR in tags:
         raise ValidationError('%s is already an encrypted image' % ami_id)

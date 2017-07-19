@@ -459,19 +459,9 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
     guest_instance = None
     temp_sg_id = None
     guest_image = aws_svc.get_image(image_id)
-    mv_image = aws_svc.get_image(encryptor_ami)
+    aws_svc.get_image(encryptor_ami)
     encrypted_image = None
 
-    # Normal operation is both encryptor and guest match
-    # on virtualization type, but we'll support a PV encryptor
-    # and a HVM guest (legacy)
-    log.debug('Guest type: %s Encryptor type: %s',
-        guest_image.virtualization_type, mv_image.virtualization_type)
-    if guest_image.virtualization_type != 'hvm':
-        raise BracketError(
-            'Unsupported virtualization type: %s' %
-            guest_image.virtualization_type
-        )
     legacy = False
     root_device_name = guest_image.root_device_name
     root_dev = boto3_device.get_device(
