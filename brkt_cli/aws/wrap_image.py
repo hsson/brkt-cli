@@ -102,6 +102,9 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
         guest_image.block_device_mappings,
         guest_image.root_device_name
     )
+    temp_sg = None
+    temp_snapshot_id = None
+    completed = False
     guest_snapshot_id = guest_root_device['Ebs']['SnapshotId']
     mv_image = aws_svc.get_image(metavisor_ami)
 
@@ -124,8 +127,9 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
                 guest_instance = run_guest_instance(aws_svc, image_id,
                     subnet_id=subnet_id, instance_type=instance_type)
                 wait_for_instance(aws_svc, guest_instance.id)
-                guest_snapshot_id, _, _, _, _ = snapshot_root_volume(
+                temp_snapshot_id, _, _, _, _ = snapshot_root_volume(
                     aws_svc, guest_instance, image_id)
+                guest_snapshot_id = temp_snapshot_id
             finally:
                 if guest_instance:
                     clean_up(aws_svc, instance_ids=[guest_instance.id])
@@ -189,8 +193,24 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
 
         log.info('Launching wrapped guest instance %s', instance.id)
         instance = wait_for_instance(aws_svc, instance.id)
+        completed = True
     finally:
-        pass
+        snapshot_ids = []
+        if temp_snapshot_id:
+            snapshot_ids.append(temp_snapshot_id)
+        sg_ids = []
+        if temp_sg:
+            sg_ids.append(temp_sg)
+        instance_ids = []
+        if instance:
+            instance_ids.append(instance.id)
+        if not completed:
+            clean_up(
+                aws_svc,
+                instance_ids=instance_ids,
+                snapshot_ids=snapshot_ids,
+                security_group_ids=sg_ids
+            )
 
     log.info('Done.')
     return instance
