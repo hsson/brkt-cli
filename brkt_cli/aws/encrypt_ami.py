@@ -505,6 +505,19 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             status_port=status_port
         )
 
+        # Enable ENA if Metavisor supports it.
+        log.debug(
+            'ENA support: encryptor=%s, guest=%s',
+            encryptor_instance.ena_support,
+            guest_instance.ena_support
+        )
+        if encryptor_instance.ena_support and not guest_instance.ena_support:
+            aws_svc.modify_instance_attribute(
+                guest_instance.id,
+                'enaSupport',
+                'True'
+            )
+
         log.debug('Getting image %s', image_id)
         image = aws_svc.get_image(image_id)
         if image is None:
