@@ -48,6 +48,18 @@ def setup_encrypt_ami_args(parser, parsed_config):
             'instance'),
         default='m4.large'
     )
+
+    # Add the --legacy argument, for specifying legacy mode during
+    # encryption and update.  This hidden argument is only here for backward
+    # compatibility.  We'll remove it once we're sure that legacy mode is
+    # no longer required.
+    parser.add_argument(
+        '--legacy',
+        action='store_true',
+        default=False,
+        help=argparse.SUPPRESS
+    )
+
     aws_args.add_no_validate(parser)
     aws_args.add_region(parser, parsed_config)
     aws_args.add_security_group(parser)
