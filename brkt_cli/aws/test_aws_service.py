@@ -413,6 +413,10 @@ class DummyAWSService(aws_service.BaseAWSService):
     def modify_instance_attribute(self, instance_id, attribute, value, dry_run=False):
         if attribute == 'sriovNetSupport':
             return dict()
+        elif attribute == 'enaSupport':
+            self.instances[instance_id].ena_support = bool(value)
+            return dict()
+
         return None
 
     def retry(self, function, error_code_regexp=None, timeout=None):

@@ -127,14 +127,30 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             name=NAME_METAVISOR_UPDATER,
             description=DESCRIPTION_METAVISOR_UPDATER,
         )
-        wait_for_instance(aws_svc, encrypted_guest.id, state="running")
+
         log.info(
             "Launched guest %s, updater %s", encrypted_guest.id, updater.id)
-
-        # Step 2. Wait for the updater to finish and stop the instances
-        aws_svc.stop_instance(encrypted_guest.id)
-
+        encrypted_guest = wait_for_instance(
+            aws_svc, encrypted_guest.id, state="running")
         updater = wait_for_instance(aws_svc, updater.id, state="running")
+
+        aws_svc.stop_instance(encrypted_guest.id)
+        encrypted_guest = wait_for_instance(
+            aws_svc, encrypted_guest.id, state="stopped")
+
+        # Enable ENA if Metavisor supports it.
+        log.debug(
+            'ENA support: updater=%s, guest=%s',
+            updater.ena_support,
+            encrypted_guest.ena_support
+        )
+        if updater.ena_support and not encrypted_guest.ena_support:
+            aws_svc.modify_instance_attribute(
+                encrypted_guest.id,
+                'enaSupport',
+                'True'
+            )
+
         host_ips = []
         if updater.public_ip_address:
             host_ips.append(updater.public_ip_address)
@@ -148,8 +164,8 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             else:
                 os.environ['NO_PROXY'] = updater.private_ip_address
 
-        # Wait for the encryption service to start up, so that we know that
-        # Metavisor is done initializing.
+        # Step 2. Wait for the encryption service to start up, so that we know
+        # that Metavisor is done initializing.
         enc_svc = enc_svc_class(host_ips, port=status_port)
         log.info('Waiting for updater service on %s (port %s on %s)',
                  updater.id, enc_svc.port, ', '.join(host_ips))
@@ -168,8 +184,6 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             raise
 
         aws_svc.stop_instance(updater.id)
-        encrypted_guest = wait_for_instance(
-            aws_svc, encrypted_guest.id, state="stopped")
         updater = wait_for_instance(aws_svc, updater.id, state="stopped")
 
         guest_bdm = encrypted_guest.block_device_mappings
