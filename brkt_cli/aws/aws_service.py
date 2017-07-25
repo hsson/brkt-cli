@@ -629,7 +629,7 @@ class AWSService(BaseAWSService):
 
     def modify_instance_attribute(self, instance_id, attribute,
                                   value, dry_run=False):
-        log.debug('Setting %s for %s to %s', attribute, instance_id, value)
+        log.info('Setting %s for %s to %s', attribute, instance_id, value)
         modify_instance_attribute = self.retry(
             self.ec2client.modify_instance_attribute)
         modify_instance_attribute(

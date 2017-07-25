@@ -174,3 +174,35 @@ class TestRunUpdate(unittest.TestCase):
             os.remove(e.console_output_file.name)
 
         self.assertTrue(self.updater_stopped)
+
+    def test_ena_support(self):
+        """ Test that we enable ENA support on the guest instance when ENA
+        support is enabled on the Metavisor instance."""
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+
+        encrypted_ami_id = encrypt_ami.encrypt(
+            aws_svc=aws_svc,
+            enc_svc_cls=DummyEncryptorService,
+            image_id=guest_image.id,
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM
+        )
+
+        self.encrypted_instance = None
+
+        def run_instance_callback(args):
+            if args.image_id == encryptor_image.id:
+                args.instance.ena_support = True
+            elif args.image_id == encrypted_ami_id:
+                args.instance.ena_support = False
+                self.encrypted_instance = args.instance
+
+        aws_svc.run_instance_callback = run_instance_callback
+
+        update_ami(
+            aws_svc, encrypted_ami_id, encryptor_image.id,
+            'Test updated AMI',
+            enc_svc_class=DummyEncryptorService
+        )
+
+        self.assertTrue(self.encrypted_instance.ena_support)

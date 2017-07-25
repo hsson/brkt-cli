@@ -243,6 +243,7 @@ class Instance(TaggedEC2Object):
         self._previous_state = None
         self.state = dict()
         self._placement = InstancePlacement()
+        self.ena_support = False
 
     def __repr__(self):
         return 'Instance:%s' % self.id
