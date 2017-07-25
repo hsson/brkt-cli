@@ -62,8 +62,7 @@ def get_s3_versions(bucket):
 
     s3 = boto3.resource('s3')
     s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
-    client = boto3.client('s3')
-    paginator = client.get_paginator('list_objects')
+    paginator = s3.meta.client.get_paginator('list_objects')
     page_iterator = paginator.paginate(Bucket=bucket,
                                        Delimiter='/',
                                        Prefix=version_prefix)
