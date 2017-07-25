@@ -51,14 +51,6 @@ class TaggedEC2Object(EC2Object):
         self.tags = []
 
 
-class ConsoleOutput(object):
-    def __init__(self, parent=None):
-        self.parent = parent
-        self.instance_id = None
-        self.timestamp = None
-        self.output = None
-
-
 class Image(TaggedEC2Object):
     """
     Represents an EC2 Image

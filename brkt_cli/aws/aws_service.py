@@ -557,7 +557,10 @@ class AWSService(BaseAWSService):
     def get_console_output(self, instance_id):
         response = self.ec2client.get_console_output(
             InstanceId=instance_id)
-        return response['Output']
+        if 'Output' in response:
+            return response['Output']
+        else:
+            return None
 
     def get_subnet(self, subnet_id):
         subnet = self.ec2.Subnet(subnet_id)
@@ -1002,11 +1005,11 @@ def _write_console_output(aws_svc, instance_id):
 
     try:
         console_output = aws_svc.get_console_output(instance_id)
-        if console_output.output:
+        if console_output:
             prefix = instance_id + '-'
             with tempfile.NamedTemporaryFile(
                     prefix=prefix, suffix='-console.txt', delete=False) as t:
-                t.write(console_output.output)
+                t.write(console_output)
             return t
     except:
         log.exception('Unable to write console output')

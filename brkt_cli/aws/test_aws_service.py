@@ -23,7 +23,6 @@ import brkt_cli.aws
 import brkt_cli.util
 from brkt_cli.aws import aws_service, boto3_device, boto3_tag, encrypt_ami
 from brkt_cli.aws.model import (
-    ConsoleOutput,
     Image,
     Instance,
     KeyPair,
@@ -397,9 +396,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         return kp
 
     def get_console_output(self, instance_id):
-        console_output = ConsoleOutput()
-        console_output.output = self.console_output_text
-        return console_output
+        return self.console_output_text
 
     def get_subnet(self, subnet_id):
         return self.subnets[subnet_id]
