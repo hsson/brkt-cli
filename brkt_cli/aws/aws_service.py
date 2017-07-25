@@ -1087,6 +1087,14 @@ def snapshot_root_volume(aws_svc, instance, image_id):
     root_device = boto3_device.get_device(
         instance.block_device_mappings, root_device_name)
 
+    if not root_device:
+        msg = 'Could not find %s on %s. Available devices: %s' % (
+            instance.root_device_name,
+            instance.id,
+            ','.join(device_names)
+        )
+        raise BracketError(msg)
+
     volume_id = boto3_device.get_volume_id(root_device)
     vol = aws_svc.get_volume(volume_id)
     aws_svc.create_tags(
