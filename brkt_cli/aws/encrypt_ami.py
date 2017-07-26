@@ -451,18 +451,32 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             guest_instance_type='m4.large', instance_config=None,
             save_encryptor_logs=True,
             status_port=encryptor_service.ENCRYPTOR_STATUS_PORT,
-            terminate_encryptor_on_failure=True):
-    log.info('Starting encryptor session %s', aws_svc.session_id)
+            terminate_encryptor_on_failure=True, legacy=False):
+    log.info(
+        'Starting session %s to encrypt %s',
+        aws_svc.session_id,
+        image_id
+    )
+    if legacy:
+        log.warn(
+            'Using legacy encryption mode.  This mode will be removed in '
+            'the next release.'
+        )
 
     encryptor_instance = None
     snapshot_id = None
     guest_instance = None
     temp_sg_id = None
-    guest_image = aws_svc.get_image(image_id)
+
+    # Verify that the guest and encryptor images exist.
+    aws_svc.get_image(image_id)
     aws_svc.get_image(encryptor_ami)
     encrypted_image = None
 
-    legacy = False
+
+    """
+    # TODO: Remove this code once we get rid of legacy mode.
+
     root_device_name = guest_image.root_device_name
     root_dev = boto3_device.get_device(
         guest_image.block_device_mappings, root_device_name)
@@ -476,6 +490,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
                  "preserved because the root disk is attached at %s "
                  "instead of /dev/sda1", guest_image.root_device_name)
         legacy = True
+    """
 
     try:
         guest_instance = run_guest_instance(

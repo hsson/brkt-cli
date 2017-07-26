@@ -337,7 +337,8 @@ def run_encrypt(values, config, verbose=False):
         status_port=values.status_port,
         save_encryptor_logs=values.save_encryptor_logs,
         terminate_encryptor_on_failure=(
-            values.terminate_encryptor_on_failure)
+            values.terminate_encryptor_on_failure),
+        legacy=values.legacy
     )
     # Print the AMI ID to stdout, in case the caller wants to process
     # the output.  Log messages go to stderr.
