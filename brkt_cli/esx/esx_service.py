@@ -143,7 +143,8 @@ class BaseVCenterService(object):
         self.port = port
         self.datacenter_name = datacenter_name
         self.datastore_name = datastore_name
-        self.datastore_path = "[" + datastore_name + "] "
+        if datastore_name:
+            self.datastore_path = "[" + datastore_name + "] "
         self.esx_host = esx_host
         self.cluster_name = cluster_name
         if self.esx_host:

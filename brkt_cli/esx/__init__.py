@@ -50,6 +50,7 @@ from brkt_cli.esx import (
     wrap_image,
     wrap_with_vcenter_args,
     wrap_with_esx_host_args,
+    assign_static_ip_args,
 )
 from brkt_cli.validation import ValidationError
 
@@ -562,6 +563,53 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
         return 1
 
 
+def run_assign_static_ip(values, parsed_config, log):
+    session_id = util.make_nonce()
+    _check_env_vars_set('VCENTER_USER_NAME')
+    vcenter_password = _get_vcenter_password(False)
+    # Connect to vCenter
+    try:
+        vc_swc = esx_service.initialize_vcenter(
+            host=values.vcenter_host,
+            user=os.getenv('VCENTER_USER_NAME'),
+            password=vcenter_password,
+            port=values.vcenter_port,
+            datacenter_name=None,
+            datastore_name=None,
+            esx_host=False,
+            cluster_name=None,
+            no_of_cpus=None,
+            memory_gb=None,
+            session_id=session_id,
+            network_name=None,
+            nic_type=None,
+            verify=values.validate,
+            cdrom=None,
+        )
+    except Exception as e:
+        log.exception(e)
+        raise ValidationError("Failed to connect to vCenter ", e)
+    try:
+        vm = vc_swc.find_vm(values.vm)
+        if not vm:
+            log.info("VM %s not found", values.vm)
+            raise ValidationError("VM %s not found" % (values.vm,))
+        # static ip configuration
+        static_ip = None
+        static_ip = esx_service.StaticIPConfiguration(
+            values.static_ip, values.static_mask, values.static_gw,
+            values.static_dns, values.static_dns_domain)
+        static_ip.validate()
+        vc_swc.power_on(vm)
+        vc_swc.get_ip_address(vm)
+        vc_swc.power_off(vm)
+        vc_swc.configure_static_ip(vm, static_ip)
+        return 0
+    except Exception:
+        log.exception("Failed to assign static IP address to VM %s", values.vm)
+        return 1
+
+
 def run_rescue_metavisor(values, parsed_config, log):
     session_id = util.make_nonce()
     if values.protocol != 'http':
@@ -622,7 +670,8 @@ class VMwareSubcommand(Subcommand):
             metavar=(
                 '{encrypt-with-vcenter,encrypt-with-esx-host,'
                 'update-with-vcenter,update-with-esx-host,'
-                'wrap-with-vcenter, wrap-with-esx-host}'
+                'wrap-with-vcenter, wrap-with-esx-host,'
+                'assign-static-ip}'
             )
         )
 
@@ -677,9 +726,9 @@ class VMwareSubcommand(Subcommand):
         wrap_with_vcenter_parser = vmware_subparsers.add_parser(
             'wrap-with-vcenter',
             description=(
-                'Launch guest image wrapped with Bracket Metavsor using vCenter'
+                'Launch guest image wrapped with Bracket Metavisor using vCenter'
             ),
-            help='Launch guest image wrapped with Bracket Metavsor using vCenter',
+            help='Launch guest image wrapped with Bracket Metavisor using vCenter',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         wrap_with_vcenter_args.setup_wrap_with_vcenter_args(
@@ -689,14 +738,25 @@ class VMwareSubcommand(Subcommand):
         wrap_with_esx_host_parser = vmware_subparsers.add_parser(
             'wrap-with-esx-host',
             description=(
-                'Launch guest image wrapped with Bracket Metavsor on ESX host'
+                'Launch guest image wrapped with Bracket Metavisor on ESX host'
             ),
-            help='Launch guest image wrapped with Bracket Metavsor on ESX host',
+            help='Launch guest image wrapped with Bracket Metavisor on ESX host',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         wrap_with_esx_host_args.setup_wrap_with_esx_host_args(
             wrap_with_esx_host_parser)
         setup_instance_config_args(wrap_with_esx_host_parser, parsed_config)
+
+        assign_static_ip_parser = vmware_subparsers.add_parser(
+            'assign-static-ip',
+            description=(
+                'Assign a static IP address to a powered-off VM'
+            ),
+            help='Assign a static IP address to a powered-off VM',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        assign_static_ip_args.setup_assign_static_ip_args(
+            assign_static_ip_parser)
 
         rescue_metavisor_parser = vmware_subparsers.add_parser(
             # Don't specify the help field.  This is an internal command
@@ -726,6 +786,8 @@ class VMwareSubcommand(Subcommand):
             return run_wrap_image(values, self.config, log)
         if values.vmware_subcommand == 'wrap-with-esx-host':
             return run_wrap_image(values, self.config, log, use_esx=True)
+        if values.vmware_subcommand == 'assign-static-ip':
+            return run_assign_static_ip(values, self.config, log)
 
 
 def get_subcommands():
