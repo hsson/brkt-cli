@@ -34,12 +34,16 @@ def add_no_validate(parser):
     )
 
 
-def add_security_group(parser):
+def add_security_group(parser, parsed_config):
+    sg = parsed_config.get_option('aws.security-group')
+    default = [sg] if sg else None
+
     parser.add_argument(
         '--security-group',
         metavar='ID',
         dest='security_group_ids',
         action='append',
+        default=default,
         help=(
             'Use this security group when running the encryptor instance. '
             'May be specified multiple times.'

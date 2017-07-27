@@ -457,6 +457,11 @@ class AWSSubcommand(Subcommand):
             'aws.subnet',
             'The AWS subnet metavisors will be launched into'
         )
+        config.register_option(
+            'aws.security-group',
+            'The AWS security group to use when launching Metavisor during '
+            'encryption, update, and wrap-image'
+        )
 
     def register(self, subparsers, parsed_config):
         self.config = parsed_config
