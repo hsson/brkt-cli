@@ -45,7 +45,7 @@ def setup_update_encrypted_ami(parser, parsed_config):
     )
     aws_args.add_no_validate(parser)
     aws_args.add_region(parser, parsed_config)
-    aws_args.add_security_group(parser)
+    aws_args.add_security_group(parser, parsed_config)
     aws_args.add_subnet(parser, parsed_config)
     aws_args.add_key(parser)
     aws_args.add_aws_tag(parser)
