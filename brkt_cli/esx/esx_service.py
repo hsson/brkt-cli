@@ -136,7 +136,8 @@ class BaseVCenterService(object):
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
                  cluster_name, no_of_cpus, memoryGB, session_id,
-                 network_name, nic_type, verify=True, cdrom=False):
+                 network_name, nic_type, verify=True, cdrom=False,
+                 ip_ovf_properties=False):
         self.host = host
         self.user = user
         self.password = password
@@ -160,6 +161,7 @@ class BaseVCenterService(object):
         self.nic_type = nic_type
         self.cdrom = cdrom
         self.verify = verify
+        self.ip_ovf_properties = ip_ovf_properties
 
     def is_esx_host(self):
         return self.esx_host
@@ -347,11 +349,11 @@ class VCenterService(BaseVCenterService):
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
                  cluster_name, no_of_cpus, memoryGB, session_id,
-                 network_name, nic_type, verify, cdrom):
+                 network_name, nic_type, verify, cdrom, ip_ovf_properties):
         super(VCenterService, self).__init__(
             host, user, password, port, datacenter_name, datastore_name,
             esx_host, cluster_name, no_of_cpus, memoryGB, session_id,
-            network_name, nic_type, verify, cdrom)
+            network_name, nic_type, verify, cdrom, ip_ovf_properties)
 
     @timeout(30)
     def _s_connect(self):
@@ -1247,14 +1249,53 @@ class VCenterService(BaseVCenterService):
     def get_disk_name(self, disk):
         return disk.backing.fileName
 
+    def add_ovf_properties(self, vm, label, id, description, type, key):
+        property_info = vim.vApp.PropertyInfo()
+        property_info.label = label
+        property_info.id = id
+        property_info.description = description
+        property_info.type = type
+        property_info.key = key
+        property_info.userConfigurable = True
+        property_spec = vim.vApp.PropertySpec()
+        property_spec.operation = "add"
+        property_spec.info = property_info
+        vapp = vim.vApp.VmConfigSpec()
+        vapp.property = [property_spec]
+        vapp.ovfEnvironmentTransport = ["com.vmware.guestInfo"]
+        spec = vim.vm.ConfigSpec()
+        spec.vAppConfig = vapp
+        task = vm.ReconfigVM_Task(spec=spec)
+        self.__wait_for_task(task)
+
+    def add_static_ip_ovf_properties(self, vm):
+        self.add_ovf_properties(vm, "IP Address", "ip0",
+            "The IP address. Leave blank if DHCP is desired.",
+            "string", 2)
+        self.add_ovf_properties(vm, "Netmask", "netmask0",
+            "The netmask. Leave blank if DHCP is desired.",
+            "string", 3)
+        self.add_ovf_properties(vm, "Default Gateway", "gateway",
+            "The default gateway address. Leave blank if DHCP is desired.",
+            "string", 4)
+        self.add_ovf_properties(vm, "DNS", "DNS",
+            "The domain name servers (comma separated). Leave blank if DHCP is desired.",
+            "string", 5)
+        self.add_ovf_properties(vm, "Custom Hostname", "custom_hostname",
+            "Hostname of the VM.",
+            "string", 6)
+
+
 def initialize_vcenter(host, user, password, port,
                        datacenter_name, datastore_name, esx_host,
                        cluster_name, no_of_cpus, memory_gb, session_id,
-                       network_name, nic_type, verify=True, cdrom=False):
+                       network_name, nic_type, verify=True, cdrom=False,
+                       ip_ovf_properties=False):
     vc_swc = VCenterService(host, user, password, port,
                             datacenter_name, datastore_name, esx_host,
                             cluster_name, no_of_cpus, memory_gb, session_id,
-                            network_name, nic_type, verify, cdrom)
+                            network_name, nic_type, verify, cdrom,
+                            ip_ovf_properties)
     vc_swc.connect()
     return vc_swc
 

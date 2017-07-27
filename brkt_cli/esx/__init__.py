@@ -158,6 +158,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             nic_type=values.nic_type,
             verify=False if use_esx else values.validate,
             cdrom=values.cdrom,
+            ip_ovf_properties=False if use_esx else values.ip_ovf_properties,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
@@ -359,6 +360,7 @@ def run_update(values, parsed_config, log, use_esx=False):
             network_name=values.network_name,
             nic_type=values.nic_type,
             verify=False if use_esx else values.validate,
+            ip_ovf_properties=False,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
@@ -495,6 +497,7 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
             network_name=values.network_name,
             nic_type=values.nic_type,
             verify=False if use_esx else values.validate,
+            ip_ovf_properties=False,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter: ", e)
@@ -585,6 +588,7 @@ def run_assign_static_ip(values, parsed_config, log):
             nic_type=None,
             verify=values.validate,
             cdrom=None,
+            ip_ovf_properties=False,
         )
     except Exception as e:
         log.exception(e)
@@ -635,6 +639,7 @@ def run_rescue_metavisor(values, parsed_config, log):
             nic_type=None,
             verify=values.validate,
             cdrom=values.cdrom,
+            ip_ovf_properties=False,
         )
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter ", e)

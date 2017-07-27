@@ -316,7 +316,7 @@ def add_disk_type(parser):
     )
 
 
-def add_nic_type(parser, help=argparse.SUPPRESS):
+def add_nic_type(parser):
     parser.add_argument(
         '--nic-type',
         metavar='NAME',
@@ -324,6 +324,17 @@ def add_nic_type(parser, help=argparse.SUPPRESS):
         choices=["Port", "DistributedVirtualPort", "DistributedVirtualPortGroup"],
         help='Port/DistributedVirtualPort/DistributedVirtualPortGroup',
         default="Port",
+        required=False
+    )
+
+
+def add_ip_properties(parser):
+    parser.add_argument(
+        '--enable-static-ip-ovf-property',
+        dest='ip_ovf_properties',
+        action='store_true',
+        help='Enable OVF properties to configure static IP on Bracketized VMs',
+        default=False,
         required=False
     )
 

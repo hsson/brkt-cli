@@ -108,6 +108,9 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         # detach unencrypted guest root
         vc_swc.power_off(vm)
         vc_swc.detach_disk(vm, unit_number=2)
+        # Add OVF properties related to IP configuration
+        if vc_swc.ip_ovf_properties:
+            vc_swc.add_static_ip_ovf_properties(vm)
         # detach serial port
         if serial_port_file_name:
             vc_swc.delete_serial_port_to_file(vm, serial_port_file_name)
