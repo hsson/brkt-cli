@@ -26,7 +26,7 @@ import logging
 import os
 
 from brkt_cli import encryptor_service
-from brkt_cli.aws import boto3_device
+from brkt_cli.aws import boto3_device, aws_service
 from brkt_cli.aws.aws_constants import (
     NAME_GUEST_CREATOR, DESCRIPTION_GUEST_CREATOR, NAME_METAVISOR_UPDATER,
     DESCRIPTION_METAVISOR_UPDATER,
@@ -139,12 +139,14 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             aws_svc, encrypted_guest.id, state="stopped")
 
         # Enable ENA if Metavisor supports it.
+        updater_ena_support = aws_service.has_ena_support(updater)
+        guest_ena_support = aws_service.has_ena_support(encrypted_guest)
         log.debug(
             'ENA support: updater=%s, guest=%s',
-            updater.ena_support,
-            encrypted_guest.ena_support
+            updater_ena_support,
+            guest_ena_support
         )
-        if updater.ena_support and not encrypted_guest.ena_support:
+        if updater_ena_support and not guest_ena_support:
             aws_svc.modify_instance_attribute(
                 encrypted_guest.id,
                 'enaSupport',
