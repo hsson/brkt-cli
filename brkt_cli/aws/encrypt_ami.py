@@ -521,12 +521,14 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
         )
 
         # Enable ENA if Metavisor supports it.
+        encryptor_ena_support = aws_service.has_ena_support(encryptor_instance)
+        guest_ena_support = aws_service.has_ena_support(guest_instance)
         log.debug(
             'ENA support: encryptor=%s, guest=%s',
-            encryptor_instance.ena_support,
-            guest_instance.ena_support
+            encryptor_ena_support,
+            guest_ena_support
         )
-        if encryptor_instance.ena_support and not guest_instance.ena_support:
+        if encryptor_ena_support and not guest_ena_support:
             aws_svc.modify_instance_attribute(
                 guest_instance.id,
                 'enaSupport',
