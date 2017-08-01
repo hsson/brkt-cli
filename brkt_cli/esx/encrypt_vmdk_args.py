@@ -36,6 +36,7 @@ def setup_encrypt_vmdk_args(parser):
     esx_args.add_static_dns_domain(parser)
     esx_args.add_static_dns_server(parser)
     esx_args.add_no_verify_cert(parser)
+    esx_args.add_ip_properties(parser)
     parser.add_argument(
         '--create-ovf',
         dest='create_ovf',
