@@ -1139,3 +1139,15 @@ def get_code_and_message(client_error):
         client_error.response['Error']['Code'],
         client_error.response['Error']['Message']
     )
+
+
+def has_ena_support(instance):
+    """ Return True if the given instance has ENA support enabled.  We have
+    to do this because the AWS API does not always return the enaSupport
+    field.
+
+    :param instance an ec2.Instance object
+    """
+    if not hasattr(instance, 'ena_support'):
+        return False
+    return bool(instance.ena_support)
