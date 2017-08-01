@@ -13,65 +13,86 @@
 # limitations under the License.
 
 import unittest
-
-from boto.exception import S3ResponseError
-
 import brkt_cli
 from brkt_cli.aws import share_logs, boto3_device
-from brkt_cli.aws.model import Instance, Snapshot, Volume
+from brkt_cli.aws.model import Instance, Snapshot
 from brkt_cli.validation import ValidationError
 
 
-class CurrentValue():
-    def __init__(self):
-        self.connection = {'root': Volume()}
-        self.connection['root'].volume_id = None
-
 class S3():
     def __init__(self):
+        self.buckets = Buckets()
         self.bucket = Bucket()
+        self.meta = Meta()
 
-    def get_all_buckets(self):
-        return [self.bucket]
-
-    def get_bucket(self, bucket):
-        if self.bucket.region == 'un-matching-region':
-            raise S3ResponseError(400, 'reason', 'body')
+    def Bucket(self, name):
         return self.bucket
+
 
 class Bucket():
     def __init__(self):
         self.name = 'test-bucket'
-        self.acp = ACP()
-        self.region = 'matching-region'
-
-    def get_key(self, path):
-        if path == 'matching':
-            return True
-        if ShareLogsTestService.created is True:
-            return True
-        return False
-
-    def get_acl(self):
-        return self.acp
-
-class ACP():
-    def __init__(self):
         self.acl = ACL()
+        self.region = 'matching-region'
+        self.objects = Objects()
+
+    def Acl(self):
+        return self.acl
+
+    def Object(self, path):
+        return self.objects
+
+
+class Buckets():
+    def __init__(self):
+        self.bucket = Bucket()
+
+    def all(self):
+        return [self.bucket]
+
+
+class Meta():
+    def __init__(self):
+        self.client = Client()
+
+
+class Client():
+    def __init__(self):
+        self.region = 'matching'
+        self.value = None
+
+    def head_bucket(self, Bucket):
+        if self.region == 'unmatching':
+            raise ValidationError()
+        return self.value
+
+
+class Objects():
+    def __init__(self):
+        self.list = List()
+
+    def all(self):
+        return [self.list]
+
+    def get(self):
+        return
+
+
+class List():
+    def __init__(self):
+        self.key = 'matching'
+
 
 class ACL():
     def __init__(self):
-        self.grant = Grant()
+        self.grant = {'Grantee': {'Type': 'User',
+                'URI': 'http://acs.amazonaws.com/groups/global/AllUsers'},
+                'Permission': 'WRITE'}
         self.grants = [self.grant]
 
-class Grant():
-    def __init__(self):
-        self.permission = 'WRITE'
-        self.uri = 'http://acs.amazonaws.com/groups/global/AllUsers'
 
 # This class is used for testing ShareLogs
 class ShareLogsTestService(share_logs.ShareLogsService):
-    
     created = False
 
     def get_instance(self, instance_id):
@@ -101,8 +122,8 @@ class ShareLogsTestService(share_logs.ShareLogsService):
         snapshot.state = 'completed'
         return [snapshot]
 
-    def run_instance(self, image_id, instance_type,
-                     block_device_mappings, user_data, ebs_optimized, subnet_id):
+    def run_instance(self, image_id, instance_type, block_device_mappings,
+                     user_data, ebs_optimized, subnet_id):
         instance = Instance()
         ShareLogsTestService.created = True
         return instance
@@ -128,30 +149,30 @@ class TestShareLogs(unittest.TestCase):
     def test_bucket_file(self):
         aws_svc = ShareLogsTestService()
         s3 = S3()
+
         # Tests if user doesn't already own bucket
         result = aws_svc.check_bucket_file(
             "different-bucket", "file", "matching", s3)
         self.assertEqual(result, 0)
+
         # Tests if user owns bucket in wrong region
-        s3.bucket.region = 'un-matching-region'
+        s3.meta.client.region = 'unmatching'
         with self.assertRaises(ValidationError):
             aws_svc.check_bucket_file(
                 'test-bucket', "file", "unmatching", s3)
-        s3.bucket.region = 'matching-region'
+
+        s3.meta.client.region = 'matching'
         # Tests if the bucket has a matching file
         with self.assertRaises(ValidationError):
             aws_svc.check_bucket_file(
                 "test-bucket", "matching", "matching", s3)
-        # # Tests if the bucket doesn't have write permission
-        s3.bucket.acp.acl.grant.permission = 'READ'
+
+        # Tests if the bucket doesn't have write permission
+        for b in s3.buckets.all():
+            b.acl.grant['Permission'] = 'read'
         with self.assertRaises(ValidationError):
             aws_svc.check_bucket_file(
                 "test-bucket", "file", "matching", s3)
-        # Tests if the user owns a writeable bucket
-        s3.bucket.acp.acl.grant.permission = 'WRITE'
-        result2 = aws_svc.check_bucket_file(
-            "test-bucket", "file", "matching", s3)
-        self.assertEqual(result2, 1)
 
     def test_normal(self):
         aws_svc = ShareLogsTestService()
@@ -162,5 +183,6 @@ class TestShareLogs(unittest.TestCase):
         bucket = 'test-bucket'
         path = 'test/path'
 
-        share_logs.share(aws_svc, logs_svc, instance_id=instance_id,
-            snapshot_id=snapshot_id, region=region, bucket=bucket, path=path, subnet_id=None)
+        share_logs.share(aws_svc, logs_svc, instance_id=instance_id, 
+        snapshot_id=snapshot_id, region=region, bucket=bucket, path=path,
+        subnet_id=None)

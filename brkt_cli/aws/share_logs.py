@@ -14,10 +14,10 @@
 
 import logging
 import os
-import boto
+import boto3
 import re
 import time
-
+import botocore
 from brkt_cli.aws import aws_service, boto3_device
 from brkt_cli.validation import ValidationError
 from brkt_cli import util
@@ -44,7 +44,7 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
             # Reconnect with updated bucket list
             s3 = logs_svc.s3_connect()
             # Allow public write access to new bucket
-            new_bucket.set_acl('public-read-write')
+            new_bucket.Acl().put(ACL='public-read-write')
 
         if not snapshot_id:
             # Get instance from ID
@@ -135,50 +135,58 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
 class ShareLogsService():
 
     def wait_bucket_file(self, bucket, path, region, s3):
-        bucket = s3.get_bucket(bucket)
+        bucket = s3.Bucket(bucket)
         for i in range(40):
-            if bucket.get_key(path):
+            try:
+                bucket.Object(path).get()
                 log.info('Logs available at https://s3-%s.amazonaws.com/%s/%s'
                     % (region, bucket.name, path))
                 return
-            else:
-                time.sleep(7)
+            except botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == 'NoSuchKey':
+                    time.sleep(7)
+                else:
+                    raise
         raise util.BracketError("Can't upload logs file")
 
     def make_bucket(self, bucket, region, s3):
         # Since bucket isn't owned, create it
-        return s3.create_bucket(bucket, location=region)
+        return s3.create_bucket(Bucket=bucket, CreateBucketConfiguration={
+                    'LocationConstraint': region})
 
     def check_bucket_file(self, bucket, path, region, s3):
         # go through all owned buckets
-        for b in s3.get_all_buckets():
+        for b in s3.buckets.all():
             # Check if users owns a bucket matching input
             if bucket == b.name:
                 try:
-                    bucket = s3.get_bucket(bucket)
-                except boto.exception.S3ResponseError as e:
-                    code = e.status
+                    s3.meta.client.head_bucket(Bucket=bucket)
+                except botocore.exceptions.ClientError as e:
+                    code = int(e.response['Error']['Code'])
                     # If bucket is owned, but in wrong region
                     if code == 400:
                         raise ValidationError("Bucket must be in %s" % region)
                     raise
-                logs_file = bucket.get_key(path)
                 # check for a matching file in bucket
-                if logs_file:
-                    raise ValidationError(
-                        "File already exists, delete and retry")
+                for file in b.objects.all():
+                    if file.key == path:
+                        raise ValidationError(
+                            "File already exists, delete and retry")
                 # check that everyone has write access to bucket
-                acp = bucket.get_acl()
-                for grant in acp.acl.grants:
-                    perm = grant.permission
-                    uri = grant.uri
+                acl = b.Acl()
+                for grant in acl.grants:
+                    if grant['Grantee']['Type'] == 'CanonicalUser':
+                        continue
+                    uri = grant['Grantee']['URI']
+                    perm = grant['Permission']
                     if perm == 'WRITE' and uri == 'http:' + \
                         '//acs.amazonaws.com/groups/global/AllUsers':
                         # check that file name is valid
                         self.validate_file_name(path)
                         return True
-                raise ValidationError("Bucket permissions invalid:" +
-                    "Everyone must have 'Write' object access")
+                    else:
+                        raise ValidationError("Bucket permissions invalid:" +
+                            "Everyone must have 'Write' object access")
         return False
 
     def validate_file_name(self, path):
@@ -195,4 +203,4 @@ class ShareLogsService():
         return 0
 
     def s3_connect(self):
-        return boto.connect_s3()
+        return boto3.resource('s3')
