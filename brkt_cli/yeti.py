@@ -206,5 +206,6 @@ def is_yeti(root_url, timeout=10.0):
     :raise IOError if the url cannot be accessed
     """
     url = root_url + '/health_check'
+    log.debug('Verifying Bracket service at %s', url)
     r = requests.get(url, timeout=timeout)
     return r.status_code == 200
