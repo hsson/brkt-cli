@@ -11,6 +11,10 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+import argparse
+
+from brkt_cli import crypto
+from brkt_cli.validation import ValidationError
 
 
 def add_out(parser):
@@ -59,4 +63,30 @@ def add_root_url(parser, cli_config):
         metavar='URL',
         default=default_url,
         help='Bracket service root URL'
+    )
+
+
+def _validate_cert_path(path):
+    try:
+        crypto.validate_cert_path(path)
+    except ValidationError as e:
+        raise argparse.ArgumentTypeError(e.message)
+    return path
+
+
+def add_public_api_ca_cert(parser, cli_config=None):
+    default_path = None
+    if cli_config:
+        _, env = cli_config.get_current_env()
+        default_path = env.public_api_ca_cert_path
+
+    parser.add_argument(
+        '--public-api-ca-cert',
+        metavar='PATH',
+        default=default_path,
+        type=_validate_cert_path,
+        help=(
+            'Root X.509 CA certificate for a Customer Managed MCP in PEM '
+            'format.'
+        )
     )

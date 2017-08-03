@@ -14,13 +14,12 @@
 import argparse
 import getpass
 import logging
-
 import sys
 
 from brkt_cli import argutil, ValidationError, util
-from brkt_cli.subcommand import Subcommand
 from brkt_cli import yeti
-from brkt_cli.yeti import YetiService, YetiError
+from brkt_cli.subcommand import Subcommand
+from brkt_cli.yeti import YetiError, YetiService
 
 log = logging.getLogger(__name__)
 
@@ -63,11 +62,15 @@ class AuthSubcommand(Subcommand):
             '--password',
             help='If not specified, show a prompt.'
         )
+        argutil.add_public_api_ca_cert(parser, parsed_config)
         argutil.add_root_url(parser, parsed_config)
 
     def run(self, values):
         try:
-            if not yeti.is_yeti(values.root_url):
+            if not yeti.is_yeti(
+                values.root_url,
+                root_cert_path=values.public_api_ca_cert
+            ):
                 raise ValidationError(
                     values.root_url +
                     ' is not the Bracket service'
@@ -86,7 +89,10 @@ class AuthSubcommand(Subcommand):
             sys.stderr.write('Email: ')
             email = raw_input()
         password = values.password or getpass.getpass('Password: ')
-        y = YetiService(values.root_url)
+        y = YetiService(
+            values.root_url,
+            root_cert_path=values.public_api_ca_cert
+        )
         try:
             token = y.auth(email, password)
         except YetiError as e:

@@ -213,6 +213,28 @@ class TestReadPrivateKey(unittest.TestCase):
         with self.assertRaises(ValidationError):
             brkt_cli.crypto.validate_cert('foobar')
 
+    def test_validate_cert_path(self):
+        # File does not exist.
+        with self.assertRaises(ValidationError):
+            path = tempfile.gettempdir() + '/nothing_here.pem'
+            brkt_cli.crypto.validate_cert_path(path)
+
+        if brkt_cli.crypto.cryptography_library_available:
+            # File is not a cert.
+            cert_file = tempfile.NamedTemporaryFile()
+            cert_file.write('bogus')
+            cert_file.flush()
+
+            with self.assertRaises(ValidationError):
+                brkt_cli.crypto.validate_cert_path(cert_file.name)
+            cert_file.close()
+
+            # File is a valid cert.
+            cert_file = tempfile.NamedTemporaryFile()
+            cert_file.write(TEST_CERT)
+            cert_file.flush()
+            brkt_cli.crypto.validate_cert_path(cert_file.name)
+
 
 class TestPublicKey(unittest.TestCase):
 

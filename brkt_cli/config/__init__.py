@@ -24,6 +24,7 @@ import tempfile
 import yaml
 
 import brkt_cli
+from brkt_cli import argutil
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.util import parse_endpoint, render_table_rows
 from brkt_cli.validation import ValidationError
@@ -71,6 +72,7 @@ def _bracket_environment_to_dict(benv):
         'public-api-port': benv.public_api_port,
         'network-host': benv.network_host,
         'network-port': benv.network_port,
+        'public-api-ca-cert-path': benv.public_api_ca_cert_path
     }
 
 
@@ -83,17 +85,16 @@ def _bracket_environment_from_dict(d):
     :return a BracketEnvironment object
     """
     benv = brkt_cli.BracketEnvironment()
-    key_attr = {
-        'api': 'api',
-        'keyserver': 'hsmproxy',
-        'public-api': 'public_api',
-        'network': 'network',
-    }
-    for k, attr in key_attr.iteritems():
-        for suff in ('host', 'port'):
-            fk = k + '-' + suff
-            if fk in d:
-                setattr(benv, attr + '_' + suff, d[fk])
+    benv.api_host = d.get('api-host')
+    benv.api_port = d.get('api-port')
+    benv.hsmproxy_host = d.get('keyserver-host')
+    benv.hsmproxy_port = d.get('keyserver-port')
+    benv.public_api_host = d.get('public-api-host')
+    benv.public_api_port = d.get('public-api-port')
+    benv.network_host = d.get('network-host')
+    benv.network_port = d.get('network-port')
+    benv.public_api_ca_cert_path = d.get('public-api-ca-cert-path')
+
     return benv
 
 
@@ -466,18 +467,19 @@ The leading `*' indicates that the `stage' environment is currently active.
         set_env_parser.add_argument(
             '--network-server',
             help='The network server (host[:port]) the metavisor will connect to')
+        argutil.add_public_api_ca_cert(set_env_parser)
         set_env_parser.add_argument(
             '--public-api-server',
             help='The public api (host[:port])')
         set_env_parser.add_argument(
             '--service-domain',
             help=('Set server values from the service domain. This option '
-                  ' assumes that each server is resolvable via a hostname'
-                  ' rooted at service-domain. Specifically, api is expected to'
-                  ' live at yetiapi.<service-domain>, key-server at '
-                  ' hsmproxy.<service-domain>, network at '
-                  ' network.<service-domain>, and public-api-server at'
-                  ' api.<service-domain>.')
+                  'assumes that each server is resolvable via a hostname '
+                  'rooted at service-domain. Specifically, api is expected '
+                  'to live at yetiapi.<service-domain>, key-server at '
+                  'hsmproxy.<service-domain>, network at '
+                  'network.<service-domain>, and public-api-server at '
+                  'api.<service-domain>.')
             )
 
         # Set the active environment
@@ -578,8 +580,11 @@ The leading `*' indicates that the `stage' environment is currently active.
             port = port or 443
             setattr(env, opt_attr[k] + '_host', host)
             setattr(env, opt_attr[k] + '_port', port)
+
         if values.service_domain is not None:
             env = brkt_cli.brkt_env_from_domain(values.service_domain)
+
+        env.public_api_ca_cert_path = values.public_api_ca_cert
         self.parsed_config.set_env(values.env_name, env)
         return 0
 
@@ -620,6 +625,7 @@ The leading `*' indicates that the `stage' environment is currently active.
             env = self.parsed_config.get_env(values.env_name)
         except UnknownEnvironmentError:
             raise ValidationError('Error: unknown environment ' + values.env_name)
+
         attr_opt = {
             'api': 'api',
             'hsmproxy': 'key',
@@ -632,6 +638,10 @@ The leading `*' indicates that the `stage' environment is currently active.
                 continue
             port = getattr(env, k + '_port')
             self.stdout.write("%s-server=%s:%d\n" % (attr_opt[k], host, port))
+
+        if env.public_api_ca_cert_path:
+            self.stdout.write(
+                'public-api-ca-cert=%s\n' % env.public_api_ca_cert_path)
 
     def _unset_env(self, values):
         """Delete the named environment"""

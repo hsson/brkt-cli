@@ -79,6 +79,7 @@ class DummyValues(object):
         self.status_port = None
         self.brkt_env = None
         self.service_domain = None
+        self.public_api_ca_cert = None
 
 
 class TestCommandLineOptions(unittest.TestCase):
