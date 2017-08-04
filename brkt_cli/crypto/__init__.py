@@ -170,7 +170,6 @@ def _run_cmd(args, input_content=None):
 def validate_cert(cert_data):
     """ Validate that the given string is a valid x509 certificate.
 
-    :return True if the cert is valid
     :raise ValidationError if the string has an unexpected format
     """
     # Try validating with the cryptography library, if it's installed.
@@ -196,3 +195,20 @@ def validate_cert(cert_data):
 
     if code != 0:
         raise ValidationError('Error validating CA cert: ' + output)
+
+
+def validate_cert_path(path):
+    """ Validate that the file at the given path is a valid x509 certificate.
+
+    :return the cert content
+    :raise ValidationError if the file can't be read or the content
+    has an unexpected format
+    """
+    try:
+        with open(path, 'r') as f:
+            content = f.read()
+    except IOError as e:
+        raise ValidationError(e)
+
+    validate_cert(content)
+    return content

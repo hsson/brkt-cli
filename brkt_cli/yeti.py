@@ -60,7 +60,7 @@ def _get_reason(d):
     return reason
 
 
-def get_json(url, token=None, timeout=10.0):
+def get_json(url, token=None, timeout=10.0, root_cert_path=None):
     """ Send an HTTP GET to the given endpoint and return the response
     payload as a dictionary.
 
@@ -71,7 +71,12 @@ def get_json(url, token=None, timeout=10.0):
     log.debug('Sending HTTP GET to %s', url)
 
     headers = make_json_headers(token=token)
-    r = requests.get(url, headers=headers, timeout=timeout)
+    r = requests.get(
+        url,
+        headers=headers,
+        timeout=timeout,
+        verify=root_cert_path
+    )
     if r.status_code / 100 != 2:
         msg = None
         if r.status_code == 400:
@@ -81,7 +86,7 @@ def get_json(url, token=None, timeout=10.0):
     return r.json()
 
 
-def post_json(url, token=None, json=None, timeout=10.0):
+def post_json(url, token=None, json=None, timeout=10.0, root_cert_path=None):
     """ Send an HTTP POST to the given endpoint and return the response
     payload as a dictionary.
 
@@ -94,7 +99,13 @@ def post_json(url, token=None, json=None, timeout=10.0):
 
     headers = make_json_headers(token=token)
 
-    r = requests.post(url, headers=headers, json=json, timeout=timeout)
+    r = requests.post(
+        url,
+        headers=headers,
+        json=json,
+        timeout=timeout,
+        verify=root_cert_path
+    )
     if r.status_code / 100 != 2:
         msg = None
         if r.status_code == 400:
@@ -106,9 +117,10 @@ def post_json(url, token=None, json=None, timeout=10.0):
 
 class YetiService(object):
 
-    def __init__(self, root_url, token=None):
+    def __init__(self, root_url, token=None, root_cert_path=None):
         self.root_url = root_url
         self.token = token
+        self.root_cert_path = root_cert_path
 
     def auth(self, email, password):
         """ Authenticate with the Yeti service.
@@ -124,7 +136,8 @@ class YetiService(object):
         }
         d = post_json(
             self.root_url + '/oauth/credentials',
-            json=payload
+            json=payload,
+            root_cert_path=self.root_cert_path
         )
         self.token = str(d['id_token'])  # Convert Unicode to ASCII
         return self.token
@@ -135,7 +148,8 @@ class YetiService(object):
         """
         return get_json(
             self.root_url + '/api/v1/customer/self',
-            token=self.token
+            token=self.token,
+            root_cert_path=self.root_cert_path
         )
 
     def get_customer(self):
@@ -174,7 +188,8 @@ class YetiService(object):
         d = post_json(
             self.root_url + '/api/v1/token',
             token=self.token,
-            json=payload
+            json=payload,
+            root_cert_path=self.root_cert_path
         )
         return d['jwt']
 
@@ -201,11 +216,11 @@ class YetiService(object):
             _TOKEN_TYPE_API, expiry=expiry)
 
 
-def is_yeti(root_url, timeout=10.0):
+def is_yeti(root_url, timeout=10.0, root_cert_path=None):
     """ Return True if the root_url points to Yeti.
     :raise IOError if the url cannot be accessed
     """
     url = root_url + '/health_check'
     log.debug('Verifying Bracket service at %s', url)
-    r = requests.get(url, timeout=timeout)
+    r = requests.get(url, timeout=timeout, verify=root_cert_path)
     return r.status_code == 200

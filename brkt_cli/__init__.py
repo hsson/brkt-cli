@@ -24,12 +24,11 @@ import sys
 import tempfile
 from operator import attrgetter
 
-from brkt_cli import brkt_jwt, util, version
+from brkt_cli import brkt_jwt, util, version, crypto
 from brkt_cli.config import CLIConfig, CONFIG_PATH
 from brkt_cli.proxy import Proxy, generate_proxy_config, validate_proxy_config
 from brkt_cli.util import validate_dns_name_ip_address
 from brkt_cli.validation import ValidationError
-
 # The list of modules that may be loaded.  Modules contain subcommands of
 # the brkt command and CSP-specific code.
 SUBCOMMAND_MODULE_PATHS = [
@@ -51,7 +50,8 @@ class BracketEnvironment(object):
     def __init__(self, api_host=None, api_port=443,
                  hsmproxy_host=None, hsmproxy_port=443,
                  network_host=None, network_port=443,
-                 public_api_host=None, public_api_port=443):
+                 public_api_host=None, public_api_port=443,
+                 public_api_ca_cert_path=None):
         self.api_host = api_host
         self.api_port = api_port
         self.hsmproxy_host = hsmproxy_host
@@ -60,13 +60,15 @@ class BracketEnvironment(object):
         self.network_port = network_port
         self.public_api_host = public_api_host
         self.public_api_port = public_api_port
+        self.public_api_ca_cert_path = public_api_ca_cert_path
 
     def __repr__(self):
         return (
             '<BracketEnvironment api={be.api_host}:{be.api_port} '
             'hsmproxy={be.hsmproxy_host}:{be.hsmproxy_port} '
             'network={be.network_host}:{be.network_port} '
-            'public_api={be.public_api_host}:{be.public_api_port}>'
+            'public_api={be.public_api_host}:{be.public_api_port} '
+            'public_api_ca_cert_path={be.public_api_ca_cert_path}>'
         ).format(be=self)
 
 
@@ -161,14 +163,21 @@ def brkt_env_from_values(values, cli_config=None):
     not specified on the command line, return the default environment from
     the CLIConfig, or None.
     """
+    brkt_env = None
+
     if values.service_domain:
-        return brkt_env_from_domain(values.service_domain)
+        brkt_env = brkt_env_from_domain(values.service_domain)
     elif values.brkt_env:
-        return parse_brkt_env(values.brkt_env)
+        brkt_env = parse_brkt_env(values.brkt_env)
     elif cli_config:
-        return cli_config.get_current_env()[1]
-    else:
-        return None
+        brkt_env = cli_config.get_current_env()[1]
+
+    if brkt_env:
+        brkt_env.public_api_ca_cert_path = values.public_api_ca_cert
+        if brkt_env.public_api_ca_cert_path:
+            crypto.validate_cert_path(brkt_env.public_api_ca_cert_path)
+
+    return brkt_env
 
 
 def _parse_proxies(*proxy_host_ports):

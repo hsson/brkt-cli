@@ -122,6 +122,8 @@ def setup_instance_config_args(parser, parsed_config,
         )
     )
 
+    argutil.add_public_api_ca_cert(parser, parsed_config)
+
     token_group = parser.add_mutually_exclusive_group()
     token_group.add_argument(
         '--token',
@@ -189,14 +191,7 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
                 'Must specify --service-domain or --brkt-env when specifying '
                 '--ca-cert.'
             )
-        try:
-            with open(values.ca_cert, 'r') as f:
-                ca_cert_data = f.read()
-        except IOError as e:
-            raise ValidationError(e)
-
-        brkt_cli.crypto.validate_cert(ca_cert_data)
-
+        ca_cert_data = brkt_cli.crypto.validate_cert_path(values.ca_cert)
         domain = get_domain_from_brkt_env(brkt_env)
 
         ca_cert_filename = 'ca_cert.pem.' + domain
@@ -211,10 +206,11 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
 def _yeti_service_from_brkt_env(brkt_env):
     root_url = 'https://%s:%d' % (
         brkt_env.public_api_host, brkt_env.public_api_port)
-    token = (
-        os.environ.get('BRKT_API_TOKEN')
+    return yeti.YetiService(
+        root_url,
+        token=os.environ.get('BRKT_API_TOKEN'),
+        root_cert_path=brkt_env.public_api_ca_cert_path
     )
-    return yeti.YetiService(root_url, token=token)
 
 
 def _validate_yeti_service(yeti_service):
@@ -250,17 +246,15 @@ def yeti_service_from_brkt_env(brkt_env):
     return _validate_yeti_service(y)
 
 
-def get_yeti_service(root_url):
+def get_yeti_service(root_url, root_cert_path=None):
     """ Return a YetiService object based on the given Yeti public API
     root URL.
 
     :raise ValidationError if the API token is not set in config, or if
     authentication with Yeti fails.
     """
-    token = (
-        os.environ.get('BRKT_API_TOKEN')
-    )
-    y = yeti.YetiService(root_url, token=token)
+    token = os.environ.get('BRKT_API_TOKEN')
+    y = yeti.YetiService(root_url, token=token, root_cert_path=root_cert_path)
     return _validate_yeti_service(y)
 
 

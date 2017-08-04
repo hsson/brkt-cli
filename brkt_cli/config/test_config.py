@@ -37,7 +37,7 @@ class SetValues(object):
 class SetEnvValues(object):
     def __init__(self, env_name, api_server=None, key_server=None,
                  network_server=None, public_api_server=None,
-                 service_domain=None):
+                 service_domain=None, public_api_ca_cert=None):
         self.config_subcommand = 'set-env'
         self.env_name = env_name
         self.api_server = api_server
@@ -45,6 +45,7 @@ class SetEnvValues(object):
         self.network_server = network_server
         self.public_api_server = public_api_server
         self.service_domain = service_domain
+        self.public_api_ca_cert = public_api_ca_cert
 
 
 class UnsetEnvValues(object):
@@ -260,6 +261,18 @@ class ConfigCommandTestCase(unittest.TestCase):
             self.assertEqual(tc['host'], host_attr)
             port_attr = getattr(env, tc['attr'] + '_port')
             self.assertEqual(tc['port'], port_attr)
+
+    def test_public_api_ca_cert(self):
+        """Verify that you can set the public API root certificate of
+        an environment.
+        """
+        values = SetEnvValues(
+            env_name='test',
+            public_api_ca_cert='/tmp/root.crt'
+        )
+        self.cmd._set_env(values)
+        env = self.cfg.get_env('test')
+        self.assertEqual('/tmp/root.crt', env.public_api_ca_cert_path)
 
     def test_list_envs_default(self):
         """Verify that the hosted environment is marked as the

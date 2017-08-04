@@ -15,12 +15,15 @@
 import json
 import logging
 import uuid
+
 from dateutil.parser import parse
 
 import brkt_cli
 import brkt_cli.crypto
+import brkt_cli.instance_config_args
+import brkt_cli.yeti
 from brkt_cli import (
-    brkt_jwt, ValidationError, util, argutil, instance_config_args
+    brkt_jwt, ValidationError, util, argutil
 )
 from brkt_cli.subcommand import Subcommand
 from brkt_cli.util import parse_timestamp
@@ -70,12 +73,10 @@ class MakeTokenSubcommand(Subcommand):
                 raise ValidationError(msg % '--nbf')
 
             # New workflow: get a launch token from Yeti.
-            if values.root_url:
-                yeti = instance_config_args.get_yeti_service(values.root_url)
-            else:
-                brkt_env = self.config.get_current_env()[1]
-                yeti = instance_config_args.yeti_service_from_brkt_env(
-                    brkt_env)
+            yeti = brkt_cli.instance_config_args.get_yeti_service(
+                values.root_url,
+                root_cert_path=values.public_api_ca_cert
+            )
 
             tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
             expiry = None
@@ -153,6 +154,7 @@ def _setup_args(subparsers, parsed_config):
             )
         )
 
+    argutil.add_public_api_ca_cert(parser, parsed_config)
     argutil.add_brkt_tag(parser)
     argutil.add_root_url(parser, parsed_config)
 
