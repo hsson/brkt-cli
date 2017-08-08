@@ -22,6 +22,12 @@ def setup_wrap_image_args(parser, parsed_config):
         help='The guest AMI that will be launched as a wrapped Bracket instance'
     )
     parser.add_argument(
+        '--stock-image-version',
+        metavar='STOCK_IMAGE_VERSION',
+        help='The version number when specifying "ubuntu" or "centos" instead of'
+             ' an AMI ID. The default versions are Ubuntu 16.04 and CentOS 7.'
+    )
+    parser.add_argument(
         '--wrapped-instance-name',
         metavar='NAME',
         dest='wrapped_instance_name',
