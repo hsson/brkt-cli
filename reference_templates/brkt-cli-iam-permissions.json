@@ -27,6 +27,7 @@
                 "ec2:DescribeVolumes",
                 "ec2:DescribeVpcs",
                 "ec2:GetConsoleOutput",
+                "ec2:ModifyImageAttribute",
                 "ec2:RegisterImage",
                 "ec2:RunInstances",
                 "ec2:StopInstances",
