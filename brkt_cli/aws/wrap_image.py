@@ -102,6 +102,7 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
         guest_image.block_device_mappings,
         guest_image.root_device_name
     )
+    instance = None
     temp_sg = None
     temp_snapshot_id = None
     completed = False
