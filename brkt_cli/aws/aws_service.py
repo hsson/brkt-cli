@@ -327,7 +327,7 @@ class AWSService(BaseAWSService):
             if ebs_optimized is not None:
                 kwargs['EbsOptimized'] = ebs_optimized
             if instance_profile_name:
-                kwargs['IamInstanceProfile'] = instance_profile_name
+                kwargs['IamInstanceProfile'] = {'Name': instance_profile_name}
             if self.key_name:
                 kwargs['KeyName'] = self.key_name
 
@@ -403,7 +403,9 @@ class AWSService(BaseAWSService):
 
     def iam_role_exists(self, role):
         try:
-            self.ec2client.get_instance_profile(InstanceProfileName=role)
+            iam = boto3.resource('iam')
+            iamRole = iam.Role(role)
+            iamRole.load()
         except ClientError as e:
             code, _ = get_code_and_message(e)
             if code != 'NoSuchEntity':

@@ -234,6 +234,9 @@ class BaseVCenterService(object):
     def rename_vm(self, vm, new_name):
         pass
 
+    def change_vm_name(self, vm, new_name):
+        self.rename_vm()
+
     @abc.abstractmethod
     def add_disk(self, vm, disk_size=12*1024*1024,
                  filename=None, unit_number=0):
@@ -667,6 +670,13 @@ class VCenterService(BaseVCenterService):
                                     self.datacenter_name)
         task = f.MoveDatastoreFile_Task(vm_disk_name, datacenter,
                                         dest_disk_name, datacenter)
+        self.__wait_for_task(task)
+
+    def change_vm_name(self, vm, new_name):
+        # merely change the name without changing any of the underlying disks
+        self.validate_connection()
+        spec = vim.vm.ConfigSpec(name=new_name)
+        task = vm.ReconfigVM_Task(spec=spec)
         self.__wait_for_task(task)
 
     def add_serial_port_to_file(self, vm, filename):

@@ -65,6 +65,19 @@ $ brkt aws encrypt --region us-east-1 --brkt-tag env=prod ami-76e27e1e
 ami-07c2a262
 ```
 
+To encrypt a stock Ubuntu Cloud image or CentOS image from the AWS
+Marketplace, you can simply specify **ubuntu** or **centos** in
+place of the AMI ID. Only CentOS version 6 and 7 are supported and
+you may need to subscribe to the AWS Marketplace agreement before
+being able to encrypt the CentOS image.
+
+For example, the below command encrypts the latest published Ubuntu 16.04
+Cloud image (from https://cloud-images.ubuntu.com/locator/ec2/releasesTable):
+
+```
+$ brkt aws encrypt --region us-east-1 --brkt-tag env=prod ubuntu
+```
+
 When the process completes, the new AMI id is written to stdout.  Log
 messages are written to stderr.
 
@@ -139,9 +152,10 @@ be in the same VPC.
 ## Usage
 ```
 $ brkt aws encrypt --help
-usage: brkt aws encrypt [-h] [--encrypted-ami-name NAME]
-                        [--guest-instance-type TYPE] [--no-validate] --region
-                        NAME [--security-group ID] [--subnet ID]
+usage: brkt aws encrypt [-h] [--stock-image-version STOCK_IMAGE_VERSION]
+                        [--encrypted-ami-name NAME]
+                        [--guest-instance-type TYPE] [--no-validate]
+                        --region NAME [--security-group ID] [--subnet ID]
                         [--aws-tag KEY=VALUE] [--metavisor-version NAME]
                         [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
@@ -152,7 +166,8 @@ usage: brkt aws encrypt [-h] [--encrypted-ami-name NAME]
 Create an encrypted AMI from an existing AMI.
 
 positional arguments:
-  ID                    The guest AMI that will be encrypted
+  ID                    The guest AMI that will be encrypted. This can be the
+                        AMI ID, "ubuntu", or "centos".
 
 optional arguments:
   --aws-tag KEY=VALUE   Set an AWS tag on resources created during encryption.
@@ -186,6 +201,10 @@ optional arguments:
   --status-port PORT    Specify the port to receive http status of encryptor.
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
+  --stock-image-version STOCK_IMAGE_VERSION
+                        The version number when specifying "ubuntu" or
+                        "centos" instead of an AMI ID. The default versions
+                        are Ubuntu 16.04 and CentOS 7.
   --subnet ID           Launch instances in this subnet
   --token TOKEN         Token (JWT) that Metavisor uses to authenticate with
                         the Bracket service. Use the make-token subcommand to

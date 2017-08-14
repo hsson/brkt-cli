@@ -97,7 +97,16 @@ def update_ovf_image_mv_vm(vc_swc, enc_svc_cls, guest_vm, mv_vm,
                                        vc_swc.session_id
                 log.info("Renaming the old template to %s",
                          old_template_vm_name)
-                vc_swc.rename_vm(template_vm, old_template_vm_name)
+                try:
+                    vc_swc.rename_vm(template_vm, old_template_vm_name)
+                except Exception as e:
+                    if "vim.fault.FileFault" not in str(e):
+                        raise
+                    log.info("Rename VM not supported. "
+                             "Deleting the old template %s.", template_vm.name)
+                    if not vc_swc.find_vm(template_vm_name):
+                        vc_swc.change_vm_name(template_vm, template_vm_name)
+                    vc_swc.destroy_vm(template_vm)
             # clone the vm to create template
             log.info("Creating the template VM")
             template_vm = vc_swc.clone_vm(guest_vm, vm_name=template_vm_name,
