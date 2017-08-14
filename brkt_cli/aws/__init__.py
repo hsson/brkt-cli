@@ -520,7 +520,7 @@ class AWSSubcommand(Subcommand):
         wrap_parser = aws_subparsers.add_parser(
             'wrap-guest-image',
             description=(
-                'Launch guest image wrapped with Bracket Metavsor'
+                'Launch guest image wrapped with Bracket Metavisor'
             ),
             help='Launch guest image wrapped with Bracket Metavisor'
         )
