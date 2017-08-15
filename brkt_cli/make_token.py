@@ -26,7 +26,6 @@ from brkt_cli import (
     brkt_jwt, ValidationError, util, argutil
 )
 from brkt_cli.subcommand import Subcommand
-from brkt_cli.util import parse_timestamp
 
 log = logging.getLogger(__name__)
 
@@ -99,10 +98,10 @@ def _make_jwt_from_signing_key(values, signing_key):
     crypto = brkt_cli.crypto.read_private_key(signing_key)
     exp = None
     if values.exp:
-        exp = parse_timestamp(values.exp)
+        exp = util.parse_duration(values.exp)
     nbf = None
     if values.nbf:
-        nbf = parse_timestamp(values.nbf)
+        nbf = util.parse_duration(values.nbf)
     if exp and nbf:
         exp_time = parse(str(exp))
         nbf_time = parse(str(nbf))
