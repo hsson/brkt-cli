@@ -348,10 +348,6 @@ def parse_timestamp(ts_string):
     # Parse integer timestamp.
     m = re.match('\d+(\.\d+)?$', ts_string)
     if m:
-        log.warn(
-            'Integer timestamps are deprecated.  Please use a duration '
-            'like 12h.'
-        )
         t = float(ts_string)
         if t < now:
             raise ValidationError(
@@ -362,10 +358,6 @@ def parse_timestamp(ts_string):
     # Parse ISO 8601 timestamp.
     try:
         dt = iso8601.parse_date(ts_string)
-        log.warn(
-            'ISO 8601 timestamps are deprecated.  Please use a duration '
-            'like 12h.'
-        )
     except iso8601.ParseError:
         raise ValidationError(
             'Timestamp "%s" must be a duration '
