@@ -307,7 +307,7 @@ def parse_duration(duration_string):
     :return a timedelta object
     :raise ValidationError if the string is malformed
     """
-    m = re.match('\d+[smhdy]$', duration_string)
+    m = re.match('\d+[smhd]$', duration_string)
     if m:
         dur = int(duration_string[:-1])
         unit = duration_string[-1]
@@ -319,10 +319,6 @@ def parse_duration(duration_string):
             return timedelta(seconds=dur)
         elif unit == 'd':
             return timedelta(days=dur)
-        elif unit == 'y':
-            log.warn(
-                'Time duration in years is deprecated.  Use days instead.')
-            return timedelta(days=dur*365)
     else:
         raise ValidationError(
             'Duration must be formatted as N[dhms]: ' + duration_string)
