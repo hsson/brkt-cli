@@ -584,42 +584,6 @@ class TestBrktEnv(unittest.TestCase):
 
         self.assertEquals(3, self.call_count)
 
-    def test_clean_up_guest_instance(self):
-        """ Test that we clean up the guest instance if an exception is
-        raised inside run_guest_instance().
-        """
-        aws_svc, encryptor_image, guest_image = build_aws_service()
-
-        self.guest_instance_id = None
-        self.guest_terminated = False
-
-        def run_instance_callback(args):
-            if args.image_id == guest_image.id:
-                self.guest_instance_id = args.instance.id
-
-        def create_tags_callback(resource_id, name, description):
-            if resource_id == self.guest_instance_id:
-                raise TestException()
-
-        def terminate_instance_callback(instance_id):
-            if instance_id == self.guest_instance_id:
-                self.guest_terminated = True
-
-        aws_svc.run_instance_callback = run_instance_callback
-        aws_svc.create_tags_callback = create_tags_callback
-        aws_svc.terminate_instance_callback = terminate_instance_callback
-
-        with self.assertRaises(TestException):
-            encrypt_ami.encrypt(
-                aws_svc=aws_svc,
-                enc_svc_cls=DummyEncryptorService,
-                image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id,
-                crypto_policy=CRYPTO_GCM
-            )
-
-        self.assertTrue(self.guest_terminated)
-
     def test_clean_up_encryptor_instance(self):
         """ Test that we clean up the encryptor instance if an exception is
         raised inside _run_encryptor_instance().
@@ -634,7 +598,8 @@ class TestBrktEnv(unittest.TestCase):
                 self.encryptor_instance_id = args.instance.id
 
         def create_tags_callback(resource_id, name, description):
-            if resource_id == self.encryptor_instance_id:
+            # Encryptor volumes are tagged after the instance is started.
+            if self.encryptor_instance_id and resource_id.startswith('vol-'):
                 raise TestException()
 
         def terminate_instance_callback(instance_id):
@@ -642,8 +607,8 @@ class TestBrktEnv(unittest.TestCase):
                 self.encryptor_terminated = True
 
         aws_svc.run_instance_callback = run_instance_callback
-        aws_svc.create_tags_callback = create_tags_callback
         aws_svc.terminate_instance_callback = terminate_instance_callback
+        aws_svc.create_tags_callback = create_tags_callback
 
         with self.assertRaises(TestException):
             encrypt_ami.encrypt(

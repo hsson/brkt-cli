@@ -77,11 +77,13 @@ class BaseAWSService(object):
                      security_group_ids=None,
                      instance_type='c4.xlarge',
                      placement=None,
-                     block_device_map=None,
+                     block_device_mappings=None,
                      subnet_id=None,
                      user_data=None,
                      ebs_optimized=True,
-                     instance_profile_name=None):
+                     instance_profile_name=None,
+                     name=None,
+                     description=None):
         pass
 
     @abc.abstractmethod
@@ -305,7 +307,10 @@ class AWSService(BaseAWSService):
                      subnet_id=None,
                      user_data=None,
                      ebs_optimized=True,
-                     instance_profile_name=None):
+                     instance_profile_name=None,
+                     name=None,
+                     description=None):
+        instance_id = None
         try:
             kwargs = {
                 'ImageId': image_id,
@@ -343,10 +348,13 @@ class AWSService(BaseAWSService):
                 self.ec2client.run_instances, )
             response = run_instances(**kwargs)
             instance_id = response['Instances'][0]['InstanceId']
-            log.debug('Launched instance %s', instance_id)
+            log.info('Launched %s based on %s', instance_id, image_id)
+
+            self.create_tags(instance_id, name=name, description=description)
             return self.get_instance(instance_id)
-        except ClientError:
-            log.debug('Failed to launch instance for %s', image_id)
+        except:
+            if instance_id:
+                clean_up(self, instance_ids=[instance_id])
             raise
 
     def get_instance(self, instance_id):
@@ -371,12 +379,12 @@ class AWSService(BaseAWSService):
         )
 
     def stop_instance(self, instance_id):
-        log.debug('Stopping instance %s', instance_id)
+        log.info('Stopping %s', instance_id)
         stop_instances = self.retry(self.ec2client.stop_instances)
         stop_instances(InstanceIds=[instance_id])
 
     def terminate_instance(self, instance_id):
-        log.debug('Terminating instance %s', instance_id)
+        log.info('Terminating %s', instance_id)
         terminate_instances = self.retry(self.ec2client.terminate_instances)
         terminate_instances(InstanceIds=[instance_id])
 
@@ -429,17 +437,23 @@ class AWSService(BaseAWSService):
         return snapshot
 
     def create_snapshot(self, volume_id, name=None, description=None):
-        log.debug('Creating snapshot of %s', volume_id)
         create_snapshot = self.retry(self.ec2client.create_snapshot)
         kwargs = {
             'VolumeId': volume_id
         }
         if description:
             kwargs['Description'] = description
-        response = create_snapshot(**kwargs)
-        snapshot_id = response['SnapshotId']
-        self.create_tags(snapshot_id, name=name)
-        return self.get_snapshot(snapshot_id)
+        snapshot_id = None
+        try:
+            response = create_snapshot(**kwargs)
+            snapshot_id = response['SnapshotId']
+            log.info('Creating %s based on %s', snapshot_id, volume_id)
+            self.create_tags(snapshot_id, name=name)
+            return self.get_snapshot(snapshot_id)
+        except:
+            if snapshot_id:
+                clean_up(self, snapshot_ids=[snapshot_id])
+            raise
 
     def create_volume(self,
                       size,
@@ -460,13 +474,22 @@ class AWSService(BaseAWSService):
         if encrypted:
             kwargs['Encrypted'] = encrypted
 
-        log.debug('Creating volume: %s', pretty_print_json(kwargs))
-        response = create_volume(**kwargs)
-        volume_id = response['VolumeId']
-        return self.get_volume(volume_id)
+        log.debug('Volume properties: %s', pretty_print_json(kwargs))
+        volume_id = None
+
+        try:
+            response = create_volume(**kwargs)
+            volume_id = response['VolumeId']
+            log.info('Creating %s based on %s', volume_id, snapshot_id)
+            self.create_tags(volume_id)
+            return self.get_volume(volume_id)
+        except:
+            if volume_id:
+                clean_up(self, volume_ids=[volume_id])
+            raise
 
     def delete_volume(self, volume_id):
-        log.debug('Deleting volume %s', volume_id)
+        log.info('Deleting %s', volume_id)
         try:
             delete_volume = self.retry(
                 self.ec2client.delete_volume, r'VolumeInUse')
@@ -517,8 +540,17 @@ class AWSService(BaseAWSService):
         create_security_group = self.retry(
             self.ec2client.create_security_group)
         log.debug('Creating security group: %s', pretty_print_json(kwargs))
-        response = create_security_group(**kwargs)
-        return self.get_security_group(response['GroupId'])
+
+        sg_id = None
+        try:
+            response = create_security_group(**kwargs)
+            sg_id = response['GroupId']
+            log.info('Created %s, name=%s', sg_id, name)
+            return self.get_security_group(sg_id)
+        except:
+            if sg_id:
+                clean_up(self, security_group_ids=[sg_id])
+            raise
 
     def get_security_group(self, sg_id, retry=True):
         sg = self.ec2.SecurityGroup(sg_id)
@@ -531,7 +563,7 @@ class AWSService(BaseAWSService):
         return sg
 
     def authorize_security_group_ingress(self, sg_id, port):
-        log.debug('Authorizing ingress to %s on port %d', sg_id, port)
+        log.info('Authorizing ingress to %s on port %d', sg_id, port)
         authorize = self.retry(
             self.ec2client.authorize_security_group_ingress)
         authorize(
@@ -543,7 +575,7 @@ class AWSService(BaseAWSService):
         )
 
     def delete_security_group(self, sg_id):
-        log.debug('Deleting %s', sg_id)
+        log.info('Deleting %s', sg_id)
         delete_security_group = self.retry(
             self.ec2client.delete_security_group,
             r'InvalidGroup\.InUse|DependencyViolation'
@@ -594,10 +626,13 @@ class AWSService(BaseAWSService):
             kwargs['BlockDeviceMappings'] = block_device_mappings
 
         response = create_image(**kwargs)
-        return self.get_image(response['ImageId'])
+        image_id = response['ImageId']
+        log.info('Creating %s based on %s', image_id, instance_id)
+        self.create_tags(image_id)
+        return self.get_image(image_id)
 
     def detach_volume(self, vol_id, instance_id, force=True):
-
+        log.info('Detaching %s from %s', vol_id, instance_id)
         detach_volume = self.retry(self.ec2client.detach_volume)
         kwargs = {
             'VolumeId': vol_id
@@ -606,12 +641,12 @@ class AWSService(BaseAWSService):
             kwargs['InstanceId'] = instance_id
         if force is not None:
             kwargs['Force'] = force
-        log.debug('Detaching volume: %s', kwargs)
+        log.debug('Detaching volume: %s', pretty_print_json(kwargs))
         response = detach_volume(**kwargs)
         return self.get_volume(response['VolumeId'])
 
     def attach_volume(self, vol_id, instance_id, device_name):
-        log.debug(
+        log.info(
             'Attaching %s to %s at %s', vol_id, instance_id, device_name)
         attach_volume = self.retry(
             self.ec2client.attach_volume, r'VolumeInUse')
@@ -804,7 +839,6 @@ def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=\
     sg_name = NAME_ENCRYPTOR_SECURITY_GROUP % {'nonce': make_nonce()}
     sg_desc = DESCRIPTION_ENCRYPTOR_SECURITY_GROUP
     sg = aws_svc.create_security_group(sg_name, sg_desc, vpc_id=vpc_id)
-    log.info('Created temporary security group with id %s', sg.id)
     try:
         aws_svc.authorize_security_group_ingress(sg.id, status_port)
     except Exception as e:
@@ -822,30 +856,18 @@ def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=\
 
 def run_guest_instance(aws_svc, image_id, subnet_id=None,
                        instance_type='m4.large'):
-    instance = None
-
-    try:
-        instance = aws_svc.run_instance(
-            image_id, subnet_id=subnet_id,
-            instance_type=instance_type, ebs_optimized=False)
-        log.info(
-            'Launching instance %s to snapshot root disk for %s',
-            instance.id, image_id)
-        aws_svc.create_tags(
-            instance.id,
-            name=NAME_GUEST_CREATOR,
-            description=DESCRIPTION_GUEST_CREATOR % {'image_id': image_id}
-        )
-    except:
-        if instance:
-            clean_up(aws_svc, instance_ids=[instance.id])
-        raise
-
-    return instance
+    return aws_svc.run_instance(
+        image_id,
+        subnet_id=subnet_id,
+        instance_type=instance_type,
+        ebs_optimized=False,
+        name=NAME_GUEST_CREATOR,
+        description=DESCRIPTION_GUEST_CREATOR % {'image_id': image_id}
+    )
 
 
 def clean_up(aws_svc, instance_ids=None, volume_ids=None,
-              snapshot_ids=None, security_group_ids=None):
+             snapshot_ids=None, security_group_ids=None):
     """ Clean up any resources that were created by the encryption process.
     Handle and log exceptions, to ensure that the script doesn't exit during
     cleanup.
@@ -859,27 +881,25 @@ def clean_up(aws_svc, instance_ids=None, volume_ids=None,
     terminated_instance_ids = set()
     for instance_id in instance_ids:
         try:
-            log.info('Terminating instance %s', instance_id)
             aws_svc.terminate_instance(instance_id)
             terminated_instance_ids.add(instance_id)
         except ClientError as e:
-            log.warn('Unable to terminate instance %s: %s', instance_id, e)
+            log.warn('Unable to terminate %s: %s', instance_id, e)
         except:
-            log.exception('Unable to terminate instance %s', instance_id)
+            log.exception('Unable to terminate %s', instance_id)
 
     for snapshot_id in snapshot_ids:
         try:
-            log.info('Deleting snapshot %s', snapshot_id)
             aws_svc.delete_snapshot(snapshot_id)
         except ClientError as e:
-            log.warn('Unable to delete snapshot %s: %s', snapshot_id, e)
+            log.warn('Unable to delete %s: %s', snapshot_id, e)
         except:
-            log.exception('Unable to delete snapshot %s', snapshot_id)
+            log.exception('Unable to delete %s', snapshot_id)
 
     # Wait for instances to terminate before deleting security groups and
     # volumes, to avoid dependency errors.
     for id in terminated_instance_ids:
-        log.info('Waiting for instance %s to terminate.', id)
+        log.info('Waiting for %s to terminate.', id)
         try:
             wait_for_instance(aws_svc, id, state='terminated')
         except (ClientError, InstanceError) as e:
@@ -895,7 +915,6 @@ def clean_up(aws_svc, instance_ids=None, volume_ids=None,
     # Delete volumes and security groups.
     for volume_id in volume_ids:
         try:
-            log.info('Deleting volume %s', volume_id)
             aws_svc.delete_volume(volume_id)
         except ClientError as e:
             log.warn('Unable to delete volume %s: %s', volume_id, e)
@@ -904,7 +923,6 @@ def clean_up(aws_svc, instance_ids=None, volume_ids=None,
 
     for sg_id in security_group_ids:
         try:
-            log.info('Deleting security group %s', sg_id)
             aws_svc.delete_security_group(sg_id)
         except ClientError as e:
             log.warn('Unable to delete security group %s: %s', sg_id, e)
@@ -1020,7 +1038,9 @@ def _write_console_output(aws_svc, instance_id):
 
 
 def wait_for_snapshots(aws_svc, *snapshot_ids):
-    log.debug('Waiting for status "completed" for %s', str(snapshot_ids))
+
+    log.info(
+        'Waiting for status "completed" for %s', ', '.join(snapshot_ids))
     last_progress_log = time.time()
 
     # Give AWS some time to propagate the snapshot creation.
@@ -1071,8 +1091,6 @@ def snapshot_root_volume(aws_svc, instance, image_id):
 
     :except SnapshotError if the snapshot goes into an error state
     """
-    log.info(
-        'Stopping instance %s in order to create snapshot', instance.id)
     aws_svc.stop_instance(instance.id)
     wait_for_instance(aws_svc, instance.id, state='stopped')
 
@@ -1101,16 +1119,12 @@ def snapshot_root_volume(aws_svc, instance, image_id):
         name=NAME_ORIGINAL_SNAPSHOT,
         description=DESCRIPTION_ORIGINAL_SNAPSHOT % {'image_id': image_id}
     )
-    log.info(
-        'Creating snapshot %s of root volume for instance %s',
-        snapshot.id, instance.id
-    )
 
     try:
         wait_for_snapshots(aws_svc, snapshot.id)
 
         # Now try to detach the root volume.
-        log.info('Detaching root volume from guest.')
+        log.info('Deleting guest root volume.')
         aws_svc.detach_volume(
             volume_id,
             instance_id=instance.id,
@@ -1118,7 +1132,6 @@ def snapshot_root_volume(aws_svc, instance, image_id):
         )
         wait_for_volume(aws_svc, volume_id)
         # And now delete it
-        log.info('Deleting root volume %s', volume_id)
         aws_svc.delete_volume(volume_id)
     except:
         clean_up(aws_svc, snapshot_ids=[snapshot.id])

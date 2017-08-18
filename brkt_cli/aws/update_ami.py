@@ -84,9 +84,7 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             instance_type=guest_instance_type,
             ebs_optimized=False,
             subnet_id=subnet_id,
-            user_data=json.dumps(instance_config.brkt_config))
-        aws_svc.create_tags(
-            encrypted_guest.id,
+            user_data=json.dumps(instance_config.brkt_config),
             name=NAME_GUEST_CREATOR,
             description=DESCRIPTION_GUEST_CREATOR % {'image_id': encrypted_ami}
         )
@@ -121,11 +119,9 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             ebs_optimized=False,
             subnet_id=subnet_id,
             placement=encrypted_guest.placement,
-            security_group_ids=security_group_ids)
-        aws_svc.create_tags(
-            updater.id,
+            security_group_ids=security_group_ids,
             name=NAME_METAVISOR_UPDATER,
-            description=DESCRIPTION_METAVISOR_UPDATER,
+            description=DESCRIPTION_METAVISOR_UPDATER
         )
 
         log.info(

@@ -185,10 +185,7 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
             block_device_mappings=bdm,
             ebs_optimized=ebs_optimized,
             subnet_id=subnet_id,
-            instance_profile_name=iam
-        )
-        aws_svc.create_tags(
-            instance.id,
+            instance_profile_name=iam,
             name=instance_name
         )
 
