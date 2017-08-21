@@ -177,20 +177,17 @@ def _run_encryptor_instance(
         compressed_user_data = gzip_user_data(user_data)
 
         bdm = [guest_unencrypted_root, guest_encrypted_root]
+        log.info('Launching encryptor instance.')
         instance = run_instance(
             encryptor_image_id,
             security_group_ids=security_group_ids,
             user_data=compressed_user_data,
             placement=placement,
             block_device_mappings=bdm,
-            subnet_id=subnet_id
-        )
-        aws_svc.create_tags(
-            instance.id,
+            subnet_id=subnet_id,
             name=NAME_ENCRYPTOR,
             description=DESCRIPTION_ENCRYPTOR % {'image_id': guest_image_id}
         )
-        log.info('Launching encryptor instance %s', instance.id)
         instance = wait_for_instance(aws_svc, instance.id)
 
         # Tag volumes.
@@ -491,6 +488,8 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
                  "instead of /dev/sda1", guest_image.root_device_name)
         legacy = True
     """
+
+    log.info('Snapshotting the guest root disk.')
 
     try:
         guest_instance = run_guest_instance(

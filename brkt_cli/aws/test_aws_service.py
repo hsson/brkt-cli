@@ -122,7 +122,9 @@ class DummyAWSService(aws_service.BaseAWSService):
                      subnet_id=None,
                      user_data=None,
                      ebs_optimized=True,
-                     instance_profile_name=None):
+                     instance_profile_name=None,
+                     name=None,
+                     description=None):
         instance = Instance()
         instance.id = 'i-' + new_id()
         instance.image_id = image_id
@@ -160,6 +162,8 @@ class DummyAWSService(aws_service.BaseAWSService):
             args.instance = instance
             args.instance_profile_name = instance_profile_name
             self.run_instance_callback(args)
+
+        self.create_tags(instance.id, name=name, description=description)
 
         return instance
 
