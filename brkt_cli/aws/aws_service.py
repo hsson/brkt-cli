@@ -370,6 +370,10 @@ class AWSService(BaseAWSService):
             d['Name'] = name
         if description:
             d['Description'] = description
+        if not d:
+            log.debug('Not tagging %s.  No tags were specified.', resource_id)
+            return
+
         log.debug(
             'Tagging %s with %s', resource_id, pretty_print_json(d))
         create_tags = self.retry(self.ec2client.create_tags, r'.*\.NotFound')
