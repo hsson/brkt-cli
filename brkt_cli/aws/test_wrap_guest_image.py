@@ -63,7 +63,7 @@ class TestRunEncryption(unittest.TestCase):
         self.assertIsNotNone(instance)
 
     def test_wrapped_instance_name(self):
-        """ Test that the wrapped instance is launched with the Metavisor AMI.
+        """ Test that the wrapped instance is launched with the guest AMI.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
 
@@ -75,7 +75,7 @@ class TestRunEncryption(unittest.TestCase):
             wrapped_instance_name=name,
         )
         instance = aws_svc.get_instance(instance.id)
-        self.assertEqual(encryptor_image.id, instance.image_id)
+        self.assertEqual(guest_image.id, instance.image_id)
 
     def test_subnet_with_security_groups(self):
         """ Test that the subnet and security groups are passed to the

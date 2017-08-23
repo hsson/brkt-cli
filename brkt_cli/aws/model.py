@@ -234,23 +234,11 @@ class Instance(TaggedEC2Object):
         self.sriov_net_support = None
         self._previous_state = None
         self.state = dict()
-        self._placement = InstancePlacement()
+        self.placement = dict()
         self.ena_support = False
 
     def __repr__(self):
         return 'Instance:%s' % self.id
-
-    @property
-    def placement(self):
-        return self._placement.zone
-
-    @property
-    def placement_group(self):
-        return self._placement.group_name
-
-    @property
-    def placement_tenancy(self):
-        return self._placement.tenancy
 
 
 class KeyPair(object):
