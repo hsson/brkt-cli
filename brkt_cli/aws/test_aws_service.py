@@ -131,6 +131,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         instance.root_device_name = '/dev/sda1'
         instance.state['Name'] = 'pending'
         instance.state['Code'] = 0
+        instance.placement = placement or {'AvailabilityZone': 'us-west-2a'}
 
         # Create volumes based on block device data from the image.
         image = self.get_image(image_id)
@@ -209,6 +210,12 @@ class DummyAWSService(aws_service.BaseAWSService):
 
         instance.state['Code'] = 80
         instance.state['Name'] = 'stopped'
+        return instance
+
+    def start_instance(self, instance_id):
+        instance = self.instances[instance_id]
+        instance.state['Code'] = 16
+        instance.state['Name'] = 'running'
         return instance
 
     def terminate_instance(self, instance_id):
@@ -330,7 +337,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         updated_bdm = [d for d in instance.block_device_mappings
                        if d['Ebs']['VolumeId'] != vol_id]
         instance.block_device_mappings = updated_bdm
-        return True
+        return self.get_volume(vol_id)
 
     def delete_volume(self, volume_id):
         del(self.volumes[volume_id])
@@ -446,9 +453,9 @@ def build_aws_service():
     aws_svc.snapshots[enc_snap2.id] = enc_snap2
 
     enc_dev1 = boto3_device.make_device(
-        device_name='/dev/sda1', snapshot_id=enc_snap1.id)
+        device_name='/dev/sda1', snapshot_id=enc_snap1.id, volume_size=10)
     enc_dev2 = boto3_device.make_device(
-        device_name='/dev/sdg', snapshot_id=enc_snap2.id)
+        device_name='/dev/sdg', snapshot_id=enc_snap2.id, volume_size=8)
     id = aws_svc.register_image(
         name='metavisor-0-0-1234', block_device_mappings=[enc_dev1, enc_dev2])
     encryptor_image = aws_svc.get_image(id)

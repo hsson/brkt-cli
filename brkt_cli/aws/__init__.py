@@ -179,6 +179,8 @@ def run_wrap_image(values, config):
 
     metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
                                                     values.metavisor_version)
+    log.debug('Using Metavisor %s', metavisor_ami)
+
     if values.validate:
         values.encrypted_ami_name = None
         _validate(aws_svc, values, metavisor_ami)

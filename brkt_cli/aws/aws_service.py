@@ -99,6 +99,10 @@ class BaseAWSService(object):
         pass
 
     @abc.abstractmethod
+    def start_instance(self, instance_id):
+        pass
+
+    @abc.abstractmethod
     def terminate_instance(self, instance_id):
         pass
 
@@ -130,7 +134,7 @@ class BaseAWSService(object):
     def create_volume(self,
                       size,
                       zone,
-                      snapshot=None,
+                      snapshot_id=None,
                       volume_type=None,
                       encrypted=False):
         pass
@@ -386,6 +390,11 @@ class AWSService(BaseAWSService):
         log.info('Stopping %s', instance_id)
         stop_instances = self.retry(self.ec2client.stop_instances)
         stop_instances(InstanceIds=[instance_id])
+
+    def start_instance(self, instance_id):
+        log.info('Starting %s', instance_id)
+        self.ec2client.start_instances(InstanceIds=[instance_id])
+        return self.get_instance(instance_id)
 
     def terminate_instance(self, instance_id):
         log.info('Terminating %s', instance_id)
@@ -674,14 +683,25 @@ class AWSService(BaseAWSService):
 
     def modify_instance_attribute(self, instance_id, attribute,
                                   value, dry_run=False):
-        log.info('Setting %s for %s to %s', attribute, instance_id, value)
         modify_instance_attribute = self.retry(
             self.ec2client.modify_instance_attribute)
-        modify_instance_attribute(
-            InstanceId=instance_id,
-            Attribute=attribute,
-            Value=value
-        )
+
+        if attribute == 'userData':
+            log.info(
+                'Setting userData for %s, content length is %d bytes.',
+                len(value)
+            )
+            modify_instance_attribute(
+                InstanceId=instance_id,
+                UserData={'Value': value}
+            )
+        else:
+            log.info('Setting %s for %s to %s', attribute, instance_id, value)
+            modify_instance_attribute(
+                InstanceId=instance_id,
+                Attribute=attribute,
+                Value=value
+            )
 
 
 def validate_image_name(name):
@@ -747,9 +767,8 @@ def wait_for_volume(aws_svc, volume_id, timeout=600.0, state='available'):
     :return the Volume object
     :raise VolumeError if the timeout is exceeded
     """
-    log.debug(
-        'Waiting for %s, timeout=%.02f, state=%s',
-        volume_id, timeout, state)
+    log.info('Waiting for %s to be in the %s state', volume_id, state)
+    log.debug('timeout=%.02f', timeout)
 
     deadline = Deadline(timeout)
     sleep_time = 0.5
