@@ -102,19 +102,20 @@ class TestValidation(unittest.TestCase):
         aws_svc, encryptor_image, guest_image = build_aws_service()
 
         # No name.
-        values = DummyValues()
-        values.ami = guest_image.id
-        brkt_cli.aws._validate(aws_svc, values, encryptor_image.id)
+        brkt_cli.aws._validate(aws_svc, encryptor_image.id)
 
         # Unique name.
         guest_image.name = 'My image'
-        values.encrypted_ami_name = 'Proposed name'
-        brkt_cli.aws._validate(aws_svc, values, encryptor_image.id)
+        brkt_cli.aws._validate(
+            aws_svc, encryptor_image.id, encrypted_ami_name='Proposed name')
 
         # Name collision.
-        values.encrypted_ami_name = guest_image.name
         with self.assertRaises(ValidationError):
-            brkt_cli.aws._validate(aws_svc, values, encryptor_image.id)
+            brkt_cli.aws._validate(
+                aws_svc,
+                encryptor_image.id,
+                encrypted_ami_name=guest_image.name
+            )
 
     def test_detect_double_encryption(self):
         """ Test that we disallow encryption of an already encrypted AMI.
