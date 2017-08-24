@@ -516,14 +516,15 @@ class AWSService(BaseAWSService):
 
     def get_images(self, name=None, owner_alias=None, product_code=None):
         filters = list()
+        owners = []
         if name:
             filters.append({'Name': 'name', 'Values': [name]})
-        if owner_alias:
-            filters.append({'Name': 'owner-alias', 'Values': [owner_alias]})
         if product_code:
             filters.append({'Name': 'product-code', 'Values': [product_code]})
+        if owner_alias:
+            owners.append(owner_alias)
 
-        images = self.ec2.images.filter(Filters=filters)
+        images = self.ec2.images.filter(Owners=owners, Filters=filters)
         for image in images:
             image.load()
         return list(images)
