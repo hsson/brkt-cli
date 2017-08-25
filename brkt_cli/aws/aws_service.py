@@ -87,7 +87,7 @@ class BaseAWSService(object):
         pass
 
     @abc.abstractmethod
-    def get_instance(self, instance_id):
+    def get_instance(self, instance_id, retry=True):
         pass
 
     @abc.abstractmethod
@@ -361,10 +361,12 @@ class AWSService(BaseAWSService):
                 clean_up(self, instance_ids=[instance_id])
             raise
 
-    def get_instance(self, instance_id):
+    def get_instance(self, instance_id, retry=True):
         instance = self.ec2.Instance(instance_id)
-        load = self.retry(
-            instance.load, r'InvalidInstanceID\.NotFound')
+        load = instance.load
+        if retry:
+            load = self.retry(
+                instance.load, r'InvalidInstanceID\.NotFound')
         load()
         return instance
 
@@ -689,7 +691,7 @@ class AWSService(BaseAWSService):
         if attribute == 'userData':
             log.info(
                 'Setting userData for %s, content length is %d bytes.',
-                len(value)
+                instance_id, len(value)
             )
             modify_instance_attribute(
                 InstanceId=instance_id,

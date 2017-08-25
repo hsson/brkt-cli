@@ -92,6 +92,19 @@ def create_instance_security_group(aws_svc, vpc_id=None):
     return sg
 
 
+def _get_metavisor_root_device(aws_svc, metavisor_ami):
+    # Get the Metavisor root snapshot.
+    mv_image = aws_svc.get_image(metavisor_ami)
+    mv_image_root_dev = boto3_device.get_device(
+        mv_image.block_device_mappings, mv_image.root_device_name)
+
+    # Verify that we have access to the Metavisor root snapshot.
+    mv_root_snapshot_id = mv_image_root_dev['Ebs']['SnapshotId']
+    aws_svc.get_snapshot(mv_root_snapshot_id)
+
+    return mv_image_root_dev
+
+
 def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
                          wrapped_instance_name=None, subnet_id=None,
                          security_group_ids=None, instance_type='m4.large',
@@ -106,21 +119,14 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
             image_id
         )
 
-    # Get the Metavisor root snapshot.
-    mv_image = aws_svc.get_image(metavisor_ami)
-    mv_image_root_dev = boto3_device.get_device(
-        mv_image.block_device_mappings, mv_image.root_device_name)
-
-    # Verify that we have access to the Metavisor root snapshot.
-    mv_root_snapshot_id = mv_image_root_dev['Ebs']['SnapshotId']
-    aws_svc.get_snapshot(mv_root_snapshot_id)
+    # Verify that we have access to the Metavisor AMI and snapshot before
+    # launching the guest instance.
+    _get_metavisor_root_device(aws_svc, metavisor_ami)
 
     if not wrapped_instance_name:
         wrapped_instance_name = get_name_from_image(guest_image)
 
     instance = None
-    guest_root_vol = None
-    mv_root_vol = None
     temp_sg = None
     completed = False
 
@@ -146,6 +152,44 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
         )
 
         wait_for_instance(aws_svc, instance.id)
+        instance = wrap_instance(
+            aws_svc, instance.id, metavisor_ami, instance_config)
+        completed = True
+    finally:
+        if not completed:
+            sg_ids = []
+            if temp_sg:
+                sg_ids.append(temp_sg.id)
+            instance_ids = []
+            if instance:
+                instance_ids.append(instance.id)
+
+            clean_up(
+                aws_svc,
+                instance_ids=instance_ids,
+                security_group_ids=sg_ids
+            )
+
+    return instance
+
+
+def wrap_instance(aws_svc, instance_id, metavisor_ami, instance_config=None):
+    instance = aws_svc.get_instance(instance_id)
+
+    # If the guest already has /dev/sdf mounted, don't try to put the guest
+    # root there.
+    if boto3_device.get_device(instance.block_device_mappings, '/dev/sdf'):
+        raise ValidationError(
+            'Cannot wrap %s because it has a block device at /dev/sdf' %
+            instance_id
+        )
+
+    mv_image_root_dev = _get_metavisor_root_device(aws_svc, metavisor_ami)
+    guest_root_vol = None
+    mv_root_vol = None
+    completed = False
+
+    try:
         aws_svc.stop_instance(instance.id)
         instance = wait_for_instance(aws_svc, instance.id, state='stopped')
 
@@ -161,7 +205,7 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
         mv_root_vol = aws_svc.create_volume(
             size=mv_image_root_dev['Ebs']['VolumeSize'],
             zone=instance.placement['AvailabilityZone'],
-            snapshot_id=mv_root_snapshot_id,
+            snapshot_id=mv_image_root_dev['Ebs']['SnapshotId'],
             volume_type='gp2'
         )
 
@@ -191,22 +235,15 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
         instance = aws_svc.start_instance(instance.id)
         completed = True
     finally:
-        sg_ids = []
-        if temp_sg:
-            sg_ids.append(temp_sg.id)
-        instance_ids = []
-        if instance:
-            instance_ids.append(instance.id)
-        volume_ids = []
-        if mv_root_vol:
-            volume_ids.append(mv_root_vol.id)
-        if guest_root_vol:
-            volume_ids.append(guest_root_vol.id)
         if not completed:
+            volume_ids = []
+            if mv_root_vol:
+                volume_ids.append(mv_root_vol.id)
+            if guest_root_vol:
+                volume_ids.append(guest_root_vol.id)
+
             clean_up(
                 aws_svc,
-                instance_ids=instance_ids,
-                security_group_ids=sg_ids,
                 volume_ids=volume_ids
             )
 
