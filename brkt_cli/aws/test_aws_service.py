@@ -168,7 +168,7 @@ class DummyAWSService(aws_service.BaseAWSService):
 
         return instance
 
-    def get_instance(self, instance_id):
+    def get_instance(self, instance_id, retry=True):
         instance = self.instances[instance_id]
         if self.get_instance_callback:
             self.get_instance_callback(instance)

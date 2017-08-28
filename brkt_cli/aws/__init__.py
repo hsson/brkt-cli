@@ -20,10 +20,9 @@ import urllib2
 import botocore
 from botocore.exceptions import ClientError
 
-from brkt_cli import instance_config_args
-
 import brkt_cli
 from brkt_cli import encryptor_service, util, mv_version
+from brkt_cli import instance_config_args
 from brkt_cli.aws import (
     aws_service,
     encrypt_ami,
@@ -33,7 +32,9 @@ from brkt_cli.aws import (
     share_logs,
     share_logs_args,
     update_encrypted_ami_args,
-    boto3_tag)
+    boto3_tag,
+    wrap_instance_args
+)
 from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
 )
@@ -210,6 +211,59 @@ def run_wrap_image(values, config):
         instance_type=values.instance_type,
         instance_config=instance_config,
         iam=values.iam
+    )
+    # Print the Instance ID to stdout, in case the caller wants to process
+    # the output. Log messages go to stderr
+    print instance.id
+    return 0
+
+
+@_handle_aws_errors
+def run_wrap_instance(values, config):
+    nonce = util.make_nonce()
+
+    aws_svc = aws_service.AWSService(
+        nonce,
+        retry_timeout=values.retry_timeout,
+        retry_initial_sleep_seconds=values.retry_initial_sleep_seconds
+    )
+    log.debug(
+        'Retry timeout=%.02f, initial sleep seconds=%.02f',
+        aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
+
+    aws_svc.connect(values.region)
+
+    # Make sure that the instance exists.
+    try:
+        aws_svc.get_instance(values.instance_id, retry=False)
+    except ClientError as e:
+        code, _ = aws_service.get_code_and_message(e)
+        if code == 'InvalidInstanceID.NotFound':
+            raise ValidationError(
+                'No instance with id %s' % values.instance_id)
+        raise
+
+    metavisor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
+                                                    values.metavisor_version)
+    log.debug('Using Metavisor %s', metavisor_ami)
+
+    if values.validate:
+        _validate(aws_svc, metavisor_ami)
+        brkt_cli.validate_ntp_servers(values.ntp_servers)
+
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
+    lt = instance_config_args.get_launch_token(values, config)
+    instance_config = instance_config_from_values(
+        values,
+        mode=INSTANCE_METAVISOR_MODE,
+        brkt_env=brkt_env,
+        launch_token=lt)
+
+    instance = wrap_image.wrap_instance(
+        aws_svc,
+        values.instance_id,
+        metavisor_ami,
+        instance_config
     )
     # Print the Instance ID to stdout, in case the caller wants to process
     # the output. Log messages go to stderr
@@ -547,17 +601,32 @@ class AWSSubcommand(Subcommand):
                                    mode=INSTANCE_UPDATER_MODE)
         update_encrypted_ami_parser.set_defaults(aws_subcommand='update')
 
-        wrap_parser = aws_subparsers.add_parser(
+        wrap_image_parser = aws_subparsers.add_parser(
             'wrap-guest-image',
             description=(
                 'Launch guest image wrapped with Bracket Metavisor'
             ),
             help='Launch guest image wrapped with Bracket Metavisor'
         )
-        wrap_image_args.setup_wrap_image_args(wrap_parser, parsed_config)
-        setup_instance_config_args(wrap_parser, parsed_config,
+        wrap_image_args.setup_wrap_image_args(wrap_image_parser, parsed_config)
+        setup_instance_config_args(wrap_image_parser, parsed_config,
                                    mode=INSTANCE_CREATOR_MODE)
-        wrap_parser.set_defaults(aws_subcommand='wrap-guest-image')
+        wrap_image_parser.set_defaults(aws_subcommand='wrap-guest-image')
+
+        wrap_instance_parser = aws_subparsers.add_parser(
+            'wrap-instance',
+            description='Wrap an instance with Bracket Metavisor',
+            help='Wrap an instance with Bracket Metavisor',
+            formatter_class=brkt_cli.SortingHelpFormatter
+        )
+        wrap_instance_args.setup_wrap_instance_args(
+            wrap_instance_parser, parsed_config)
+        setup_instance_config_args(
+            wrap_instance_parser,
+            parsed_config,
+            mode=INSTANCE_CREATOR_MODE
+        )
+        wrap_instance_parser.set_defaults(aws_subcommand='wrap-instance')
 
     def debug_log_to_temp_file(self, values):
         return values.aws_subcommand in ('encrypt', 'update')
@@ -574,6 +643,8 @@ class AWSSubcommand(Subcommand):
             return run_share_logs(values)
         if values.aws_subcommand == 'wrap-guest-image':
             return run_wrap_image(values, self.config)
+        if values.aws_subcommand == 'wrap-instance':
+            return run_wrap_instance(values, self.config)
 
 
 def get_subcommands():
