@@ -69,6 +69,17 @@ class TestException(Exception):
     pass
 
 
+class CantContactEncryptionService(encryptor_service.BaseEncryptorService):
+    def is_encryptor_up(self):
+        return False
+
+    def get_status(self):
+        return {
+            'state': encryptor_service.ENCRYPT_FAILED,
+            'percent_complete': 50,
+        }
+
+
 class TestRunEncryption(unittest.TestCase):
 
     def setUp(self):
@@ -151,6 +162,25 @@ class TestRunEncryption(unittest.TestCase):
             self.fail('Encryption should have failed')
         except encryptor_service.EncryptionError as e:
             self.assertIsNone(e.console_output_file)
+
+    def test_console_output_when_encryptor_cant_be_reached(self):
+        """ Test that we save the console log when we can't reach
+        the encryption service.
+        """
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+
+        try:
+            encrypt_ami.encrypt(
+                aws_svc=aws_svc,
+                enc_svc_cls=CantContactEncryptionService,
+                image_id=guest_image.id,
+                encryptor_ami=encryptor_image.id,
+                crypto_policy=CRYPTO_GCM,
+                encryption_start_timeout=0
+            )
+            self.fail('Encryption should have failed')
+        except encryptor_service.EncryptionError as e:
+            self.assertIsNotNone(e.console_output_file)
 
     def test_delete_orphaned_volumes(self):
         """ Test that we clean up instance volumes that are orphaned by AWS.

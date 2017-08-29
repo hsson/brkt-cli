@@ -148,7 +148,7 @@ def wait_for_encryptor_up(enc_svc, deadline):
             )
             return
         sleep(5)
-    raise BracketError(
+    raise EncryptionError(
         'Unable to contact encryptor instance at %s, port %d.' %
         (', '.join(enc_svc.hostnames), enc_svc.port)
     )

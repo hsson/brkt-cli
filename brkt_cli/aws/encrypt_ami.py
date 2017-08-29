@@ -232,7 +232,8 @@ def _snapshot_encrypted_instance(
         aws_svc, enc_svc_cls, encryptor_instance,
         image_id=None, vol_type=None, iops=None,
         legacy=False, save_encryptor_logs=True,
-        status_port=encryptor_service.ENCRYPTOR_STATUS_PORT):
+        status_port=encryptor_service.ENCRYPTOR_STATUS_PORT,
+        encryption_start_timeout=600):
     # First wait for encryption to complete
     host_ips = []
     if encryptor_instance.public_ip_address:
@@ -248,18 +249,15 @@ def _snapshot_encrypted_instance(
             os.environ['NO_PROXY'] = encryptor_instance.private_ip_address
 
     enc_svc = enc_svc_cls(host_ips, port=status_port)
-    log.info('Waiting for encryption service on %s (port %s on %s)',
-             encryptor_instance.id, enc_svc.port, ', '.join(host_ips))
-    try:
-        encryptor_service.wait_for_encryptor_up(enc_svc, Deadline(600))
-    except:
-        log.error('Unable to connect to encryptor instance.')
-        raise
 
     try:
+        log.info('Waiting for encryption service on %s (port %s on %s)',
+                 encryptor_instance.id, enc_svc.port, ', '.join(host_ips))
+        encryptor_service.wait_for_encryptor_up(
+            enc_svc, Deadline(encryption_start_timeout))
         log.info('Creating encrypted root drive.')
         encryptor_service.wait_for_encryption(enc_svc)
-    except (BracketError, encryptor_service.EncryptionError) as e:
+    except encryptor_service.EncryptionError as e:
         # Stop the encryptor instance, to make the console log available.
         stop_and_wait(aws_svc, encryptor_instance.id)
 
@@ -448,7 +446,8 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             guest_instance_type='m4.large', instance_config=None,
             save_encryptor_logs=True,
             status_port=encryptor_service.ENCRYPTOR_STATUS_PORT,
-            terminate_encryptor_on_failure=True, legacy=False):
+            terminate_encryptor_on_failure=True, legacy=False,
+            encryption_start_timeout=600):
     log.info(
         'Starting session %s to encrypt %s',
         aws_svc.session_id,
@@ -553,7 +552,8 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             iops=iops,
             legacy=legacy,
             save_encryptor_logs=save_encryptor_logs,
-            status_port=status_port
+            status_port=status_port,
+            encryption_start_timeout=encryption_start_timeout
         )
 
         guest_instance = aws_svc.get_instance(guest_instance.id)
