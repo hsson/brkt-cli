@@ -231,8 +231,25 @@ def wrap_instance(aws_svc, instance_id, metavisor_ami, instance_config=None):
             aws_svc, instance.id, instance.root_device_name)
         aws_service.wait_for_volume_attached(aws_svc, instance.id, '/dev/sdf')
 
+        # Create guest and metavisor device mappings to be deleted on termination
+        guest_device = boto3_device.make_device(
+            device_name='/dev/sdf',
+            delete_on_termination=True
+        )
+        metavisor_device = boto3_device.make_device(
+            device_name=instance.root_device_name,
+            delete_on_termination=True
+        )
+
         log.info('Starting wrapped instance.')
         instance = aws_svc.start_instance(instance.id)
+        # Re-attached volumes lose their DeleteOnTermination Settings
+        # Modify instance attributes to mark the guest root and
+        # metavisor volumes to get terminated on instance termination
+        aws_svc.modify_instance_attribute(
+            instance.id, 'blockDeviceMappings',
+            [metavisor_device, guest_device]
+        )
         completed = True
     finally:
         if not completed:

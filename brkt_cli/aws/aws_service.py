@@ -697,6 +697,13 @@ class AWSService(BaseAWSService):
                 InstanceId=instance_id,
                 UserData={'Value': value}
             )
+        elif attribute == 'blockDeviceMappings':
+            log.info('Setting blockDeviceMapping for %s to %s',
+                     instance_id, value)
+            modify_instance_attribute(
+                InstanceId=instance_id,
+                BlockDeviceMappings=value
+            )
         else:
             log.info('Setting %s for %s to %s', attribute, instance_id, value)
             modify_instance_attribute(
