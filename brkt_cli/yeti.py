@@ -164,6 +164,19 @@ class YetiService(object):
             email=d['email']
         )
 
+    def get_metavisor_version(self):
+        """ Return the version of Metavisor that will be used for new
+        instances.
+
+        :raise YetiError if Yeti returns an HTTP error status.
+        """
+        d = get_json(
+            self.root_url + '/api/v1/upgrade/latest_metavisor',
+            token=self.token,
+            root_cert_path=self.root_cert_path
+        )
+        return d['long_form']
+
     def _create_token(self, token_type, tags=None, expiry=None):
         """ Return a JWT that is created by Yeti.
 
