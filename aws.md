@@ -154,7 +154,8 @@ be in the same VPC.
 $ brkt aws encrypt --help
 usage: brkt aws encrypt [-h] [--stock-image-version STOCK_IMAGE_VERSION]
                         [--encrypted-ami-name NAME]
-                        [--guest-instance-type TYPE] [--no-validate]
+                        [--guest-instance-type TYPE]
+                        [--encryptor-instance-type TYPE] [--no-validate]
                         --region NAME [--security-group ID] [--subnet ID]
                         [--aws-tag KEY=VALUE] [--metavisor-version NAME]
                         [--ntp-server DNS_NAME]
@@ -183,7 +184,10 @@ optional arguments:
                         Specify the name of the generated encrypted AMI
   --guest-instance-type TYPE
                         The instance type to use when running the unencrypted
-                        guest instance (default: m3.medium)
+                        guest instance (default: m4.large)
+  --encryptor-instance-type TYPE
+                        The instance type to use when performing the
+                        encypt operation. (default: c4.xlarge)
   --metavisor-version NAME
                         Metavisor version [e.g 1.2.12 ] (default: latest)
   --no-validate         Don't validate AMIs, subnet, and security groups

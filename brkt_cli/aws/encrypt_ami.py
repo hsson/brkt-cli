@@ -112,8 +112,8 @@ def _get_description_from_image(image):
 
 def _run_encryptor_instance(
         aws_svc, encryptor_image_id, snapshot, root_size, guest_image_id,
-        crypto_policy, security_group_ids=None, subnet_id=None, placement=None,
-        instance_config=None,
+        crypto_policy, instance_type, security_group_ids=None, subnet_id=None,
+        placement=None, instance_config=None,
         status_port=encryptor_service.ENCRYPTOR_STATUS_PORT):
 
     if instance_config is None:
@@ -186,7 +186,8 @@ def _run_encryptor_instance(
             block_device_mappings=bdm,
             subnet_id=subnet_id,
             name=NAME_ENCRYPTOR,
-            description=DESCRIPTION_ENCRYPTOR % {'image_id': guest_image_id}
+            description=DESCRIPTION_ENCRYPTOR % {'image_id': guest_image_id},
+            instance_type=instance_type,
         )
         instance = wait_for_instance(aws_svc, instance.id)
 
@@ -447,7 +448,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             save_encryptor_logs=True,
             status_port=encryptor_service.ENCRYPTOR_STATUS_PORT,
             terminate_encryptor_on_failure=True, legacy=False,
-            encryption_start_timeout=600):
+            encryption_start_timeout=600, encryptor_instance_type='c4.xlarge'):
     log.info(
         'Starting session %s to encrypt %s',
         aws_svc.session_id,
@@ -515,7 +516,8 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             subnet_id=subnet_id,
             placement=guest_instance.placement,
             instance_config=instance_config,
-            status_port=status_port
+            status_port=status_port,
+            instance_type=encryptor_instance_type,
         )
 
         # Enable ENA if Metavisor supports it.

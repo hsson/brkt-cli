@@ -49,6 +49,15 @@ def setup_encrypt_ami_args(parser, parsed_config):
         default='m4.large'
     )
 
+    parser.add_argument(
+        '--encryptor-instance-type',
+        metavar='TYPE',
+        dest='encryptor_instance_type',
+        help=(
+            'The instance type to use when running the encryptor instance'),
+        default='c4.xlarge'
+    )
+
     # Add the --legacy argument, for specifying legacy mode during
     # encryption and update.  This hidden argument is only here for backward
     # compatibility.  We'll remove it once we're sure that legacy mode is
