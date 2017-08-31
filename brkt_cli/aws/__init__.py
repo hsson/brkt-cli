@@ -11,7 +11,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
-import httplib
 import json
 import logging
 import re
@@ -344,16 +343,8 @@ def run_encrypt(values, config, verbose=False):
         guest_image = _validate_guest_ami(aws_svc, guest_ami_id)
     else:
         guest_image = _validate_ami(aws_svc, guest_ami_id)
-
-    brkt_env = brkt_cli.brkt_env_from_values(values, config)
-    encryptor_ami = values.encryptor_ami
-    if not encryptor_ami:
-        mv_version = values.metavisor_version
-        if not mv_version:
-            yeti = instance_config_args.yeti_service_from_brkt_env(brkt_env)
-            mv_version = yeti.get_metavisor_version()
-        encryptor_ami = _get_encryptor_ami(values.region, mv_version)
-
+    encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
+                                                    values.metavisor_version)
     aws_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
     command_line_tags = brkt_cli.parse_tags(values.aws_tags)
     aws_tags.update(command_line_tags)
@@ -391,6 +382,7 @@ def run_encrypt(values, config, verbose=False):
                 crypto_policy, mv_image.name
             )
 
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(
         values,
@@ -858,44 +850,22 @@ def _get_encryptor_ami(region_name, version):
     :raise ValidationError if the region is not supported
     :raise BracketError if the list of AMIs cannot be read
     """
-    all_buckets = (
-        mv_version.AWS_PROD_BUCKET,
-        mv_version.AWS_STAGE_BUCKET,
-        mv_version.AWS_BUILD_BUCKET
-    )
+    bucket = ENCRYPTOR_AMIS_AWS_BUCKET
+    amis_url = mv_version.get_amis_url(version, bucket)
 
-    for bucket in all_buckets:
-        try:
-            amis_url = mv_version.get_amis_url(version, bucket)
-        except mv_version.MetavisorVersionNotFoundError:
-            log.debug('Could not find %s in %s', version, bucket)
-            continue
+    log.debug('Getting encryptor AMI list from %s', amis_url)
+    r = urllib2.urlopen(amis_url)
+    if r.getcode() not in (200, 201):
+        raise BracketError(
+            'Getting %s gave response: %s' % (amis_url, r.text))
+    resp_json = json.loads(r.read())
+    ami = resp_json.get(region_name)
 
-        log.debug('Getting encryptor AMI list from %s', amis_url)
-        try:
-            r = urllib2.urlopen(amis_url)
-        except urllib2.HTTPError as e:
-            if e.code == httplib.NOT_FOUND:
-                log.debug('Version not found.')
-                continue
-            if e.code == httplib.FORBIDDEN:
-                log.debug('Forbidden.')
-                continue
-            raise
-
-        if r.getcode() not in (httplib.OK, httplib.CREATED):
-            raise BracketError(
-                'Getting %s gave response: %s' % (amis_url, r.text))
-        resp_json = json.loads(r.read())
-        ami = resp_json.get(region_name)
-        if ami:
-            return ami
-
+    if not ami:
         regions = resp_json.keys()
         raise ValidationError(
             'Encryptor AMI is only available in %s' % ', '.join(regions))
-
-    raise ValidationError('Unable to find Metavisor version %s' % version)
+    return ami
 
 
 def _get_updated_image_name(image_name, session_id):
