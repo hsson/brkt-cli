@@ -28,10 +28,7 @@ logging.getLogger('botocore').setLevel(logging.FATAL)
 logging.getLogger('s3transfer').setLevel(logging.FATAL)
 
 
-AWS_PROD_BUCKET = 'solo-brkt-prod-net'
-AWS_STAGE_BUCKET = 'solo-brkt-stage-net'
-AWS_BUILD_BUCKET = 'packages.int.brkt.net'
-
+AWS_PROD_BUCKET_DEFAULT='solo-brkt-prod-net'
 RE_METAVISOR_VERSION=re.compile(r'(metavisor)-(\d+)-(\d+)-(\d+)-(g.*?)(-.*)?$')
 RE_MAJOR_VERSION_ARG=re.compile(r'^(\d+)$')
 RE_MINOR_VERSION_ARG=re.compile(r'^(\d+)-(\d+)$')
@@ -58,7 +55,7 @@ def get_s3_versions(bucket):
     versions = []
 
     # Check for dev bucket
-    if bucket == AWS_BUILD_BUCKET:
+    if bucket == 'packages.int.brkt.net':
         version_prefix = 'metavisor/metavisor-'
     else:
         version_prefix = 'metavisor-'
@@ -111,9 +108,8 @@ def get_version(version, bucket):
                 break
 
     if not mversion:
-        log.debug(
-            "Unable to determine metavisor version in %s (%s)",
-            bucket, mv_regex.pattern)
+        log.exception("Exception determining metavisor version in %s (%s)",
+                      bucket, mv_regex.pattern)
         raise MetavisorVersionNotFoundError()
 
     log.info("Found metavisor version %s", mversion)
@@ -132,12 +128,10 @@ def get_amis_url(version, bucket):
        url: Location to amis.json for given metavisor version (str)
 
     """
-    if bucket == AWS_BUILD_BUCKET:
-        url_prefix = 'http://packages.int.brkt.net/metavisor'
-    else:
-        url_prefix = 'http://%s.s3.amazonaws.com' % bucket
+    mversion = get_version(version, bucket)
+    url = 'http://%(bucket)s.s3.amazonaws.com/%(mversion)s/amis.json' % locals()
 
-    return '%s/%s/amis.json' % (url_prefix, version)
+    return url
 
 
 def version_regex(version):
