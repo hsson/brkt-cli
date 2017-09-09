@@ -539,6 +539,11 @@ class AWSService(BaseAWSService):
                 image.load, r'InvalidAMIID\.NotFound')
 
         load()
+        try:
+            image.name
+        except AttributeError:
+            return None
+
         return image
 
     def delete_snapshot(self, snapshot_id):
