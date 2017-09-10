@@ -37,7 +37,8 @@ from brkt_cli.user_data import gzip_user_data
 
 from brkt_cli.aws import aws_service, boto3_device
 from brkt_cli.aws.aws_service import (
-    EBS_OPTIMIZED_INSTANCES, wait_for_instance, clean_up)
+    EBS_OPTIMIZED_INSTANCES, wait_for_instance, clean_up,
+    enable_sriov_net_support)
 from brkt_cli.instance_config import InstanceConfig
 from brkt_cli.util import make_nonce, append_suffix
 from brkt_cli.validation import ValidationError
@@ -240,6 +241,25 @@ def wrap_instance(aws_svc, instance_id, metavisor_ami, instance_config=None):
             device_name=instance.root_device_name,
             delete_on_termination=True
         )
+
+        # Enable sriovNetSupport
+        enable_sriov_net_support(aws_svc, instance)
+
+        # Enable ENA with Metavisor supports it
+        mv_image = aws_svc.get_image(metavisor_ami)
+        mv_ena_support = aws_service.has_ena_support(mv_image)
+        guest_ena_support = aws_service.has_ena_support(instance)
+        log.debug(
+            'ENA support: metavisor=%s, guest=%s',
+            mv_ena_support,
+            guest_ena_support
+        )
+        if mv_ena_support and not guest_ena_support:
+            aws_svc.modify_instance_attribute(
+                instance.id,
+                'enaSupport',
+                'True'
+            )
 
         log.info('Starting wrapped instance.')
         instance = aws_svc.start_instance(instance.id)
