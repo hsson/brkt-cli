@@ -13,6 +13,7 @@ positional arguments:
     encrypt             Encrypt an AWS image
     update              Update an encrypted AWS image
     wrap-guest-image    Launch guest image wrapped with Bracket Metavisor
+    wrap-instance       Wrap an instance with Bracket Metavisor
 
 optional arguments:
  -h, --help            show this help message and exit
@@ -117,6 +118,37 @@ $ brkt aws wrap-guest-image --region us-east-1 --brkt-tag env=prod ami-72094e18
 18:50:34 Launching wrapped guest instance i-039dba15316de37a0
 18:50:53 Done.
 Instance:i-039dba15316de37a0
+```
+
+When the process completes, it leaves a Bracket instance running with the
+guest root image attached.
+
+## Wrapping guest instance
+
+Run **brkt aws wrap-instance** to wrap a running instance with a Bracket
+image. This generates an encrypted instance, without the guest root
+volume being encrypted.
+
+```
+$ brkt aws wrap-instance --region us-east-1 --brkt-tag env=prod i-0e8c46ae23c0ca100
+16:52:24 Found metavisor version metavisor-2-8-118-gf04e277c6
+16:52:25 Stopping i-0e8c46ae23c0ca100
+16:53:16 Setting userData for i-0e8c46ae23c0ca100, content length is 698 bytes.
+16:53:16 Creating Metavisor root volume.
+16:53:16 Creating vol-01053209d4e4687f2 based on snap-0a3fa923330fcd74e
+16:53:16 Moving guest root volume from /dev/xvda to /dev/sdf.
+16:53:16 Detaching vol-06be8477627f3b2cf from i-0e8c46ae23c0ca100
+16:53:17 Waiting for vol-06be8477627f3b2cf to be in the available state
+16:53:17 Attaching vol-06be8477627f3b2cf to i-0e8c46ae23c0ca100 at /dev/sdf
+16:53:18 Attaching Metavisor root volume.
+16:53:18 Waiting for vol-01053209d4e4687f2 to be in the available state
+16:53:26 Attaching vol-01053209d4e4687f2 to i-0e8c46ae23c0ca100 at /dev/xvda
+16:53:26 Waiting for Metavisor and guest root volumes to attach.
+16:53:26 Starting wrapped instance.
+16:53:26 Starting i-0e8c46ae23c0ca100
+16:53:27 Setting blockDeviceMapping for i-0e8c46ae23c0ca100 to [{'DeviceName': '/dev/xvda', 'Ebs': {'DeleteOnTermination': True}}, {'DeviceName': '/dev/sdf', 'Ebs': {'DeleteOnTermination': True}}]
+16:53:27 Done.
+i-0e8c46ae23c0ca100
 ```
 
 When the process completes, it leaves a Bracket instance running with the
@@ -290,7 +322,7 @@ usage: brkt aws wrap-guest-image [-h] [--wrapped-instance-name NAME]
                                  [--token TOKEN | --brkt-tag NAME=VALUE]
                                  ID
 
-Launch guest image wrapped with Bracket Metavso
+Launch guest image wrapped with Bracket Metavisor
 
 positional arguments:
   ID                    The guest AMI that will be launched as a wrapped
@@ -335,4 +367,59 @@ optional arguments:
                         claim. All characters must be alphanumeric or [-_.].
                         The tag name cannot be a JWT registered claim name
                         (see RFC 7519).
+```
+
+The `aws wrap-instance` subcommand restarts a running instance with the latest
+version of the Metavisor code.
+
+```
+usage: brkt aws wrap-instance [-h] [--wrapped-instance-name NAME]
+                              [--no-validate] --region NAME
+                              [--metavisor-version NAME]
+                              [--ntp-server DNS_NAME]
+                              [--proxy HOST:PORT | --proxy-config-file PATH]
+                              [--status-port PORT] [--ca-cert PATH]
+                              [--public-api-ca-cert PATH]
+                              [--token TOKEN | --brkt-tag NAME=VALUE]
+                              ID
+
+Wrap and instance with Bracket Metavisor
+
+positional arguments:
+  ID                    The ID of the instance that will be wrapped with
+                        Metavisor
+
+optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
+  --no-validate         Don't validate AMIs, snapshots, subnet, or security
+                        groups
+  --ntp-server DNS_NAME
+                        NTP server to sync Metavisor clock. May be specified
+                        multiple times.
+  --proxy HOST:PORT     Proxy that Metavisor uses to talk to the Bracket
+                        service
+  --proxy-config-file PATH
+                        proxy.yaml file that defines the proxy configuration
+                        that metavisor uses to talk to the Bracket service
+  --public-api-ca-cert PATH
+                        Root X.509 CA certificate for a Customer Managed MCP
+                        in PEM format.
+  --region NAME         The AWS region metavisors will be launched into
+  --status-port PORT    Specify the port to receive http status of encryptor.
+                        Any port in range 1-65535 can be used except for port
+                        81. (default: 80)
+  --token TOKEN         Token (JWT) that Metavisor uses to authenticate with
+                        the Bracket service. Use the make-token subcommand to
+                        generate a token.
+  --wrapped-instance-name NAME
+                        Specify the name of the wrapped Bracket instance
+  -h, --help            show this help message and exit
 ```
