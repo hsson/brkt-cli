@@ -56,7 +56,7 @@ from brkt_cli.aws.aws_service import (
     wait_for_image, create_encryptor_security_group, run_guest_instance,
     clean_up, log_exception_console, snapshot_log_volume,
     wait_for_volume_attached, wait_for_snapshots,
-    snapshot_root_volume)
+    snapshot_root_volume, enable_sriov_net_support)
 from brkt_cli.instance_config import InstanceConfig
 from brkt_cli.user_data import gzip_user_data
 from brkt_cli.util import (
@@ -558,18 +558,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
 
         guest_instance = aws_svc.get_instance(guest_instance.id)
 
-        if guest_instance.sriov_net_support != "simple":
-            log.info('Enabling sriovNetSupport for guest instance %s',
-                      guest_instance.id)
-            try:
-                aws_svc.modify_instance_attribute(
-                    guest_instance.id,
-                    "sriovNetSupport",
-                    "simple")
-                log.info('sriovNetSupport enabled successfully')
-            except ClientError as e:
-                log.warn('Unable to enable sriovNetSupport for guest '
-                         'instance %s with error %s', guest_instance.id, e)
+        enable_sriov_net_support(aws_svc, guest_instance)
 
         encrypted_image = _register_ami(
             aws_svc,
