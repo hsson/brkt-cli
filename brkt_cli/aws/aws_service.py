@@ -1194,13 +1194,29 @@ def get_code_and_message(client_error):
     )
 
 
-def has_ena_support(instance):
+def has_ena_support(resource):
     """ Return True if the given instance has ENA support enabled.  We have
     to do this because the AWS API does not always return the enaSupport
     field.
 
-    :param instance an ec2.Instance object
+    :param instance an ec2.Instance or ec2.Image object
     """
-    if not hasattr(instance, 'ena_support'):
+    if not hasattr(resource, 'ena_support'):
         return False
-    return bool(instance.ena_support)
+    return bool(resource.ena_support)
+
+
+def enable_sriov_net_support(aws_svc, instance):
+    """ Enable sriovNetSupport on instance, if required
+    """
+    if instance.sriov_net_support != "simple":
+        log.info('Enabling sriovNetSupport for %s', instance.id)
+        try:
+            aws_svc.modify_instance_attribute(
+                instance.id,
+                "sriovNetSupport",
+                "simple")
+            log.info('sriovNetSupport enabled successfully')
+        except ClientError as e:
+            log.warn('Unable to enable sriovNetSupport for instance '
+                     '%s with error %s', instance.id, e)
