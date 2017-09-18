@@ -23,6 +23,7 @@ from troposphere.ec2 import (
     EIP,
     Instance,
     InternetGateway,
+    NatGateway,
     NetworkAcl,
     NetworkAclEntry,
     PortRange,
@@ -39,6 +40,15 @@ from troposphere.ec2 import (
     VPCEndpoint,
     VPCGatewayAttachment,
 )
+from argparse import ArgumentParser
+
+parser = ArgumentParser(description=__doc__)
+parser.add_argument(
+    '--no-bastion', help='Do not create Bastion Hosts',
+    dest='bastion', default=True, action='store_false'
+)
+
+args = parser.parse_args()
 
 # Making these cloud formation parameters is kind of hard. These seem like
 # sensible defaults and we can easily change the python to generate new json if
@@ -102,16 +112,25 @@ keyname_param = t.add_parameter(Parameter(
 ))
 
 
-# These are standard freely available Amazon NAT AMIs
+# These are standard freely available Amazon NAT AMIs for Bastion Hosts
 t.add_mapping('RegionMap', {
+    'us-east-1': {
+        'BASTIONAMI': 'ami-4fffc834',
+    },
+    'us-east-2': {
+        'BASTIONAMI': 'ami-ea87a78f',
+    },
     'us-west-1': {
-        'NATAMI': 'ami-ada746e9',
+        'BASTIONAMI': 'ami-3a674d5a',
     },
     'us-west-2': {
-        'NATAMI': 'ami-75ae8245',
+        'BASTIONAMI': 'ami-aa5ebdd2',
     },
-    'us-east-1': {
-        'NATAMI': 'ami-b0210ed8',
+    'eu-west-1': {
+        'BASTIONAMI': 'ami-ebd02392',
+    },
+    'us-central-1': {
+        'BASTIONAMI': 'ami-657bd20a',
     }
 })
 
@@ -309,14 +328,15 @@ internet_client_sg = t.add_resource(SecurityGroup(
 ))
 
 # Broken out into SecurityGroupIngress because of circular dependency
-allow_ssh_from_nat = t.add_resource(SecurityGroupIngress(
-    "AllowSshFromNatIngressRule",
-    IpProtocol="tcp",
-    FromPort="22",
-    ToPort="22",
-    GroupId=Ref(internet_client_sg),
-    SourceSecurityGroupId=Ref("NATSecurityGroup"),
-))
+if args.bastion:
+    allow_ssh_from_nat = t.add_resource(SecurityGroupIngress(
+        "AllowSshFromBastionIngressRule",
+        IpProtocol="tcp",
+        FromPort="22",
+        ToPort="22",
+        GroupId=Ref(internet_client_sg),
+        SourceSecurityGroupId=Ref("BastionSecurityGroup"),
+    ))
 
 # These rules govern what traffic our internet clients can send to our NAT
 # instance. In effect this is the set of traffic that is permitted to flow
@@ -336,13 +356,6 @@ internet_client_rules = [
         ToPort="443",
         SourceSecurityGroupId=Ref(internet_client_sg),
     ),
-    # tcp/7001 tcp/7002 (brkt traffic)
-    SecurityGroupRule(
-        IpProtocol="tcp",
-        FromPort="7001",
-        ToPort="7002",
-        SourceSecurityGroupId=Ref(internet_client_sg),
-    ),
     # A rule to allow the use of udp/123 (NTP)
    SecurityGroupRule(
         IpProtocol="udp",
@@ -360,37 +373,53 @@ ssh_in_rule = SecurityGroupRule(
     CidrIp=Ref(trusted_cidr),
 )
 nat_in_rules = internet_client_rules + [ssh_in_rule]
-nat_sg = t.add_resource(SecurityGroup(
-    "NATSecurityGroup",
-    VpcId=Ref(VPC),
-    GroupDescription="Controls traffic to our NAT instances",
-    SecurityGroupIngress=nat_in_rules,
-))
 
+if args.bastion:
+    nat_sg = t.add_resource(SecurityGroup(
+        "BastionSecurityGroup",
+        VpcId=Ref(VPC),
+        GroupDescription="Controls traffic to our Bastion instances",
+        SecurityGroupIngress=nat_in_rules,
+    ))
+
+nat_gateways = []
 nat_instances = []
 for idx, public_subnet in enumerate(public_subnets):
-    nat_instances.append(t.add_resource(
-        Instance(
-            'NatInstance%d' % (idx,),
-            KeyName=Ref(keyname_param),
-            ImageId=FindInMap('RegionMap', Ref('AWS::Region'), 'NATAMI'),
-            SecurityGroupIds=[
-                Ref(nat_sg)
-            ],
+    gw_eip = t.add_resource(
+        EIP('NATGateway%sEIP' % (idx,),
+            Domain='vpc'
+    ))
+    nat_gateways.append(t.add_resource(
+        NatGateway(
+            'NATGateway%d' % (idx,),
+            AllocationId=GetAtt('NATGateway%dEIP' % (idx,), 'AllocationId'),
             SubnetId=Ref(public_subnet),
-            InstanceType='t2.small',
-            SourceDestCheck=False,
-            Tags=[Tag('Name', 'NatGateway%d' % (idx,))],
             DependsOn='AttachGateway',
         )
     ))
-    add_autorecovery_to_instance(t, nat_instances[-1])
-    nat_eip = t.add_resource(
-        EIP('NATEIP%d' % (idx,),
-            DependsOn='AttachGateway',
-            Domain='vpc',
-            InstanceId=Ref(nat_instances[-1])
-    ))
+    if args.bastion:
+        nat_instances.append(t.add_resource(
+            Instance(
+                'Bastion%d' % (idx,),
+                KeyName=Ref(keyname_param),
+                ImageId=FindInMap('RegionMap', Ref('AWS::Region'), 'BASTIONAMI'),
+                SecurityGroupIds=[
+                    Ref(nat_sg)
+                ],
+                SubnetId=Ref(public_subnet),
+                InstanceType='t2.small',
+                SourceDestCheck=False,
+                Tags=[Tag('Name', 'Bastion%d' % (idx,))],
+                DependsOn='AttachGateway',
+            )
+        ))
+        add_autorecovery_to_instance(t, nat_instances[-1])
+        nat_eip = t.add_resource(
+            EIP('Bastion%dEIP' % (idx,),
+                DependsOn='AttachGateway',
+                Domain='vpc',
+                InstanceId=Ref(nat_instances[-1])
+        ))
 
 private_subnets = []
 private_route_tables = []
@@ -424,7 +453,7 @@ for idx, private_cidr in enumerate(private_cidrs):
     )))
     t.add_resource(Route(
         "PrivateRoute%d" % (idx,),
-        InstanceId=Ref(nat_instances[idx]),
+        NatGatewayId=Ref(nat_gateways[idx]),
         DestinationCidrBlock="0.0.0.0/0",
         RouteTableId=Ref(private_route_tables[-1]),
     ))
