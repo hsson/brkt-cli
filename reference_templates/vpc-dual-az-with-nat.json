@@ -1,16 +1,25 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "A VPC with a pair of public and private subnets.  The pairs of subnets are aligned in separate availability zones allowing you to create highly available applications. A NAT instance is launched into each public subnet and routing is configured so that instances in the private subnet can access the Internet through those NAT instances. ",
+    "Description": "A VPC with a pair of public and private subnets.  The pairs of subnets are aligned in separate availability zones allowing you to create highly available applications. A NAT gateway is created into each public subnet and routing is configured so that instances in the private subnet can access the Internet through those NAT gateway. ",
     "Mappings": {
         "RegionMap": {
             "us-east-1": {
-                "NATAMI": "ami-b0210ed8"
+                "BASTIONAMI": "ami-4fffc834"
+            },
+            "us-east-2": {
+                "BASTIONAMI": "ami-ea87a78f"
             },
             "us-west-1": {
-                "NATAMI": "ami-ada746e9"
+                "BASTIONAMI": "ami-3a674d5a"
             },
             "us-west-2": {
-                "NATAMI": "ami-75ae8245"
+                "BASTIONAMI": "ami-aa5ebdd2"
+            },
+            "eu-west-1": {
+                "BASTIONAMI": "ami-ebd02392"
+            },
+            "eu-central-1": {
+                "BASTIONAMI": "ami-657bd20a"
             }
         }
     },
@@ -68,7 +77,7 @@
         }
     },
     "Resources": {
-        "AllowSshFromNatIngressRule": {
+        "AllowSshFromBastionIngressRule": {
             "Properties": {
                 "FromPort": "22",
                 "GroupId": {
@@ -76,11 +85,180 @@
                 },
                 "IpProtocol": "tcp",
                 "SourceSecurityGroupId": {
-                    "Ref": "NATSecurityGroup"
+                    "Ref": "BastionSecurityGroup"
                 },
                 "ToPort": "22"
             },
             "Type": "AWS::EC2::SecurityGroupIngress"
+        },
+        "NATGateway0EIP": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc"
+            }
+        },
+        "NATGateway1EIP": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc"
+            }
+        },
+        "NATGateway0": {
+            "Type": "AWS::EC2::NatGateway",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt" : [
+                        "NATGateway0EIP",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "PublicSubnet0"
+                }
+            }
+        },
+        "NATGateway1": {
+            "Type": "AWS::EC2::NatGateway",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt" : [
+                        "NATGateway1EIP",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "PublicSubnet1"
+                }
+            }
+        },
+        "Bastion0EIP": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc",
+                "InstanceId": {
+                    "Ref": "Bastion0"
+                }
+            }
+        },
+        "Bastion1EIP": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc",
+                "InstanceId": {
+                    "Ref": "Bastion1"
+                }
+            }
+        },
+        "BastionSecurityGroup": {
+            "Properties": {
+                "GroupDescription": "Controls traffic to our Bastion instances",
+                "SecurityGroupIngress": [
+                    {
+                        "FromPort": "80",
+                        "IpProtocol": "tcp",
+                        "SourceSecurityGroupId": {
+                            "Ref": "InternetClientSG"
+                        },
+                        "ToPort": "80"
+                    },
+                    {
+                        "FromPort": "443",
+                        "IpProtocol": "tcp",
+                        "SourceSecurityGroupId": {
+                            "Ref": "InternetClientSG"
+                        },
+                        "ToPort": "443"
+                    },
+                    {
+                        "FromPort": "123",
+                        "IpProtocol": "udp",
+                        "SourceSecurityGroupId": {
+                            "Ref": "InternetClientSG"
+                        },
+                        "ToPort": "123"
+                    },
+                    {
+                        "FromPort": "22",
+                        "IpProtocol": "tcp",
+                        "SourceSecurityGroupId": {
+                            "Ref": "InternetClientSG"
+                        },
+                        "ToPort": "22"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            },
+            "Type": "AWS::EC2::SecurityGroup"
+        },
+        "Bastion0": {
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "BASTIONAMI"
+                    ]
+                },
+                "InstanceType": "t2.small",
+                "KeyName": {
+                    "Ref": "SshKeyName"
+                },
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "BastionSecurityGroup"
+                    }
+                ],
+                "SubnetId": {
+                    "Ref": "PublicSubnet0"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Bastion0"
+                    }
+                ]
+            },
+            "Type": "AWS::EC2::Instance"
+        },
+        "Bastion1": {
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "BASTIONAMI"
+                    ]
+                },
+                "InstanceType": "t2.small",
+                "KeyName": {
+                    "Ref": "SshKeyName"
+                },
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "BastionSecurityGroup"
+                    }
+                ],
+                "SubnetId": {
+                    "Ref": "PublicSubnet1"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Bastion1"
+                    }
+                ]
+            },
+            "Type": "AWS::EC2::Instance"
         },
         "AttachGateway": {
             "Properties": {
@@ -93,7 +271,7 @@
             },
             "Type": "AWS::EC2::VPCGatewayAttachment"
         },
-        "InstanceAutoRecoveryNatInstance0": {
+        "InstanceAutoRecoveryBastion0": {
             "Properties": {
                 "ActionsEnabled": "true",
                 "AlarmActions": [
@@ -116,7 +294,7 @@
                     {
                         "Name": "InstanceId",
                         "Value": {
-                            "Ref": "NatInstance0"
+                            "Ref": "Bastion0"
                         }
                     }
                 ],
@@ -127,9 +305,9 @@
                 "Statistic": "Average",
                 "Threshold": "0"
             },
-            "Type": "AWS::CloudWatch::Alarm"
+             "Type": "AWS::CloudWatch::Alarm"
         },
-        "InstanceAutoRecoveryNatInstance1": {
+        "InstanceAutoRecoveryBastion1": {
             "Properties": {
                 "ActionsEnabled": "true",
                 "AlarmActions": [
@@ -152,7 +330,7 @@
                     {
                         "Name": "InstanceId",
                         "Value": {
-                            "Ref": "NatInstance1"
+                            "Ref": "Bastion1"
                         }
                     }
                 ],
@@ -163,7 +341,7 @@
                 "Statistic": "Average",
                 "Threshold": "0"
             },
-            "Type": "AWS::CloudWatch::Alarm"
+             "Type": "AWS::CloudWatch::Alarm"
         },
         "InternetClientSG": {
             "Properties": {
@@ -192,145 +370,6 @@
                 ]
             },
             "Type": "AWS::EC2::InternetGateway"
-        },
-        "NATEIP0": {
-            "DependsOn": "AttachGateway",
-            "Properties": {
-                "Domain": "vpc",
-                "InstanceId": {
-                    "Ref": "NatInstance0"
-                }
-            },
-            "Type": "AWS::EC2::EIP"
-        },
-        "NATEIP1": {
-            "DependsOn": "AttachGateway",
-            "Properties": {
-                "Domain": "vpc",
-                "InstanceId": {
-                    "Ref": "NatInstance1"
-                }
-            },
-            "Type": "AWS::EC2::EIP"
-        },
-        "NATSecurityGroup": {
-            "Properties": {
-                "GroupDescription": "Controls traffic to our NAT instances",
-                "SecurityGroupIngress": [
-                    {
-                        "FromPort": "80",
-                        "IpProtocol": "tcp",
-                        "SourceSecurityGroupId": {
-                            "Ref": "InternetClientSG"
-                        },
-                        "ToPort": "80"
-                    },
-                    {
-                        "FromPort": "443",
-                        "IpProtocol": "tcp",
-                        "SourceSecurityGroupId": {
-                            "Ref": "InternetClientSG"
-                        },
-                        "ToPort": "443"
-                    },
-                    {
-                        "FromPort": "7001",
-                        "IpProtocol": "tcp",
-                        "SourceSecurityGroupId": {
-                            "Ref": "InternetClientSG"
-                        },
-                        "ToPort": "7002"
-                    },
-                    {
-                        "FromPort": "123",
-                        "IpProtocol": "udp",
-                        "SourceSecurityGroupId": {
-                            "Ref": "InternetClientSG"
-                        },
-                        "ToPort": "123"
-                    },
-                    {
-                        "CidrIp": {
-                            "Ref": "TrustedCidr"
-                        },
-                        "FromPort": "22",
-                        "IpProtocol": "tcp",
-                        "ToPort": "22"
-                    }
-                ],
-                "VpcId": {
-                    "Ref": "VPC"
-                }
-            },
-            "Type": "AWS::EC2::SecurityGroup"
-        },
-        "NatInstance0": {
-            "DependsOn": "AttachGateway",
-            "Properties": {
-                "ImageId": {
-                    "Fn::FindInMap": [
-                        "RegionMap",
-                        {
-                            "Ref": "AWS::Region"
-                        },
-                        "NATAMI"
-                    ]
-                },
-                "InstanceType": "t2.small",
-                "KeyName": {
-                    "Ref": "SshKeyName"
-                },
-                "SecurityGroupIds": [
-                    {
-                        "Ref": "NATSecurityGroup"
-                    }
-                ],
-                "SourceDestCheck": "false",
-                "SubnetId": {
-                    "Ref": "PublicSubnet0"
-                },
-                "Tags": [
-                    {
-                        "Key": "Name",
-                        "Value": "NatGateway0"
-                    }
-                ]
-            },
-            "Type": "AWS::EC2::Instance"
-        },
-        "NatInstance1": {
-            "DependsOn": "AttachGateway",
-            "Properties": {
-                "ImageId": {
-                    "Fn::FindInMap": [
-                        "RegionMap",
-                        {
-                            "Ref": "AWS::Region"
-                        },
-                        "NATAMI"
-                    ]
-                },
-                "InstanceType": "t2.small",
-                "KeyName": {
-                    "Ref": "SshKeyName"
-                },
-                "SecurityGroupIds": [
-                    {
-                        "Ref": "NATSecurityGroup"
-                    }
-                ],
-                "SourceDestCheck": "false",
-                "SubnetId": {
-                    "Ref": "PublicSubnet1"
-                },
-                "Tags": [
-                    {
-                        "Key": "Name",
-                        "Value": "NatGateway1"
-                    }
-                ]
-            },
-            "Type": "AWS::EC2::Instance"
         },
         "PrivateAllowBrktOut": {
             "Properties": {
@@ -505,8 +544,8 @@
         "PrivateRoute0": {
             "Properties": {
                 "DestinationCidrBlock": "0.0.0.0/0",
-                "InstanceId": {
-                    "Ref": "NatInstance0"
+                "NatGatewayId": {
+                    "Ref": "NATGateway0"
                 },
                 "RouteTableId": {
                     "Ref": "PrivateRouteTable0"
@@ -517,8 +556,8 @@
         "PrivateRoute1": {
             "Properties": {
                 "DestinationCidrBlock": "0.0.0.0/0",
-                "InstanceId": {
-                    "Ref": "NatInstance1"
+                "NatGatewayId": {
+                    "Ref": "NATGateway1"
                 },
                 "RouteTableId": {
                     "Ref": "PrivateRouteTable1"
