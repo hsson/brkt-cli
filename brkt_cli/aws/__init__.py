@@ -409,6 +409,7 @@ def run_encrypt(values, config, verbose=False):
         subnet_id=values.subnet_id,
         security_group_ids=values.security_group_ids,
         guest_instance_type=values.guest_instance_type,
+        encryptor_instance_type=values.encryptor_instance_type,
         instance_config=instance_config,
         status_port=values.status_port,
         save_encryptor_logs=values.save_encryptor_logs,

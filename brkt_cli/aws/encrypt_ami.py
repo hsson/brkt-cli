@@ -112,8 +112,8 @@ def _get_description_from_image(image):
 
 def _run_encryptor_instance(
         aws_svc, encryptor_image_id, snapshot, root_size, guest_image_id,
-        crypto_policy, security_group_ids=None, subnet_id=None, placement=None,
-        instance_config=None,
+        crypto_policy, security_group_ids=None, subnet_id=None,
+        instance_type='c4.xlarge', placement=None, instance_config=None,
         status_port=encryptor_service.ENCRYPTOR_STATUS_PORT):
 
     if instance_config is None:
@@ -185,6 +185,7 @@ def _run_encryptor_instance(
             placement=placement,
             block_device_mappings=bdm,
             subnet_id=subnet_id,
+            instance_type=instance_type,
             name=NAME_ENCRYPTOR,
             description=DESCRIPTION_ENCRYPTOR % {'image_id': guest_image_id}
         )
@@ -443,8 +444,8 @@ def _print_bdm(context, resource):
 
 def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             encrypted_ami_name=None, subnet_id=None, security_group_ids=None,
-            guest_instance_type='m4.large', instance_config=None,
-            save_encryptor_logs=True,
+            guest_instance_type='m4.large', encryptor_instance_type='c4.xlarge',
+            instance_config=None, save_encryptor_logs=True,
             status_port=encryptor_service.ENCRYPTOR_STATUS_PORT,
             terminate_encryptor_on_failure=True, legacy=False,
             encryption_start_timeout=600):
@@ -513,6 +514,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
             crypto_policy=crypto_policy,
             security_group_ids=security_group_ids,
             subnet_id=subnet_id,
+            instance_type=encryptor_instance_type,
             placement=guest_instance.placement,
             instance_config=instance_config,
             status_port=status_port
