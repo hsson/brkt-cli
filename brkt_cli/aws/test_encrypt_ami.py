@@ -333,6 +333,26 @@ class TestRunEncryption(unittest.TestCase):
             guest_instance_type='t2.micro'
         )
 
+    def test_encryptor_instance_type(self):
+        """ Test that we use the specified instance type to launch the
+        encryptor instance.
+        """
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+
+        def run_instance_callback(args):
+            if args.image_id == guest_image.id:
+                self.assertEqual('c3.xlarge', args.instance_type)
+
+        aws_svc.run_instance_callback = run_instance_callback
+        encrypt_ami.encrypt(
+            aws_svc=aws_svc,
+            enc_svc_cls=DummyEncryptorService,
+            image_id=guest_image.id,
+            encryptor_ami=encryptor_image.id,
+            crypto_policy=CRYPTO_GCM,
+            guest_instance_type='c3.xlarge'
+        )
+
     def test_terminate_guest(self):
         """ Test that we terminate the guest instance if an exception is
         raised while waiting for it to come up.

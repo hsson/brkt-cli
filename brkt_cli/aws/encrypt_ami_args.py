@@ -48,6 +48,15 @@ def setup_encrypt_ami_args(parser, parsed_config):
             'instance'),
         default='m4.large'
     )
+    parser.add_argument(
+        '--encryptor-instance-type',
+        metavar='TYPE',
+        dest='encryptor_instance_type',
+        help=(
+            'The instance type to use when running the Bracket encryptor '
+            'instance'),
+        default='c4.xlarge'
+    )
 
     # Add the --legacy argument, for specifying legacy mode during
     # encryption and update.  This hidden argument is only here for backward
