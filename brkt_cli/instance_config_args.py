@@ -272,6 +272,15 @@ def get_launch_token(values, cli_config):
         tags = brkt_jwt.brkt_tags_from_name_value_list(values.brkt_tags)
         token = y.create_launch_token(tags=tags)
 
+    # If a token_type exists, then make sure that it is a launch token
+    payload = brkt_jwt.get_payload(token)
+    if payload.get('brkt.token_type'):
+        if 'launch' != payload.get('brkt.token_type').lower():
+            raise ValidationError(
+                'Token is not a launch token. Please generate a new launch '
+                'token from the Bracket Management Console'
+            )
+
     return token
 
 
