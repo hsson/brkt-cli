@@ -130,6 +130,7 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
             aws_svc, encrypted_guest.id, state="running")
         updater = wait_for_instance(aws_svc, updater.id, state="running")
 
+        encrypted_guest_mv_root_device_name = encrypted_guest.root_device_name
         aws_svc.stop_instance(encrypted_guest.id)
         encrypted_guest = wait_for_instance(
             aws_svc, encrypted_guest.id, state="stopped")
@@ -214,14 +215,15 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
                 )
                 new_dev['Ebs']['Iops'] = vol.iops
 
-            if name == MV_ROOT_DEVICE_NAME:
+            if name == encrypted_guest_mv_root_device_name:
                 new_dev['Ebs']['DeleteOnTermination'] = True
                 new_dev['Ebs']['VolumeType'] = 'gp2'
 
             new_bdm.append(new_dev)
 
         # Step 4. Detach old BSD drive(s) and delete from encrypted guest
-        old_mv_dev = boto3_device.get_device(guest_bdm, MV_ROOT_DEVICE_NAME)
+        old_mv_dev = boto3_device.get_device(
+            guest_bdm, encrypted_guest_mv_root_device_name)
         old_mv_vol_id = old_mv_dev['Ebs']['VolumeId']
 
         log.info(
@@ -255,10 +257,10 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
         aws_svc.attach_volume(
             new_mv_vol_id,
             encrypted_guest.id,
-            MV_ROOT_DEVICE_NAME
+            encrypted_guest_mv_root_device_name
         )
         encrypted_guest = wait_for_volume_attached(
-            aws_svc, encrypted_guest.id, MV_ROOT_DEVICE_NAME)
+            aws_svc, encrypted_guest.id, encrypted_guest_mv_root_device_name)
 
         # Step 7. Create new AMI.
         log.info("Creating new AMI")
@@ -274,7 +276,7 @@ def update_ami(aws_svc, encrypted_ami, updater_ami, encrypted_ami_name,
         # Step 8. Tag the snapshots and image that we just created.
         mv_root_dev = boto3_device.get_device(
             image.block_device_mappings,
-            MV_ROOT_DEVICE_NAME
+            encrypted_guest_mv_root_device_name
         )
         guest_dev = boto3_device.get_device(
             image.block_device_mappings,
