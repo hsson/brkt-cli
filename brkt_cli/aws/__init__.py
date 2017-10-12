@@ -188,7 +188,8 @@ def run_wrap_image(values, config):
             metavisor_ami,
             key_name=values.key_name,
             subnet_id=values.subnet_id,
-            security_group_ids=values.security_group_ids
+            security_group_ids=values.security_group_ids,
+            instance_type=values.instance_type
         )
 
         brkt_cli.validate_ntp_servers(values.ntp_servers)
@@ -800,7 +801,8 @@ def _validate_encryptor_ami(aws_svc, ami_id):
 
 
 def _validate(aws_svc, encryptor_ami_id, encrypted_ami_name=None,
-              key_name=None, subnet_id=None, security_group_ids=None):
+              key_name=None, subnet_id=None, security_group_ids=None,
+              instance_type=None):
     """ Validate command-line options
 
     :param aws_svc: the BaseAWSService implementation
@@ -808,6 +810,12 @@ def _validate(aws_svc, encryptor_ami_id, encrypted_ami_name=None,
     """
     if encrypted_ami_name:
         aws_service.validate_image_name(encrypted_ami_name)
+
+    if instance_type and (
+        instance_type == 't2.nano' or instance_type == 't1.micro'):
+            raise ValidationError(
+                'Unsupported instance type %s' % instance_type
+            )
 
     try:
         if key_name:

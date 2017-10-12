@@ -140,6 +140,8 @@ def run_launch(values, config):
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
 
+    validate_instance_type(values.instance_type)
+
     # Use the token in the image unless a token or tags were specified on
     # the command line.
     lt = None
@@ -190,6 +192,8 @@ def run_wrap_image(values, config):
 
     if values.ssd_scratch_disks > 8:
         raise ValidationError("Maximum of 8 SSD scratch disks are supported")
+
+    validate_instance_type(values.instance_type)
 
     brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
@@ -476,3 +480,8 @@ def check_args(values, gcp_svc, cli_config):
 def validate_tags(tags):
     for tag in tags:
         gcp_service.validate_image_name(tag)
+
+
+def validate_instance_type(instance_type):
+    if instance_type == 'f1-micro':
+        raise ValidationError('Unsupported instance type %s' % instance_type)

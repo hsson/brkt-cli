@@ -132,6 +132,7 @@ class DummyAWSService(aws_service.BaseAWSService):
         instance.state['Name'] = 'pending'
         instance.state['Code'] = 0
         instance.placement = placement or {'AvailabilityZone': 'us-west-2a'}
+        instance.type = instance_type
 
         # Create volumes based on block device data from the image.
         image = self.get_image(image_id)

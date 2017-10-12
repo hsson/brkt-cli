@@ -161,6 +161,19 @@ class TestRunEncryption(unittest.TestCase):
             instance_type='t2.micro'
         )
 
+    def test_invalid_instance_type(self):
+        """ Test that we use the specified instance type to launch the wrapped
+        instance.
+        """
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+
+        with self.assertRaises(brkt_cli.validation.ValidationError):
+            brkt_cli.aws._validate(
+                aws_svc,
+                encryptor_image.id,
+                instance_type='t2.nano'
+            )
+
     def test_iam_role(self):
         """ Test that the IAM role is passed to the calls to
         AWSService.run_instance().
