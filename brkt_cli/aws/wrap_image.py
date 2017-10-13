@@ -177,9 +177,10 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
 def wrap_instance(aws_svc, instance_id, metavisor_ami, instance_config=None):
     instance = aws_svc.get_instance(instance_id)
 
-    if instance.type == 't2.nano' or instance.type == 't1.micro':
+    if instance.instance_type == 't2.nano' or \
+        instance.instance_type == 't1.micro':
         raise ValidationError(
-            'Unsupported instance type %s' % instance.type
+            'Unsupported instance type %s' % instance.instance_type
         )
 
     # If the guest already has /dev/sdf mounted, don't try to put the guest
