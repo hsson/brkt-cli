@@ -35,7 +35,6 @@ from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
-from brkt_cli.util import CRYPTO_XTS
 
 from brkt_cli.esx import (
     encrypt_vmdk,
@@ -196,10 +195,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             brkt_env=brkt_env,
             launch_token=lt
         )
+
         crypto_policy = values.crypto
-        if crypto_policy is None:
-            crypto_policy = CRYPTO_XTS
-        instance_config.brkt_config['crypto_policy_type'] = crypto_policy
         user_data_str = vc_swc.create_userdata_str(instance_config,
             update=False, ssh_key_file=values.ssh_public_key_file)
         if (values.encryptor_vmdk is not None):

@@ -15,7 +15,7 @@
 import logging
 
 from brkt_cli.encryptor_service import (
-    ENCRYPTOR_STATUS_PORT,
+    encryptor_did_single_disk,
     wait_for_encryption,
     wait_for_encryptor_up
 )
@@ -30,97 +30,99 @@ on an existing encrypted GCP image.
 log = logging.getLogger(__name__)
 
 
-def update_gcp_image(gcp_svc, enc_svc_cls, image_id, encryptor_image,
-                     encrypted_image_name, zone, instance_config,
-                     keep_encryptor=False, image_file=None,
-                     image_bucket=None, network=None,
-                     subnetwork=None, status_port=ENCRYPTOR_STATUS_PORT,
-                     cleanup=True, gcp_tags=None):
-    snap_created = None
+def update_gcp_image(gcp_svc, enc_svc_cls, values, encrypted_image_name,
+                     instance_config):
     instance_name = 'brkt-updater-' + gcp_svc.get_session_id()
     updater = instance_name + '-metavisor'
     updater_launched = False
+    snapshot_created = False
     try:
-        # create image from file in GCS bucket
-        log.info('Retrieving encryptor image from GCS bucket')
-        if not encryptor_image:
-            encryptor_image = gcp_svc.get_latest_encryptor_image(zone,
-                image_bucket, image_file=image_file)
-        else:
-            # Keep user provided encryptor image
-            keep_encryptor = True
-
-        encrypted_image_disk = instance_name + '-guest'
-
-        # Create disk from encrypted guest snapshot. This disk
-        # won't be altered. It will be re-snapshotted and paired
-        # with the new encryptor image.
-        gcp_svc.disk_from_snapshot(zone, image_id, encrypted_image_disk)
-        gcp_svc.wait_for_disk(zone, encrypted_image_disk)
-        log.info("Creating snapshot of encrypted image disk")
-        gcp_svc.create_snapshot(zone, encrypted_image_disk, encrypted_image_name)
-        snap_created = True
+        # Create disk from encrypted guest snapshot.
+        encrypted_image_disk = instance_name + '-root'
+        gcp_svc.disk_from_image(values.zone, values.image,
+                                encrypted_image_disk)
+        gcp_svc.wait_for_disk(values.zone, encrypted_image_disk)
 
         log.info("Launching encrypted updater")
         user_data = gcp_metadata_from_userdata(instance_config.make_userdata())
-        gcp_svc.run_instance(zone,
+        disks = [gcp_svc.get_disk(values.zone, encrypted_image_disk)]
+        gcp_svc.run_instance(values.zone,
                              updater,
-                             encryptor_image,
-                             network=network,
-                             subnet=subnetwork,
-                             disks=[],
+                             values.encryptor_image,
+                             network=values.network,
+                             subnet=values.subnetwork,
+                             disks=disks,
                              delete_boot=False,
                              metadata=user_data,
-                             tags=gcp_tags)
+                             tags=values.gcp_tags)
         host_ips = []
-        ip = gcp_svc.get_instance_ip(updater, zone)
+        ip = gcp_svc.get_instance_ip(updater, values.zone)
         if ip:
             host_ips.append(ip)
-        pvt_ip = gcp_svc.get_private_ip(updater, zone)
+        pvt_ip = gcp_svc.get_private_ip(updater, values.zone)
         if pvt_ip:
             host_ips.append(pvt_ip)
         updater_launched = True
-        enc_svc = enc_svc_cls(host_ips, port=status_port)
+        enc_svc = enc_svc_cls(host_ips, port=values.status_port)
 
         # wait for updater to finish and guest root disk
         wait_for_encryptor_up(enc_svc, Deadline(600))
-        log.info(
-            'Waiting for updater service on %s (%s:%s)',
-            updater, ip, enc_svc.port
-        )
+        log.info('Waiting for updater service on %s (%s:%s)',
+                 updater, ip, enc_svc.port)
         try:
             wait_for_encryption(enc_svc)
         except:
             raise
 
+        single_disk = encryptor_did_single_disk(enc_svc)
+
         # delete updater instance
         log.info('Deleting updater instance')
-        gcp_svc.delete_instance(zone, updater)
+        gcp_svc.delete_instance(values.zone, updater)
         updater_launched = False
 
-        # wait for updater root disk
-        gcp_svc.wait_for_detach(zone, updater)
+        if not single_disk:
+            # Create disk from encrypted guest snapshot. This disk
+            # won't be altered. It will be re-snapshotted and paired
+            # with the new encryptor image.
+            encrypted_guest_disk = instance_name + '-guest'
+            gcp_svc.disk_from_snapshot(values.zone, values.image,
+                                       encrypted_guest_disk)
+            gcp_svc.wait_for_disk(values.zone, encrypted_guest_disk)
+            log.info("Creating new snapshot of encrypted guest disk")
+            gcp_svc.create_snapshot(values.zone, encrypted_guest_disk,
+                                    encrypted_image_name)
+            snapshot_created = True
+            gcp_svc.wait_for_detach(values.zone, updater)
+            image_disk = updater
+        else:
+            gcp_svc.wait_for_detach(values.zone, encrypted_image_disk)
+            image_disk = encrypted_image_disk
 
         # create image from mv root disk and snapshot
         # encrypted guest root disk
-        log.info("Creating updated metavisor image")
-        gcp_svc.create_gcp_image_from_disk(zone, encrypted_image_name, updater)
+        log.info("Creating updated guest image")
+        gcp_svc.create_gcp_image_from_disk(values.zone, encrypted_image_name,
+                                           image_disk)
         gcp_svc.wait_image(encrypted_image_name)
-        gcp_svc.wait_snapshot(encrypted_image_name)
+        if not single_disk:
+            gcp_svc.wait_snapshot(encrypted_image_name)
     except:
         if updater_launched:
-            f = gcp_svc.write_serial_console_file(zone, updater)
+            f = gcp_svc.write_serial_console_file(values.zone, updater)
             if f:
                 log.info('Update failed. Writing console to %s' % f)
         log.info("Update failed. Cleaning up")
-        if snap_created:
+        if snapshot_created:
             gcp_svc.delete_snapshot(encrypted_image_name)
-        if not cleanup:
+        if not values.cleanup:
             return
-        gcp_svc.cleanup(zone, encryptor_image, keep_encryptor)
+        gcp_svc.cleanup(values.zone, values.encryptor_image,
+                        values.keep_encryptor)
         raise
     finally:
-        if not cleanup:
+        if not values.cleanup:
             return
-        gcp_svc.cleanup(zone, encryptor_image, keep_encryptor)
+        gcp_svc.cleanup(values.zone, values.encryptor_image,
+                        values.keep_encryptor)
     return encrypted_image_name

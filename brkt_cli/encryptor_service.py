@@ -65,6 +65,21 @@ class BaseEncryptorService(object):
         self.hostnames = hostnames
         self.port = port
 
+    def fetch(self, path, timeout_secs=2):
+        exceptions_by_host = {}
+        for hostname in self.hostnames:
+            url = 'http://%s:%d%s' % (hostname, self.port, path)
+            try:
+                r = urllib2.urlopen(url, timeout=timeout_secs)
+                data = r.read()
+                self.hostnames = [hostname]
+                return data
+            except IOError as e:
+                log.debug('Unable to connect to %s:%s - %s', hostname,
+                          self.port, e)
+            exceptions_by_host[hostname] = e
+        raise EncryptorConnectionError(self.port, exceptions_by_host)
+
     @abc.abstractmethod
     def is_encryptor_up(self):
         pass
@@ -100,42 +115,17 @@ class EncryptorService(BaseEncryptorService):
             log.debug("Couldn't get encryptor status: %s", e)
             return False
 
-    def get_status(self, timeout_secs=2):
-        exceptions_by_host = {}
-        info = None
-        successful_hostname = None
-
-        for hostname in self.hostnames:
-            url = 'http://%s:%d' % (hostname, self.port)
-            try:
-                r = urllib2.urlopen(url, timeout=timeout_secs)
-                data = r.read()
-            except IOError as e:
-                log.debug(
-                    'Unable to connect to %s:%s - %s',
-                    hostname, self.port, e)
-                exceptions_by_host[hostname] = e
-                continue
-
-            info = json.loads(data)
-            info['percent_complete'] = 0
-            bytes_total = info.get('bytes_total')
-            if info['state'] == ENCRYPT_SUCCESSFUL:
-                info['percent_complete'] = 100
-            elif ((bytes_total is not None) and
-                  (bytes_total > 0)):
-                ratio = float(info['bytes_written']) / info['bytes_total']
-                info['percent_complete'] = int(100 * ratio)
-            successful_hostname = hostname
-            break
-
-        if info:
-            # Don't try the other hostnames again, now that we have one that
-            # is known to work.
-            self.hostnames = [successful_hostname]
-            return info
-        else:
-            raise EncryptorConnectionError(self.port, exceptions_by_host)
+    def get_status(self):
+        data = self.fetch('/')
+        info = json.loads(data)
+        info['percent_complete'] = 0
+        bytes_total = info.get('bytes_total')
+        if info['state'] == ENCRYPT_SUCCESSFUL:
+            info['percent_complete'] = 100
+        elif bytes_total is not None and bytes_total > 0:
+            ratio = float(info['bytes_written']) / info['bytes_total']
+            info['percent_complete'] = int(100 * ratio)
+        return info
 
 
 def wait_for_encryptor_up(enc_svc, deadline):
@@ -260,7 +250,14 @@ def wait_for_encryption(enc_svc,
     raise EncryptionError('Encryption service unavailable')
 
 
+def encryptor_did_single_disk(enc_svc):
+    sd = enc_svc.fetch('/single_disk')
+    if sd == 'True':
+        return True
+    return False
+
+
 def status_port(value):
     if not value:
         return ENCRYPTOR_STATUS_PORT
-    return validation.range_int_argument(value, 1, 65535, exclusions=[81,])
+    return validation.range_int_argument(value, 1, 65535, exclusions=[81, ])

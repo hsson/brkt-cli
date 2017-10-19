@@ -31,6 +31,8 @@ MAX_BACKOFF_SECS = 10
 CRYPTO_GCM = 'gcm'
 CRYPTO_XTS = 'xts'
 
+# Size of the metavisor disk (in GBs)
+METAVISOR_DISK_SIZE = 6
 
 log = logging.getLogger(__name__)
 
