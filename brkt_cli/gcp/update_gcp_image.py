@@ -40,7 +40,7 @@ def update_gcp_image(gcp_svc, enc_svc_cls, values, encrypted_image_name,
         # Create disk from encrypted guest snapshot.
         encrypted_image_disk = instance_name + '-root'
         gcp_svc.disk_from_image(values.zone, values.image,
-                                encrypted_image_disk)
+                                encrypted_image_disk, values.image_project)
         gcp_svc.wait_for_disk(values.zone, encrypted_image_disk)
 
         log.info("Launching encrypted updater")

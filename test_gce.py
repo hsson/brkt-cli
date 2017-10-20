@@ -233,6 +233,24 @@ class DummyGCPService(gcp_service.BaseGCPService):
         return 'fingerprint'
 
 
+class DummyValues():
+    def __init__(self, image=IGNORE_IMAGE):
+        self.bucket = None
+        self.cleanup = True
+        self.crypto = CRYPTO_GCM
+        self.encryptor_image = 'encryptor-image'
+        self.gcp_tags = None
+        self.image = image
+        self.image_file = None
+        self.image_project = None
+        self.keep_encryptor = False
+        self.network = None
+        self.single_disk = False
+        self.status_port = 80
+        self.subnetwork = None
+        self.zone = 'us-central1-a'
+
+
 class TestEncryptedImageName(unittest.TestCase):
 
     def test_get_image_name(self):
@@ -283,11 +301,8 @@ class TestRunEncryption(unittest.TestCase):
         encrypted_image = encrypt_gcp_image.encrypt(
             gcp_svc=gcp_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=IGNORE_IMAGE,
-            encryptor_image='encryptor-image',
+            values=DummyValues(),
             encrypted_image_name='ubuntu-encrypted',
-            zone='us-central1-a',
-            crypto_policy=CRYPTO_GCM,
             instance_config=InstanceConfig({'identity_token': TOKEN})
         )
         self.assertIsNotNone(encrypted_image)
@@ -299,11 +314,8 @@ class TestRunEncryption(unittest.TestCase):
         encrypt_gcp_image.encrypt(
             gcp_svc=gcp_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=IGNORE_IMAGE,
-            encryptor_image='encryptor-image',
+            values=DummyValues(),
             encrypted_image_name='ubuntu-encrypted',
-            zone='us-central1-a',
-            crypto_policy=CRYPTO_GCM,
             instance_config=InstanceConfig({'identity_token': TOKEN})
         )
         self.assertEqual(len(gcp_svc.disks), 0)
@@ -315,10 +327,8 @@ class TestRunEncryption(unittest.TestCase):
              encrypt_gcp_image.encrypt(
                 gcp_svc=gcp_svc,
                 enc_svc_cls=test.FailedEncryptionService,
-                image_id='test-ubuntu',
-                encryptor_image='encryptor-image',
+                values=DummyValues(image='test-ubuntu'),
                 encrypted_image_name='ubuntu-encrypted',
-                zone='us-central1-a',
                 instance_config=InstanceConfig({'identity_token': TOKEN})
             )
         self.assertEqual(len(gcp_svc.disks), 0)
@@ -375,10 +385,8 @@ class TestRunUpdate(unittest.TestCase):
              update_gcp_image.update_gcp_image(
                 gcp_svc=gcp_svc,
                 enc_svc_cls=FailedEncryptionService,
-                image_id=IGNORE_IMAGE,
-                encryptor_image='encryptor-image',
+                values=DummyValues(),
                 encrypted_image_name='ubuntu-encrypted',
-                zone='us-central1-a',
                 instance_config=InstanceConfig({'identity_token': TOKEN})
             )
         self.assertEqual(len(gcp_svc.disks), 0)
@@ -389,10 +397,8 @@ class TestRunUpdate(unittest.TestCase):
         encrypted_image = update_gcp_image.update_gcp_image(
             gcp_svc=gcp_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=IGNORE_IMAGE,
-            encryptor_image='encryptor-image',
+            values=DummyValues(),
             encrypted_image_name='centos-encrypted',
-            zone='us-central1-a',
             instance_config=InstanceConfig({'identity_token': TOKEN})
         )
 

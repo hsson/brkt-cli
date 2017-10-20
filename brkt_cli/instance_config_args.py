@@ -349,7 +349,10 @@ def instance_config_args_to_values(cli_args, mode=INSTANCE_CREATOR_MODE):
         ' images')
     setup_instance_config_args(parser, config, mode)
     argv = cli_args.split()
-    return parser.parse_args(argv)
+    values = parser.parse_args(argv)
+    values.subparser_name = 'unittest'
+    values.crypto = None
+    return values
 
 
 def add_brkt_env_to_brkt_config(brkt_env, brkt_config):
