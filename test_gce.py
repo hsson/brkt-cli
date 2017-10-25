@@ -183,7 +183,7 @@ class DummyGCPService(gcp_service.BaseGCPService):
     def get_younger(self, new, old):
         pass
 
-    def disk_from_image(self, zone, image, name, image_project):
+    def disk_from_image(self, zone, image, name, image_project=None):
         source_disk = "projects/%s/zones/%s/disks/%s" % (image_project, zone, name)
         return {
             'boot': False,
