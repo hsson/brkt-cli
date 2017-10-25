@@ -49,11 +49,7 @@ from brkt_cli.instance_config_args import (
     setup_instance_config_args
 )
 from brkt_cli.subcommand import Subcommand
-from brkt_cli.util import (
-    BracketError,
-    CRYPTO_GCM,
-    CRYPTO_XTS
-)
+from brkt_cli.util import BracketError
 from brkt_cli.validation import ValidationError
 
 log = logging.getLogger(__name__)
@@ -362,27 +358,7 @@ def run_encrypt(values, config, verbose=False):
         )
         brkt_cli.validate_ntp_servers(values.ntp_servers)
 
-    mv_image = aws_svc.get_image(encryptor_ami)
-    if values.crypto is None:
-        if mv_image.name.startswith('metavisor'):
-            crypto_policy = CRYPTO_XTS
-        elif mv_image.name.startswith('brkt-avatar'):
-            crypto_policy = CRYPTO_GCM
-        else:
-            log.warn(
-                "Unable to determine encryptor type for image %s. "
-                "Default boot volume crypto policy to %s",
-                mv_image.name, CRYPTO_XTS
-            )
-            crypto_policy = CRYPTO_XTS
-    else:
-        crypto_policy = values.crypto
-        if crypto_policy == CRYPTO_XTS and not mv_image.name.startswith('metavisor'):
-            raise ValidationError(
-                'Unsupported crypto policy %s for encryptor %s' %
-                crypto_policy, mv_image.name
-            )
-
+    crypto_policy = values.crypto
     brkt_env = brkt_cli.brkt_env_from_values(values, config)
     lt = instance_config_args.get_launch_token(values, config)
     instance_config = instance_config_from_values(

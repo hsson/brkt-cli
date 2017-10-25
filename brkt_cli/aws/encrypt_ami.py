@@ -118,7 +118,6 @@ def _run_encryptor_instance(
 
     if instance_config is None:
         instance_config = InstanceConfig()
-    instance_config.brkt_config['crypto_policy_type'] = crypto_policy
 
     # Use 'sd' names even though AWS maps these to 'xvd'
     # The AWS GUI only exposes 'sd' names, and won't allow

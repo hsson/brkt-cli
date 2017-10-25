@@ -31,6 +31,7 @@ from brkt_cli.instance_config import (
     INSTANCE_UPDATER_MODE
 )
 from brkt_cli.util import (
+    CRYPTO_XTS,
     get_domain_from_brkt_env
 )
 from brkt_cli.validation import ValidationError
@@ -108,6 +109,17 @@ def setup_instance_config_args(parser, parsed_config,
             required=False
         )
 
+    if mode == INSTANCE_CREATOR_MODE:
+        parser.add_argument('--single-disk', dest='single_disk',
+                            action='store_true', default=None, required=False,
+                            help=('Specify that single-disk encryption is to '
+                                  'be used.'))
+
+        parser.add_argument('--no-single-disk', dest='single_disk',
+                            action='store_false', default=None, required=False,
+                            help=('Specify that single-disk encryption is not '
+                                  'to be used.'))
+
     # Optional CA cert file for Brkt MCP. When an on-prem MCP is used
     # (and thus, the MCP endpoints are provided in the --brkt-env arg), the
     # CA cert for the MCP root CA must be 'baked into' the encrypted AMI
@@ -167,6 +179,45 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
             values.status_port or
             encryptor_service.ENCRYPTOR_STATUS_PORT
         )
+
+    if mode == INSTANCE_CREATOR_MODE:
+        if values.crypto is None:
+            values.crypto = CRYPTO_XTS
+        brkt_config['crypto_policy_type'] = values.crypto
+
+        if values.single_disk is None:
+            # Neither single-disk flag has been given. Let's pick a
+            # reasonable default. This is a little ugly, but it's
+            # temporary.
+            encryptor = ((values.subparser_name == 'gcp' and
+                          values.encryptor_image) or
+                         (values.subparser_name == 'aws' and
+                          values.encryptor_ami) or
+                         (values.subparser_name == 'vmware' and
+                          values.image_name))
+            if encryptor:
+                # If an encryptor image has been specified, then we
+                # assume that this is an unreleased image, which
+                # supports single-disk encryption. In a sense, we're
+                # defaulting on behalf of forward progress.
+                values.single_disk = True
+            else:
+                # If no encryptor image has been specified, then we
+                # typically grab the latest from some bucket.  We
+                # don't know enough about the image at this time to
+                # assume that single-disk encryption is supported.
+                # Maybe later...
+                values.single_disk = False
+            why = "default"
+        else:
+            why = "command-line"
+        # Staggered introduction of single-disk encryption...
+        if values.subparser_name in ['gcp']:
+            log.info("Single-disk encryption: %s (%s)", values.single_disk,
+                     why)
+            brkt_config['single_disk'] = values.single_disk
+        elif values.single_disk:
+            log.info("Single-disk encryption not supported.")
 
     add_brkt_env_to_brkt_config(brkt_env, brkt_config)
 
@@ -298,7 +349,10 @@ def instance_config_args_to_values(cli_args, mode=INSTANCE_CREATOR_MODE):
         ' images')
     setup_instance_config_args(parser, config, mode)
     argv = cli_args.split()
-    return parser.parse_args(argv)
+    values = parser.parse_args(argv)
+    values.subparser_name = 'unittest'
+    values.crypto = None
+    return values
 
 
 def add_brkt_env_to_brkt_config(brkt_env, brkt_config):

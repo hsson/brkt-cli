@@ -1,6 +1,9 @@
 import brkt_cli
 import logging
 import os
+
+import googleapiclient
+
 from brkt_cli.subcommand import Subcommand
 
 from brkt_cli import encryptor_service, instance_config_args, util
@@ -50,6 +53,19 @@ def run_encrypt(values, config):
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
+    if not values.encryptor_image:
+        # create metavisor image from file in GCS bucket
+        log.info('Retrieving encryptor image from GCS bucket')
+        try:
+            values.encryptor_image = gcp_svc.get_latest_encryptor_image(
+                values.zone, values.bucket, image_file=values.image_file)
+        except googleapiclient.errors.HttpError:
+            log.exception('GCP API call to create image from file failed')
+            return 1
+    else:
+        # Keep user provided encryptor image
+        values.keep_encryptor = True
+
     log.info('Starting encryptor session %s', gcp_svc.get_session_id())
 
     brkt_env = brkt_cli.brkt_env_from_values(values, config)
@@ -60,25 +76,15 @@ def run_encrypt(values, config):
         brkt_env=brkt_env,
         launch_token=lt
     )
+
     encrypted_image_id = encrypt_gcp_image.encrypt(
         gcp_svc=gcp_svc,
         enc_svc_cls=encryptor_service.EncryptorService,
-        image_id=values.image,
-        encryptor_image=values.encryptor_image,
+        values=values,
         encrypted_image_name=encrypted_image_name,
-        zone=values.zone,
         instance_config=ic,
-        crypto_policy=values.crypto,
-        image_project=values.image_project,
-        keep_encryptor=values.keep_encryptor,
-        image_file=values.image_file,
-        image_bucket=values.bucket,
-        network=values.network,
-        subnetwork=values.subnetwork,
-        status_port=values.status_port,
-        cleanup=values.cleanup,
-        gcp_tags=values.gcp_tags
     )
+
     # Print the image name to stdout, in case the caller wants to process
     # the output.  Log messages go to stderr.
     print(encrypted_image_id)
@@ -103,6 +109,19 @@ def run_update(values, config):
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
+    if not values.encryptor_image:
+        # create image from file in GCS bucket
+        log.info('Retrieving encryptor image from GCS bucket')
+        try:
+            values.encryptor_image = gcp_svc.get_latest_encryptor_image(
+                values.zone, values.bucket, image_file=values.image_file)
+        except googleapiclient.errors.HttpError:
+            log.exception('GCP API call to create image from file failed')
+            return 1
+    else:
+        # Keep user provided encryptor image
+        values.keep_encryptor = True
+
     log.info('Starting updater session %s', gcp_svc.get_session_id())
 
     brkt_env = brkt_cli.brkt_env_from_values(values, config)
@@ -116,19 +135,9 @@ def run_update(values, config):
     updated_image_id = update_gcp_image.update_gcp_image(
         gcp_svc=gcp_svc,
         enc_svc_cls=encryptor_service.EncryptorService,
-        image_id=values.image,
-        encryptor_image=values.encryptor_image,
+        values=values,
         encrypted_image_name=encrypted_image_name,
-        zone=values.zone,
         instance_config=ic,
-        keep_encryptor=values.keep_encryptor,
-        image_file=values.image_file,
-        image_bucket=values.bucket,
-        network=values.network,
-        subnetwork=values.subnetwork,
-        status_port=values.status_port,
-        cleanup=values.cleanup,
-        gcp_tags=values.gcp_tags
     )
 
     print(updated_image_id)
@@ -166,22 +175,13 @@ def run_launch(values, config):
     if values.instance_name:
         gcp_service.validate_image_name(values.instance_name)
 
-
     if values.gcp_tags:
         validate_tags(values.gcp_tags)
 
-    encrypted_instance_id = launch_gcp_image.launch(log,
-                            gcp_svc,
-                            values.image,
-                            values.instance_name,
-                            values.zone,
-                            values.delete_boot,
-                            values.instance_type,
-                            values.network,
-                            values.subnetwork,
-                            metadata,
-                            values.ssd_scratch_disks,
-                            values.gcp_tags)
+    encrypted_instance_id = launch_gcp_image.launch(
+        log, gcp_svc, values.image, values.instance_name, values.zone,
+        values.delete_boot, values.instance_type, values.network,
+        values.subnetwork, metadata, values.ssd_scratch_disks, values.gcp_tags)
     print(encrypted_instance_id)
     return 0
 
@@ -220,7 +220,7 @@ def run_wrap_image(values, config):
         validate_tags(values.gcp_tags)
     if not values.verbose:
         logging.getLogger('googleapiclient').setLevel(logging.ERROR)
-    
+
     wrapped_instance = wrap_gcp_image.wrap_guest_image(
         gcp_svc=gcp_svc,
         image_id=values.image,
@@ -255,7 +255,7 @@ def share_logs(values, gcp_svc):
     instance_name = 'brkt-diag-instance-' + gcp_svc.get_session_id()
     disk_name = 'sdb-' + gcp_svc.get_session_id()
     log.info('Sharing logs')
-    snap = None 
+    snap = None
 
     try:
         image_project = 'ubuntu-os-cloud'
@@ -267,7 +267,7 @@ def share_logs(values, gcp_svc):
 
         # Check to see if the tar file is already in the bucket
         gcp_svc.check_bucket_file(values.bucket, values.path)
-        
+
         # Create snapshot from root disk
         gcp_svc.create_snapshot(
             values.zone, values.instance, snapshot_name)
@@ -294,8 +294,9 @@ def share_logs(values, gcp_svc):
             'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/sdb4 /mnt ||\n' + \
             'sudo mount -t ufs -o ro,ufstype=44bsd /dev/sdb5 /mnt\n' + \
             'sudo tar czvf /tmp/%s -C /mnt ./log ./crash\n' % (file) + \
-            'sudo gsutil cp /tmp/%s gs://%s/%s/\n' % (file, values.bucket, path)
-            
+            'sudo gsutil cp /tmp/%s gs://%s/%s/\n' % \
+            (file, values.bucket, path)
+
         metadata = {
             "items": [
                 {
@@ -327,11 +328,12 @@ def share_logs(values, gcp_svc):
                     bucket=values.bucket,
                     object=values.path,
                     body={'entity': 'user-%s' % (values.email),
-                        'role': 'READER'}).execute()
+                          'role': 'READER'}).execute()
                 log.info('Updated file permissions')
             except Exception as e:
                 log.error("Failed changing file permissions")
-                raise util.BracketError("Failed changing file permissions: %s", e)
+                raise util.BracketError("Failed changing file permissions: %s",
+                                        e)
         else:
             log.error("Can't upload logs file")
             raise util.BracketError("Can't upload logs file")
@@ -469,7 +471,8 @@ def check_args(values, gcp_svc, cli_config):
     if values.validate:
         if not gcp_svc.project_exists(values.project):
             raise ValidationError(
-                "Project provider either does not exist or you do not have access to it")
+                "Project provider either does not exist or "
+                "you do not have access to it")
         if not gcp_svc.network_exists(values.network):
             raise ValidationError("Network provided does not exist")
         brkt_env = brkt_cli.brkt_env_from_values(values)

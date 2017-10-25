@@ -31,6 +31,9 @@ class DummyEncryptorService(encryptor_service.BaseEncryptorService):
         self.is_up = False
         self.progress = 0
 
+    def fetch(self, name):
+        return None
+
     def is_encryptor_up(self):
         """ The first call returns False.  Subsequent calls return True.
         """
