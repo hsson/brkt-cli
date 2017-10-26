@@ -105,5 +105,5 @@ def setup_encrypt_ami_args(parser, parsed_config):
         metavar='NAME',
         choices=[CRYPTO_GCM, CRYPTO_XTS],
         help=argparse.SUPPRESS,
-        default=None
+        default=CRYPTO_XTS
     )

@@ -422,7 +422,7 @@ def add_crypto_policy(parser, help=argparse.SUPPRESS):
         metavar='NAME',
         choices=[CRYPTO_GCM, CRYPTO_XTS],
         help=help,
-        default=None
+        default=CRYPTO_XTS
     )
 
 
