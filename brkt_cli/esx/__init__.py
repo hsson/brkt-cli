@@ -101,7 +101,8 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
             raise ValidationError("Missing template-vm-name for the "
                                   "template VM")
     if values.source_image_path is None and values.image_name is not None:
-        raise ValidationError("Specify OVF image location with --ovf-source-directory")
+        raise ValidationError("Specify OVF image location with "
+                              "--ovf-source-directory")
     if use_esx:
         _check_env_vars_set('ESX_USER_NAME')
     else:
@@ -127,8 +128,7 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
 
     # Download images from S3
     try:
-        if (values.encryptor_vmdk is None and
-            values.source_image_path is None):
+        if values.encryptor_vmdk is None and values.source_image_path is None:
             (ovf, file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
@@ -141,9 +141,13 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         raise ValidationError("Failed to download MV image from S3: ", e)
     # Connect to vCenter
     try:
+        if use_esx:
+            user_name = os.getenv('ESX_USER_NAME')
+        else:
+            user_name = os.getenv('VCENTER_USER_NAME')
         vc_swc = esx_service.initialize_vcenter(
             host=values.vcenter_host,
-            user=os.getenv('ESX_USER_NAME') if use_esx else os.getenv('VCENTER_USER_NAME'),
+            user=user_name,
             password=vcenter_password,
             port=values.vcenter_port,
             datacenter_name=None if use_esx else values.vcenter_datacenter,
@@ -190,69 +194,33 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         brkt_env = brkt_cli.brkt_env_from_values(values, parsed_config)
         lt = instance_config_args.get_launch_token(values, parsed_config)
         instance_config = instance_config_from_values(
-            values,
-            mode=INSTANCE_CREATOR_MODE,
-            brkt_env=brkt_env,
-            launch_token=lt
-        )
+            values, mode=INSTANCE_CREATOR_MODE, brkt_env=brkt_env,
+            launch_token=lt)
 
-        crypto_policy = values.crypto
-        user_data_str = vc_swc.create_userdata_str(instance_config,
-            update=False, ssh_key_file=values.ssh_public_key_file)
+        user_data_str = vc_swc.create_userdata_str(
+            instance_config, update=False,
+            ssh_key_file=values.ssh_public_key_file)
+
         if (values.encryptor_vmdk is not None):
             # Create from MV VMDK
             encrypt_vmdk.encrypt_from_vmdk(
-                vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, crypto_policy,
-                vm_name=values.template_vm_name,
-                create_ovf=values.create_ovf,
-                create_ova=values.create_ova,
-                target_path=values.target_path,
-                image_name=values.encrypted_ovf_name,
-                ovftool_path=values.ovftool_path,
-                metavisor_vmdk=values.encryptor_vmdk,
-                user_data_str=user_data_str,
-                serial_port_file_name=values.serial_port_file_name,
-                status_port=values.status_port,
-                static_ip=static_ip
-            )
+                vc_swc, encryptor_service.EncryptorService, values,
+                user_data_str=user_data_str, static_ip=static_ip)
         elif (values.source_image_path is not None):
+            # Normalize image name if required
+            if not values.image_name.endswith('.ovf'):
+                values.image_name = values.image_name + ".ovf"
             # Create from MV OVF in local directory
             encrypt_vmdk.encrypt_from_local_ovf(
-                vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, crypto_policy,
-                vm_name=values.template_vm_name,
-                create_ovf=values.create_ovf,
-                create_ova=values.create_ova,
-                target_path=values.target_path,
-                image_name=values.encrypted_ovf_name,
-                ovftool_path=values.ovftool_path,
-                source_image_path=values.source_image_path,
-                ovf_image_name=values.image_name,
-                user_data_str=user_data_str,
-                serial_port_file_name=values.serial_port_file_name,
-                status_port=values.status_port,
-                static_ip=static_ip
-            )
+                vc_swc, encryptor_service.EncryptorService, values,
+                user_data_str=user_data_str, static_ip=static_ip)
         else:
             # Create from MV OVF in S3
+            values.source_image_path = ovf
             encrypt_vmdk.encrypt_from_s3(
-                vc_swc, encryptor_service.EncryptorService,
-                values.vmdk, crypto_policy,
-                vm_name=values.template_vm_name,
-                create_ovf=values.create_ovf,
-                create_ova=values.create_ova,
-                target_path=values.target_path,
-                image_name=values.encrypted_ovf_name,
-                ovftool_path=values.ovftool_path,
-                ovf_name=ovf,
-                download_file_list=file_list,
-                user_data_str=user_data_str,
-                serial_port_file_name=values.serial_port_file_name,
-                status_port=values.status_port,
-                cleanup=values.cleanup,
-                static_ip=static_ip
-            )
+                vc_swc, encryptor_service.EncryptorService, values,
+                download_file_list=file_list, user_data_str=user_data_str,
+                static_ip=static_ip)
         return 0
     except Exception as e:
         log.error("Failed to encrypt the guest VMDK: %s", e)
@@ -261,8 +229,6 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
 
 def run_update(values, parsed_config, log, use_esx=False):
     session_id = util.make_nonce()
-    encrypted_ovf_name = None
-    encrypted_ova_name = None
     if values.create_ovf or values.create_ova:
         # ovf/ova creation on Windows is not supported
         if os.name == "nt":
@@ -280,9 +246,7 @@ def run_update(values, parsed_config, log, use_esx=False):
             if (os.path.exists(name) is False):
                 raise ValidationError("Encrypted OVF image not found at "
                                       "%s", name)
-            encrypted_ovf_name = values.encrypted_ovf_name
         else:
-            encrypted_ova_name = values.encrypted_ovf_name
             name = os.path.join(values.target_path,
                                 values.encrypted_ovf_name + ".ova")
             if (os.path.exists(name) is False):
@@ -302,7 +266,8 @@ def run_update(values, parsed_config, log, use_esx=False):
         if (values.template_vm_name is None):
             raise ValidationError("Encrypted image not provided")
     if values.source_image_path is None and values.image_name is not None:
-        raise ValidationError("Specify OVF image location with --ovf-source-directory")
+        raise ValidationError("Specify OVF image location with "
+                              "--ovf-source-directory")
     if use_esx:
         _check_env_vars_set('ESX_USER_NAME')
     else:
@@ -328,8 +293,7 @@ def run_update(values, parsed_config, log, use_esx=False):
 
     # Download images from S3
     try:
-        if (values.encryptor_vmdk is None and
-            values.source_image_path is None):
+        if values.encryptor_vmdk is None and values.source_image_path is None:
             (ovf_name, download_file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
@@ -342,9 +306,13 @@ def run_update(values, parsed_config, log, use_esx=False):
         raise ValidationError("Failed to download MV image from S3: ", e)
     # Connect to vCenter
     try:
+        if use_esx:
+            user_name = os.getenv('ESX_USER_NAME')
+        else:
+            user_name = os.getenv('VCENTER_USER_NAME')
         vc_swc = esx_service.initialize_vcenter(
             host=values.vcenter_host,
-            user=os.getenv('ESX_USER_NAME') if use_esx else os.getenv('VCENTER_USER_NAME'),
+            user=user_name,
             password=vcenter_password,
             port=values.vcenter_port,
             datacenter_name=None if use_esx else values.vcenter_datacenter,
@@ -374,58 +342,35 @@ def run_update(values, parsed_config, log, use_esx=False):
             values,
             mode=INSTANCE_UPDATER_MODE,
             brkt_env=brkt_env,
-            launch_token=lt
-        )
-        user_data_str = vc_swc.create_userdata_str(instance_config,
-            update=True, ssh_key_file=values.ssh_public_key_file)
+            launch_token=lt)
+
+        user_data_str = vc_swc.create_userdata_str(
+            instance_config, update=True,
+            ssh_key_file=values.ssh_public_key_file)
+
         if (values.encryptor_vmdk is not None):
             # Create from MV VMDK
             update_vmdk.update_from_vmdk(
-                vc_swc, encryptor_service.EncryptorService,
-                template_vm_name=values.template_vm_name,
-                target_path=values.target_path,
-                ovf_name=encrypted_ovf_name,
-                ova_name=encrypted_ova_name,
-                ovftool_path=values.ovftool_path,
-                metavisor_vmdk=values.encryptor_vmdk,
-                user_data_str=user_data_str,
-                status_port=values.status_port,
-                static_ip=static_ip
-            )
+                vc_swc, encryptor_service.EncryptorService, values,
+                user_data_str=user_data_str, static_ip=static_ip)
         elif (values.source_image_path is not None):
+            # Normalize image name if required
+            if not values.image_name.endswith('.ovf'):
+                values.image_name = values.image_name + ".ovf"
             # Create from MV OVF in local directory
             update_vmdk.update_from_local_ovf(
-                vc_swc, encryptor_service.EncryptorService,
-                template_vm_name=values.template_vm_name,
-                target_path=values.target_path,
-                ovf_name=encrypted_ovf_name,
-                ova_name=encrypted_ova_name,
-                ovftool_path=values.ovftool_path,
-                source_image_path=values.source_image_path,
-                ovf_image_name=values.image_name,
-                user_data_str=user_data_str,
-                status_port=values.status_port,
-                static_ip=static_ip
-            )
+                vc_swc, encryptor_service.EncryptorService, values,
+                user_data_str=user_data_str, static_ip=static_ip)
         else:
             # Create from MV OVF in S3
+            values.source_image_path = ovf_name
             update_vmdk.update_from_s3(
-                vc_swc, encryptor_service.EncryptorService,
-                template_vm_name=values.template_vm_name,
-                target_path=values.target_path,
-                ovf_name=encrypted_ovf_name,
-                ova_name=encrypted_ova_name,
-                ovftool_path=values.ovftool_path,
-                mv_ovf_name=ovf_name,
+                vc_swc, encryptor_service.EncryptorService, values,
                 download_file_list=download_file_list,
-                user_data_str=user_data_str,
-                status_port=values.status_port,
-                cleanup=values.cleanup,
-                static_ip=static_ip
-            )
+                user_data_str=user_data_str, static_ip=static_ip)
         return 0
     except:
-        log.error("Failed to update encrypted VMDK");
+        log.error("Failed to update encrypted VMDK")
         return 1
 
 
@@ -435,7 +380,8 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
     if not use_esx and values.vm_name is None:
         raise ValidationError("Missing vm-name for the VM")
     if values.source_image_path is None and values.image_name is not None:
-        raise ValidationError("Specify OVF image location with --ovf-source-directory")
+        raise ValidationError("Specify OVF image location with "
+                              "--ovf-source-directory")
     if use_esx:
         _check_env_vars_set('ESX_USER_NAME')
     else:
@@ -464,8 +410,7 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
 
     # Download images from S3
     try:
-        if (values.encryptor_vmdk is None and
-            values.source_image_path is None):
+        if values.encryptor_vmdk is None and values.source_image_path is None:
             (ovf, file_list) = \
                 esx_service.download_ovf_from_s3(
                     values.bucket_name,
@@ -479,9 +424,14 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
 
     # Connect to vCenter
     try:
+        if use_esx:
+            user_name = os.getenv('ESX_USER_NAME')
+        else:
+            user_name = os.getenv('VCENTER_USER_NAME')
+
         vc_swc = esx_service.initialize_vcenter(
             host=values.vcenter_host,
-            user=os.getenv('ESX_USER_NAME') if use_esx else os.getenv('VCENTER_USER_NAME'),
+            user=user_name,
             password=vcenter_password,
             port=values.vcenter_port,
             datacenter_name=None if use_esx else values.vcenter_datacenter,
@@ -530,8 +480,11 @@ def run_wrap_image(values, parsed_config, log, use_esx=False):
             brkt_env=brkt_env,
             launch_token=lt)
         instance_config.brkt_config['allow_unencrypted_guest'] = True
-        user_data_str = vc_swc.create_userdata_str(instance_config,
-            update=False, ssh_key_file=values.ssh_public_key_file)
+
+        user_data_str = vc_swc.create_userdata_str(
+            instance_config, update=False,
+            ssh_key_file=values.ssh_public_key_file)
+
         if values.encryptor_vmdk is not None:
             # Create from MV VMDK
             wrap_image.wrap_from_vmdk(
@@ -641,12 +594,10 @@ def run_rescue_metavisor(values, parsed_config, log):
     except Exception as e:
         raise ValidationError("Failed to connect to vCenter ", e)
     try:
-        user_data_str = vc_swc.create_userdata_str(None,
-            rescue_proto=values.protocol,
-            rescue_url=values.url)
+        user_data_str = vc_swc.create_userdata_str(
+            None, rescue_proto=values.protocol, rescue_url=values.url)
         rescue_metavisor.rescue_metavisor_vcenter(
-            vc_swc, user_data_str, values.vm_name
-        )
+            vc_swc, user_data_str, values.vm_name)
         return 0
     except Exception as e:
         log.exception("Failed to put Metavisor in rescue mode %s", e)
@@ -703,9 +654,8 @@ class VMwareSubcommand(Subcommand):
 
         update_with_vcenter_parser = vmware_subparsers.add_parser(
             'update-with-vcenter',
-            description=(
-                'Update an encrypted VMDK with the latest Metavisor using vCenter'
-            ),
+            description='Update an encrypted VMDK with the latest Metavisor'
+                        ' using vCenter',
             help='Update an encrypted VMDK using vCenter',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
@@ -715,9 +665,8 @@ class VMwareSubcommand(Subcommand):
 
         update_with_esx_parser = vmware_subparsers.add_parser(
             'update-with-esx-host',
-            description=(
-                'Update an encrypted VMDK with the latest Metavisor on an ESX host'
-            ),
+            description='Update an encrypted VMDK with the latest Metavisor'
+                        ' on an ESX host',
             help='Update an encrypted VMDK on an ESX host',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
@@ -727,10 +676,10 @@ class VMwareSubcommand(Subcommand):
 
         wrap_with_vcenter_parser = vmware_subparsers.add_parser(
             'wrap-with-vcenter',
-            description=(
-                'Launch guest image wrapped with Bracket Metavisor using vCenter'
-            ),
-            help='Launch guest image wrapped with Bracket Metavisor using vCenter',
+            description='Launch guest image wrapped with Bracket Metavisor'
+                        ' using vCenter',
+            help='Launch guest image wrapped with Bracket Metavisor'
+                 ' using vCenter',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         wrap_with_vcenter_args.setup_wrap_with_vcenter_args(
@@ -739,10 +688,10 @@ class VMwareSubcommand(Subcommand):
 
         wrap_with_esx_host_parser = vmware_subparsers.add_parser(
             'wrap-with-esx-host',
-            description=(
-                'Launch guest image wrapped with Bracket Metavisor on ESX host'
-            ),
-            help='Launch guest image wrapped with Bracket Metavisor on ESX host',
+            description='Launch guest image wrapped with Bracket Metavisor'
+                        ' on ESX host',
+            help='Launch guest image wrapped with Bracket Metavisor'
+                 ' on ESX host',
             formatter_class=brkt_cli.SortingHelpFormatter
         )
         wrap_with_esx_host_args.setup_wrap_with_esx_host_args(
