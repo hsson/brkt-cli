@@ -30,6 +30,7 @@ class DummyEncryptorService(encryptor_service.BaseEncryptorService):
         super(DummyEncryptorService, self).__init__(hostnames, port)
         self.is_up = False
         self.progress = 0
+        self.bytes_written = 0
 
     def fetch(self, name):
         return None
@@ -48,9 +49,11 @@ class DummyEncryptorService(encryptor_service.BaseEncryptorService):
         ret_val = {
             'state': encryptor_service.ENCRYPT_ENCRYPTING,
             'percent_complete': self.progress,
+            'bytes_written': self.bytes_written,
         }
         if self.progress < 100:
             self.progress += 20
+            self.bytes_written += 1048576
         else:
             ret_val['state'] = 'finished'
         return ret_val
@@ -64,6 +67,7 @@ class FailedEncryptionService(encryptor_service.BaseEncryptorService):
         return {
             'state': encryptor_service.ENCRYPT_FAILED,
             'percent_complete': 50,
+            'bytes_written': 1073741824,
         }
 
 
@@ -97,7 +101,8 @@ class TestEncryptionService(unittest.TestCase):
                     'state': encryptor_service.ENCRYPT_FAILED,
                     'failure_code':
                         encryptor_service.FAILURE_CODE_UNSUPPORTED_GUEST,
-                    'percent_complete': 0
+                    'percent_complete': 0,
+                    'bytes_written': 0
                 }
 
         with self.assertRaises(encryptor_service.UnsupportedGuestError):
@@ -114,7 +119,8 @@ class TestEncryptionService(unittest.TestCase):
             def get_status(self):
                 return {
                     'state': encryptor_service.ENCRYPT_ENCRYPTING,
-                    'percent_complete': 0
+                    'percent_complete': 0,
+                    'bytes_written': 0
                 }
 
         with self.assertRaises(encryptor_service.EncryptionError):

@@ -124,7 +124,7 @@ class EncryptorService(BaseEncryptorService):
             info['percent_complete'] = 100
         elif bytes_total is not None and bytes_total > 0:
             ratio = float(info['bytes_written']) / info['bytes_total']
-            info['percent_complete'] = int(100 * ratio)
+            info['percent_complete'] = float(100 * ratio)
         return info
 
 
@@ -211,7 +211,8 @@ def wait_for_encryption(enc_svc,
 
         state = status['state']
         percent_complete = status['percent_complete']
-        log.debug('state=%s, percent_complete=%d', state, percent_complete)
+        bytes_written = status['bytes_written']
+        log.debug('state=%s, percent_complete=%.2f', state, percent_complete)
 
         # Make sure that encryption progress hasn't stalled.
         if progress_deadline.is_expired():
@@ -219,8 +220,8 @@ def wait_for_encryption(enc_svc,
                 'Waited for encryption progress for longer than %s seconds' %
                 progress_timeout
             )
-        if percent_complete > last_progress or state != last_state:
-            last_progress = percent_complete
+        if bytes_written > last_progress or state != last_state:
+            last_progress = bytes_written
             last_state = state
             progress_deadline = Deadline(progress_timeout)
 
@@ -234,7 +235,7 @@ def wait_for_encryption(enc_svc,
                 if state == ENCRYPT_DOWNLOADING:
                     state_display = 'Download from cloud storage'
                 log.info(
-                    '%s is %d%% complete', state_display, percent_complete)
+                    '%s is %.2f%% complete', state_display, percent_complete)
             last_log_time = now
 
         if state == ENCRYPT_SUCCESSFUL:

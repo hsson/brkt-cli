@@ -77,6 +77,7 @@ class CantContactEncryptionService(encryptor_service.BaseEncryptorService):
         return {
             'state': encryptor_service.ENCRYPT_FAILED,
             'percent_complete': 50,
+            'bytes_written': 1048576,
         }
 
 
