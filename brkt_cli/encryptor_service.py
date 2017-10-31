@@ -211,7 +211,8 @@ def wait_for_encryption(enc_svc,
 
         state = status['state']
         percent_complete = status['percent_complete']
-        bytes_written = status['bytes_written']
+        # For image updates, there is no bytes_written
+        bytes_written = status.get('bytes_written', 0)
         log.debug('state=%s, percent_complete=%.2f', state, percent_complete)
 
         # Make sure that encryption progress hasn't stalled.
