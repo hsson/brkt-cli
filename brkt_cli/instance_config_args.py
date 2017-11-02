@@ -212,7 +212,7 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
         else:
             why = "command-line"
         # Staggered introduction of single-disk encryption...
-        if values.subparser_name in ['gcp']:
+        if values.subparser_name in ['gcp', 'vmware']:
             log.info("Single-disk encryption: %s (%s)", values.single_disk,
                      why)
             brkt_config['single_disk'] = values.single_disk

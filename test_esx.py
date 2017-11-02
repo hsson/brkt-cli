@@ -2,7 +2,7 @@ import logging
 import unittest
 import datetime
 
-#import test
+# import test
 from brkt_cli import util
 from brkt_cli.esx import (
     encrypt_vmdk,
@@ -29,10 +29,35 @@ class NullHandler(logging.Handler):
     def emit(self, record):
         pass
 
+
+class DummyValues():
+    def __init__(self):
+        self.cleanup = True
+        self.create_ovf = False
+        self.create_ova = False
+        self.crypto = CRYPTO_XTS
+        self.encrypted_ovf_name = None
+        self.encryptor_vmdk = None
+        self.image_name = None
+        self.ovftool_path = None
+        self.serial_port_file_name = None
+        self.single_disk = True
+        self.source_image_path = "mv-ovf"
+        self.ssh_public_key_file = None
+        self.status_port = 80
+        self.target_path = None
+        self.template_vm_name = "template-encrypted"
+        self.vcenter_datacenter = None
+        self.vcenter_host = None
+        self.vcenter_port = None
+        self.vmdk = "guest-vmdk"
+
+
 class DummyDisk(object):
     def __init__(self, size, filename):
         self.size = size
         self.filename = filename
+
 
 class DummyVM(object):
     def __init__(self, name, cpu, memory, poweron=False, template=False):
@@ -74,7 +99,7 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         self.connection = False
 
     def connected(self):
-        return self.connect
+        return self.connection
 
     def validate_connection(self):
         return
@@ -107,16 +132,16 @@ class DummyVCenterService(esx_service.BaseVCenterService):
     def get_ip_address(self, vm):
         return ("10.10.10.1")
 
-    def create_vm(self, memoryGB=1, numCPUs=1):
+    def create_vm(self, memory_gb=1, no_of_cpus=1):
         timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
         vm_name = "VM-" + timestamp
-        vm = DummyVM(vm_name, numCPUs, memoryGB)
+        vm = DummyVM(vm_name, no_of_cpus, memory_gb)
         self.vms[vm_name] = vm
         return vm
 
     def reconfigure_vm_cpu_ram(self, vm):
         vm.cpu = self.no_of_cpus
-        vm.memory = self.memoryGB
+        vm.memory = self.memory_gb
 
     def rename_vm(self, vm, new_name):
         del self.vms[vm.name]
@@ -149,6 +174,11 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         vm.remove_disk(unit_number)
         return disk
 
+    def reattach_disk(self, vm, old_unit_number, new_unit_number):
+        disk = vm.disks.get(old_unit_number)
+        vm.remove_disk(old_unit_number)
+        vm.add_disk(disk, new_unit_number)
+
     def clone_disk(self, source_disk=None, source_disk_name=None,
                    dest_disk=None, dest_disk_name=None):
         if source_disk is None:
@@ -173,18 +203,18 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         disk = vm.disks.get(unit_number)
         return disk.size
 
-    def clone_vm(self, vm, powerOn=False, vm_name=None, template=False):
-        if (vm_name is None):
+    def clone_vm(self, vm, power_on=False, vm_name=None, template=False):
+        if vm_name is None:
             timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
             vm_name = "template-vm-" + timestamp
-        clone_vm = DummyVM(vm_name, vm.cpu, vm.memory,
-                           poweron=powerOn, template=template)
+        clone = DummyVM(vm_name, vm.cpu, vm.memory,
+                        poweron=power_on, template=template)
         disk_list = vm.disks.keys()
         for c_unit in disk_list:
             c_disk = vm.disks.get(c_unit)
-            self.add_disk(clone_vm, c_disk.size, unit_number=c_unit)
-        self.vms[vm_name] = clone_vm
-        return clone_vm
+            self.add_disk(clone, c_disk.size, unit_number=c_unit)
+        self.vms[vm_name] = clone
+        return clone
 
     def create_userdata_str(self, instance_config, update=False,
                             ssh_key_file=None,
@@ -230,7 +260,7 @@ class DummyVCenterService(esx_service.BaseVCenterService):
         ovf = target_path
         if target_path == "./":
             ovf = self.ovfs[0]
-        return self.clone_vm(ovf.vm, vm_name = ovf_name)
+        return self.clone_vm(ovf.vm, vm_name=ovf_name)
 
     def get_vm_name(self, vm):
         return vm.name
@@ -247,138 +277,78 @@ class TestRunEncryption(unittest.TestCase):
         logging.getLogger("brkt_cli").addHandler(h)
 
     def test_smoke(self):
+        values = DummyValues()
         vc_swc = DummyVCenterService()
         mv_vm = DummyVM("mv_image", 1, 1024)
         disk = DummyDisk(12*1024*1024, None)
         mv_vm.add_disk(disk, 0)
         mv_ovf = DummyOVF(mv_vm, "mv-ovf")
         vc_swc.ovfs = [mv_ovf]
-        guest_vmdk = "guest-vmdk"
-        guest_vmdk_disk = DummyDisk(16*1024*1024, guest_vmdk)
-        vc_swc.disks[guest_vmdk] = guest_vmdk_disk
-        encrypt_vmdk.encrypt_from_s3(
-            vc_swc,
-            DummyEncryptorService,
-            guest_vmdk,
-            crypto_policy=CRYPTO_GCM,
-            vm_name="template-encrypted",
-            create_ovf=False, create_ova=False,
-            target_path=mv_ovf,
-            image_name=None,
-            ovftool_path=None,
-            ovf_name="mv-ovf",
-            download_file_list=[],
-            user_data_str=None
-        )
+        guest_vmdk_disk = DummyDisk(16*1024*1024, values.vmdk)
+        vc_swc.disks[values.vmdk] = guest_vmdk_disk
+        values.crypto = CRYPTO_GCM
+        encrypt_vmdk.encrypt_from_s3(vc_swc, DummyEncryptorService, values,
+                                     download_file_list=[], user_data_str=None)
         self.assertEqual(len(vc_swc.vms), 1)
         self.assertEqual(len(vc_swc.disks), 4)
         template_vm = (vc_swc.vms.values())[0]
-        self.assertEqual(len(template_vm.disks), 2)
+        self.assertEqual(len(template_vm.disks), 1)
         self.assertEqual(template_vm.name, "template-encrypted")
-        self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
         # Verify disk size for GCM
-        self.assertEqual(template_vm.disks[1].size, 33*1024*1024)
+        self.assertEqual(template_vm.disks[0].size, 38*1024*1024)
         self.assertTrue(template_vm.template)
 
-        encrypt_vmdk.encrypt_from_s3(
-            vc_swc,
-            DummyEncryptorService,
-            guest_vmdk,
-            crypto_policy=CRYPTO_XTS,
-            vm_name="template-encrypted",
-            create_ovf=False, create_ova=False,
-            target_path=mv_ovf,
-            image_name=None,
-            ovftool_path=None,
-            ovf_name="mv-ovf",
-            download_file_list=[],
-            user_data_str=None
-        )
+        values.crypto = CRYPTO_XTS
+        encrypt_vmdk.encrypt_from_s3(vc_swc, DummyEncryptorService, values,
+                                     download_file_list=[], user_data_str=None)
         self.assertEqual(len(vc_swc.vms), 1)
         self.assertEqual(len(vc_swc.disks), 4)
         template_vm = (vc_swc.vms.values())[0]
-        self.assertEqual(len(template_vm.disks), 2)
+        self.assertEqual(len(template_vm.disks), 1)
         self.assertEqual(template_vm.name, "template-encrypted")
-        self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
         # Verify disk size for XTS
-        self.assertEqual(template_vm.disks[1].size, 17*1024*1024)
+        self.assertEqual(template_vm.disks[0].size, 22*1024*1024)
         self.assertTrue(template_vm.template)
 
     def test_cleanup_on_bad_guest_image(self):
+        values = DummyValues()
         vc_swc = DummyVCenterService()
         mv_vm = DummyVM("mv_image", 1, 1024)
         disk = DummyDisk(12*1024*1024, None)
         mv_vm.add_disk(disk, 0)
         mv_ovf = DummyOVF(mv_vm, "mv-ovf")
         vc_swc.ovfs = [mv_ovf]
-        guest_vmdk = "guest-vmdk"
         with self.assertRaises(Exception):
-            encrypt_vmdk.encrypt_from_s3(
-                vc_swc,
-                DummyEncryptorService,
-                guest_vmdk,
-                vm_name="template-encrypted",
-                create_ovf=False, create_ova=False,
-                target_path=mv_ovf,
-                image_name=None,
-                ovftool_path=None,
-                ovf_name="mv-ovf",
-                download_file_list=[],
-                user_data_str=None
-            )
+            encrypt_vmdk.encrypt_from_s3(vc_swc, DummyEncryptorService, values,
+                                         download_file_list=[],
+                                         user_data_str=None)
         self.assertEqual(len(vc_swc.vms), 0)
         self.assertEqual(len(vc_swc.disks), 0)
 
     def test_cleanup_bad_mv_image(self):
+        values = DummyValues()
         vc_swc = DummyVCenterService()
-        mv_vm = DummyVM("mv_image", 1, 1024)
-        disk = DummyDisk(12*1024*1024, None)
-        mv_vm.add_disk(disk, 0)
-        mv_ovf = DummyOVF(mv_vm, "mv-ovf")
-        vc_swc.ovfs = []
-        guest_vmdk = "guest-vmdk"
         with self.assertRaises(Exception):
-            encrypt_vmdk.encrypt_from_s3(
-                vc_swc,
-                DummyEncryptorService,
-                guest_vmdk,
-                vm_name="template-encrypted",
-                create_ovf=False, create_ova=False,
-                target_path=mv_ovf,
-                image_name=None,
-                ovftool_path=None,
-                ovf_name="mv-ovf",
-                download_file_list=[],
-                user_data_str=None
-            )
+            encrypt_vmdk.encrypt_from_s3(vc_swc, DummyEncryptorService, values,
+                                         download_file_list=[],
+                                         user_data_str=None)
         self.assertEqual(len(vc_swc.vms), 0)
         self.assertEqual(len(vc_swc.disks), 0)
 
     def test_cleanup_bad_encryption(self):
+        values = DummyValues()
         vc_swc = DummyVCenterService()
         mv_vm = DummyVM("mv_image", 1, 1024)
         disk = DummyDisk(12*1024*1024, None)
         mv_vm.add_disk(disk, 0)
         mv_ovf = DummyOVF(mv_vm, "mv-ovf")
         vc_swc.ovfs = [mv_ovf]
-        guest_vmdk = "guest-vmdk"
-        guest_vmdk_disk = DummyDisk(16*1024*1024, guest_vmdk)
-        vc_swc.disks[guest_vmdk] = guest_vmdk_disk
+        guest_vmdk_disk = DummyDisk(16*1024*1024, values.vmdk)
+        vc_swc.disks[values.vmdk] = guest_vmdk_disk
         try:
-            encrypt_vmdk.encrypt_from_s3(
-                vc_swc,
-                FailedEncryptionService,
-                guest_vmdk,
-                crypto_policy=CRYPTO_GCM,
-                vm_name="template-encrypted",
-                create_ovf=False, create_ova=False,
-                target_path=mv_ovf,
-                image_name=None,
-                ovftool_path=None,
-                ovf_name="mv-ovf",
-                download_file_list=[],
-                user_data_str=None
-            )
+            encrypt_vmdk.encrypt_from_s3(vc_swc, FailedEncryptionService,
+                                         values, download_file_list=[],
+                                         user_data_str=None)
             self.fail('Encryption should have failed')
         except Exception:
             self.assertEqual(len(vc_swc.vms), 0)
@@ -393,6 +363,7 @@ class TestRunUpdate(unittest.TestCase):
         logging.getLogger("brkt_cli").addHandler(h)
 
     def test_smoke(self):
+        values = DummyValues()
         vc_swc = DummyVCenterService()
         mv_vm = DummyVM("mv_image", 1, 1024)
         disk = DummyDisk(14*1024*1024, None)
@@ -400,65 +371,44 @@ class TestRunUpdate(unittest.TestCase):
         mv_ovf = DummyOVF(mv_vm, "mv-ovf")
         vc_swc.ovfs = [mv_ovf]
         template_vm = vc_swc.create_vm(1024, 1)
-        template_vm_name = template_vm.name
         template_vm.template = True
+        values.template_vm_name = template_vm.name
         vc_swc.add_disk(template_vm, disk_size=12*1024*1024, unit_number=0)
-        vc_swc.add_disk(template_vm, disk_size=33*1024*1024, unit_number=1)
-        update_vmdk.update_from_s3(
-            vc_swc,
-            DummyEncryptorService,
-            template_vm_name=template_vm_name,
-            target_path=mv_ovf,
-            ovf_name = None,
-            ova_name = None,
-            mv_ovf_name="mv-ovf",
-            download_file_list=[],
-            user_data_str=None
-        )
+        vc_swc.add_disk(template_vm, disk_size=16*1024*1024, unit_number=1)
+        update_vmdk.update_from_s3(vc_swc, DummyEncryptorService, values,
+                                   download_file_list=[], user_data_str=None)
         self.assertEqual(len(vc_swc.vms), 1)
         self.assertEqual(len(vc_swc.disks), 3)
         template_vm = (vc_swc.vms.values())[0]
         self.assertEqual(len(template_vm.disks), 2)
-        self.assertEqual(template_vm.name, template_vm_name)
+        self.assertEqual(template_vm.name, values.template_vm_name)
         self.assertEqual(template_vm.disks[0].size, 14*1024*1024)
-        self.assertEqual(template_vm.disks[1].size, 33*1024*1024)
+        self.assertEqual(template_vm.disks[1].size, 16*1024*1024)
         self.assertTrue(template_vm.template)
 
     def test_cleanup_bad_mv_image(self):
+        values = DummyValues()
         vc_swc = DummyVCenterService()
-        mv_vm = DummyVM("mv_image", 1, 1024)
-        disk = DummyDisk(14*1024*1024, None)
-        mv_vm.add_disk(disk, 0)
-        mv_ovf = DummyOVF(mv_vm, "mv-ovf")
-        vc_swc.ovfs = []
         template_vm = vc_swc.create_vm(1024, 1)
-        template_vm_name = template_vm.name
         template_vm.template = True
+        values.template_vm_name = template_vm.name
         vc_swc.add_disk(template_vm, disk_size=12*1024*1024, unit_number=0)
         vc_swc.add_disk(template_vm, disk_size=33*1024*1024, unit_number=1)
         with self.assertRaises(Exception):
-            encrypt_vmdk.update_from_s3(
-                vc_swc,
-                DummyEncryptorService,
-                template_vm_name=template_vm_name,
-                target_path=mv_ovf,
-                ovf_name = None,
-                ova_name = None,
-                image_name=None,
-                mv_ovf_name="mv-ovf",
-                download_file_list=[],
-                user_data_str=None
-            )
+            update_vmdk.update_from_s3(vc_swc, DummyEncryptorService, values,
+                                       download_file_list=[],
+                                       user_data_str=None)
         self.assertEqual(len(vc_swc.vms), 1)
         self.assertEqual(len(vc_swc.disks), 2)
         template_vm = (vc_swc.vms.values())[0]
         self.assertEqual(len(template_vm.disks), 2)
-        self.assertEqual(template_vm.name, template_vm_name)
+        self.assertEqual(template_vm.name, values.template_vm_name)
         self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
         self.assertEqual(template_vm.disks[1].size, 33*1024*1024)
         self.assertTrue(template_vm.template)
 
     def test_cleanup_bad_encryption(self):
+        values = DummyValues()
         vc_swc = DummyVCenterService()
         mv_vm = DummyVM("mv_image", 1, 1024)
         disk = DummyDisk(14*1024*1024, None)
@@ -466,28 +416,19 @@ class TestRunUpdate(unittest.TestCase):
         mv_ovf = DummyOVF(mv_vm, "mv-ovf")
         vc_swc.ovfs = [mv_ovf]
         template_vm = vc_swc.create_vm(1024, 1)
-        template_vm_name = template_vm.name
         template_vm.template = True
+        values.template_vm_name = template_vm.name
         vc_swc.add_disk(template_vm, disk_size=12*1024*1024, unit_number=0)
         vc_swc.add_disk(template_vm, disk_size=33*1024*1024, unit_number=1)
         with self.assertRaises(Exception):
-            encrypt_vmdk.update_from_s3(
-                vc_swc,
-                FailedEncryptionService,
-                template_vm_name=template_vm_name,
-                target_path=mv_ovf,
-                ovf_name = None,
-                ova_name = None,
-                image_name=None,
-                mv_ovf_name="mv-ovf",
-                download_file_list=[],
-                user_data_str=None
-            )
+            update_vmdk.update_from_s3(vc_swc, FailedEncryptionService,
+                                       values, download_file_list=[],
+                                       user_data_str=None)
         self.assertEqual(len(vc_swc.vms), 1)
         self.assertEqual(len(vc_swc.disks), 2)
         template_vm = (vc_swc.vms.values())[0]
         self.assertEqual(len(template_vm.disks), 2)
-        self.assertEqual(template_vm.name, template_vm_name)
+        self.assertEqual(template_vm.name, values.template_vm_name)
         self.assertEqual(template_vm.disks[0].size, 12*1024*1024)
         self.assertEqual(template_vm.disks[1].size, 33*1024*1024)
         self.assertTrue(template_vm.template)

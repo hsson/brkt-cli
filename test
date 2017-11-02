@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
 # Set the current working directory to the one that contains this script.
 cd "$(dirname "$0")"

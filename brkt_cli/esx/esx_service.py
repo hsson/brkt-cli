@@ -12,6 +12,7 @@
 # License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import copy
 import json
 import logging
 import time
@@ -55,6 +56,7 @@ logging.getLogger('s3transfer').setLevel(logging.FATAL)
 
 class TimeoutError(Exception):
     pass
+
 
 def timeout(seconds=30, error_message="Timer expired"):
     def decorator(func):
@@ -121,11 +123,10 @@ class StaticIPConfiguration(object):
             raise ValidationError("DNS domain %s is invalid ",
                                   self.dns_domain)
         # check both ip and default router in same subnet
-        if ((struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.ip))[0] &
-           struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.mask))[0])
-           !=
-           (struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.gw))[0] &
-           struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.mask))[0])):
+        n_ip = struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.ip))
+        n_nm = struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.mask))
+        n_gw = struct.unpack('!I', socket.inet_pton(socket.AF_INET, self.gw))
+        if (n_ip[0] & n_nm[0]) != (n_gw[0] & n_nm[0]):
             raise ValidationError("Default router %s and IP address %s not in "
                                   "the same subnet", self.gw, self.ip)
 
@@ -135,7 +136,7 @@ class BaseVCenterService(object):
 
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
-                 cluster_name, no_of_cpus, memoryGB, session_id,
+                 cluster_name, no_of_cpus, memory_gb, session_id,
                  network_name, nic_type, verify=True, cdrom=False,
                  ip_ovf_properties=False):
         self.host = host
@@ -151,7 +152,7 @@ class BaseVCenterService(object):
         if self.esx_host:
             self.cluster_name = None
         self.no_of_cpus = no_of_cpus
-        self.memoryGB = memoryGB
+        self.memory_gb = memory_gb
         self.session_id = session_id
         self.no_teardown = False
         self.si = None
@@ -171,8 +172,9 @@ class BaseVCenterService(object):
         new_vmdk_name = self.session_id + p[1]
         if len(p[0]) > 0:
             new_vmdk_name = os.path.join(p[0], self.session_id + p[1])
-        f_name = self.get_datastore_path(new_vmdk_name)
-        return f_name
+        if not new_vmdk_name.startswith(self.datastore_path):
+            new_vmdk_name = self.get_datastore_path(new_vmdk_name)
+        return new_vmdk_name
 
     @abc.abstractmethod
     def connect(self):
@@ -223,7 +225,7 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def create_vm(self, memoryGB=1, numCPUs=1, vm_name=None):
+    def create_vm(self, memory_gb=1, no_of_cpus=1, vm_name=None):
         pass
 
     @abc.abstractmethod
@@ -247,6 +249,10 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
+    def reattach_disk(self, vm, old_unit_number, new_unit_number):
+        pass
+
+    @abc.abstractmethod
     def clone_disk(self, source_disk=None, source_disk_name=None,
                    dest_disk=None, dest_disk_name=None):
         pass
@@ -264,7 +270,7 @@ class BaseVCenterService(object):
         pass
 
     @abc.abstractmethod
-    def clone_vm(self, vm, powerOn=False, vm_name=None, template=False):
+    def clone_vm(self, vm, power_on=False, vm_name=None, template=False):
         pass
 
     @abc.abstractmethod
@@ -318,6 +324,7 @@ class BaseVCenterService(object):
     def set_eager_scrub(self, eager_scrub):
         self.eagerscrub = eager_scrub
 
+
 class VmodlExceptionChecker(RetryExceptionChecker):
     def __init__(self, message):
         self.message = None
@@ -351,11 +358,11 @@ class VmodlExceptionChecker(RetryExceptionChecker):
 class VCenterService(BaseVCenterService):
     def __init__(self, host, user, password, port,
                  datacenter_name, datastore_name, esx_host,
-                 cluster_name, no_of_cpus, memoryGB, session_id,
+                 cluster_name, no_of_cpus, memory_gb, session_id,
                  network_name, nic_type, verify, cdrom, ip_ovf_properties):
         super(VCenterService, self).__init__(
             host, user, password, port, datacenter_name, datastore_name,
-            esx_host, cluster_name, no_of_cpus, memoryGB, session_id,
+            esx_host, cluster_name, no_of_cpus, memory_gb, session_id,
             network_name, nic_type, verify, cdrom, ip_ovf_properties)
 
     @timeout(30)
@@ -544,7 +551,8 @@ class VCenterService(BaseVCenterService):
         self.power_off(vm)
         vm.UnregisterVM()
         if self.esx_host:
-            vm_disk_url = "https://" + self.host + "/folder/" + vm_disk_name + "?dsName=" + self.datastore_name
+            vm_disk_url = "https://" + self.host + "/folder/" + \
+                          vm_disk_name + "?dsName=" + self.datastore_name
             task = f.DeleteDatastoreFile_Task(vm_disk_url)
         else:
             vm_disk_name = self.datastore_path + vm_disk_name
@@ -563,7 +571,7 @@ class VCenterService(BaseVCenterService):
             retry = retry + 1
         return (vm.guest.ipAddress)
 
-    def create_vm(self, memoryGB=1, numCPUs=1, vm_name=None):
+    def create_vm(self, memory_gb=1, no_of_cpus=1, vm_name=None):
         self.validate_connection()
         content = self.si.RetrieveContent()
         datacenter = self.__get_obj(content, [vim.Datacenter],
@@ -602,8 +610,8 @@ class VCenterService(BaseVCenterService):
         dev_changes.append(disk_spec_2)
         # Create the VM
         config = vim.vm.ConfigSpec(name=vm_name,
-                                   memoryMB=(memoryGB*1024),
-                                   numCPUs=numCPUs,
+                                   memoryMB=(memory_gb*1024),
+                                   numCPUs=no_of_cpus,
                                    files=vmx_file,
                                    guestId='otherLinuxGuest64',
                                    version='vmx-11',
@@ -619,7 +627,7 @@ class VCenterService(BaseVCenterService):
         self.validate_connection()
         vm_name = vm.config.name
         spec = vim.vm.ConfigSpec(name=vm_name,
-                                 memoryMB=(1024*int(self.memoryGB)),
+                                 memoryMB=(1024*int(self.memory_gb)),
                                  numCPUs=int(self.no_of_cpus))
         task = vm.ReconfigVM_Task(spec=spec)
         self.__wait_for_task(task)
@@ -736,7 +744,8 @@ class VCenterService(BaseVCenterService):
         cd_spec.operation = vim.vm.device.VirtualDeviceSpec.Operation.add
         cd_spec.device = vim.vm.device.VirtualCdrom()
         cd_spec.device.key = -1
-        cd_spec.device.backing = vim.vm.device.VirtualCdrom.RemotePassthroughBackingInfo()
+        cd_spec.device.backing = \
+            vim.vm.device.VirtualCdrom.RemotePassthroughBackingInfo()
         cd_spec.device.backing.deviceName = 'cdrom0'
         cd_spec.device.deviceInfo = vim.Description()
         cd_spec.device.deviceInfo.label = 'CD/DVD drive'
@@ -747,8 +756,8 @@ class VCenterService(BaseVCenterService):
             cd_spec.device.controllerKey = ide_ctlr.key
         else:
             cd_spec.device.controllerKey = -1
-        configSpec = vim.vm.ConfigSpec(deviceChange=[cd_spec])
-        task = vm.Reconfigure(configSpec)
+        config_spec = vim.vm.ConfigSpec(deviceChange=[cd_spec])
+        task = vm.Reconfigure(config_spec)
         self.__wait_for_task(task)
 
     def add_disk(self, vm, disk_size=12*1024*1024,
@@ -814,6 +823,37 @@ class VCenterService(BaseVCenterService):
                  unit_number, vm.config.name)
         return delete_device
 
+    def reattach_disk(self, vm, old_unit_number, new_unit_number):
+        self.validate_connection()
+        reattach_device = None
+        for device in vm.config.hardware.device:
+            if (isinstance(device, vim.vm.device.VirtualDisk)):
+                if (device.unitNumber == old_unit_number):
+                    reattach_device = device
+        if reattach_device is None:
+            log.error("No disk found at %d in VM %s to reattach",
+                      old_unit_number, vm.config.name)
+            return
+
+        change_list = []
+        rm = vim.vm.device.VirtualDeviceSpec()
+        rm.operation = vim.vm.device.VirtualDeviceSpec.Operation.remove
+        rm.device = copy.copy(reattach_device)
+        rm.device.unitNumber = old_unit_number
+        change_list.append(rm)
+        add = vim.vm.device.VirtualDeviceSpec()
+        add.operation = vim.vm.device.VirtualDeviceSpec.Operation.add
+        add.device = copy.copy(reattach_device)
+        add.device.unitNumber = new_unit_number
+        change_list.append(add)
+
+        spec = vim.vm.ConfigSpec()
+        spec.deviceChange = change_list
+        task = vm.ReconfigVM_Task(spec=spec)
+        self.__wait_for_task(task)
+        log.info("Disk at %d reattached at %d for VM %s",
+                 old_unit_number, new_unit_number, vm.config.name)
+
     def clone_disk(self, source_disk=None, source_disk_name=None,
                    dest_disk=None, dest_disk_name=None):
         self.validate_connection()
@@ -829,8 +869,9 @@ class VCenterService(BaseVCenterService):
             source = source_disk_name.split("/")
             dest = dest_disk.backing.fileName.split("/")
             dest_disk_name = source[0] + "/" + dest[1]
-        log.info("Cloning disk %s to disk %s", source_disk_name, dest_disk_name)
-        virtualDiskManager = self.si.content.virtualDiskManager
+        log.info("Cloning disk %s to disk %s", source_disk_name,
+                 dest_disk_name)
+        vdskmgr = self.si.content.virtualDiskManager
         if self.esx_host:
             s_name = source_disk_name
             d_name = dest_disk_name
@@ -840,37 +881,36 @@ class VCenterService(BaseVCenterService):
             if self.datastore_path in dest_disk_name:
                 start = dest_disk_name.find(self.datastore_path)
                 d_name = dest_disk_name[(start + len(self.datastore_path)):]
-            source_disk_url = "https://" + self.host + "/folder/" + s_name + "?dsName=" + self.datastore_name
-            dest_disk_url = "https://" + self.host + "/folder/" + d_name + "?dsName=" + self.datastore_name
-            task = virtualDiskManager.CopyVirtualDisk(
-                source_disk_url, None,
-                dest_disk_url, None)
+            source_disk_url = "https://" + self.host + "/folder/" + s_name + \
+                              "?dsName=" + self.datastore_name
+            dest_disk_url = "https://" + self.host + "/folder/" + d_name + \
+                            "?dsName=" + self.datastore_name
+            task = vdskmgr.CopyVirtualDisk(source_disk_url, None,
+                                           dest_disk_url, None)
         else:
             datacenter = self.__get_obj(content, [vim.Datacenter],
                                         self.datacenter_name)
-            task = virtualDiskManager.CopyVirtualDisk(
-                source_disk_name,
-                datacenter,
-                dest_disk_name,
-                datacenter)
+            task = vdskmgr.CopyVirtualDisk(source_disk_name, datacenter,
+                                           dest_disk_name, datacenter)
         self.__wait_for_task(task)
         return dest_disk_name
 
     def delete_disk(self, disk_name):
         self.validate_connection()
         content = self.si.RetrieveContent()
-        virtualDiskManager = self.si.content.virtualDiskManager
+        vdskmgr = self.si.content.virtualDiskManager
         if self.esx_host:
             d_name = disk_name
             if self.datastore_path in disk_name:
                 start = disk_name.find(self.datastore_path)
                 d_name = disk_name[(start + len(self.datastore_path)):]
-            disk_url = "https://" + self.host + "/folder/" + d_name + "?dsName=" + self.datastore_name
-            task = virtualDiskManager.DeleteVirtualDisk(disk_url, None)
+            disk_url = "https://" + self.host + "/folder/" + d_name + \
+                       "?dsName=" + self.datastore_name
+            task = vdskmgr.DeleteVirtualDisk(disk_url, None)
         else:
             datacenter = self.__get_obj(content, [vim.Datacenter],
                                         self.datacenter_name)
-            task = virtualDiskManager.DeleteVirtualDisk(disk_name, datacenter)
+            task = vdskmgr.DeleteVirtualDisk(disk_name, datacenter)
         self.__wait_for_task(task)
 
     def get_disk(self, vm, unit_number):
@@ -892,7 +932,7 @@ class VCenterService(BaseVCenterService):
         raise Exception("Did not find disk at %d of VM %s" %
                         (unit_number, vm.config.name))
 
-    def clone_vm(self, vm, powerOn=False, vm_name=None, template=False):
+    def clone_vm(self, vm, power_on=False, vm_name=None, template=False):
         self.validate_connection()
         if self.esx_host:
             log.error("Cannot create template VM when connected to ESX host")
@@ -912,7 +952,7 @@ class VCenterService(BaseVCenterService):
         relospec.pool = pool
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
-        clonespec.powerOn = powerOn
+        clonespec.powerOn = power_on
         clonespec.template = template
         if (vm_name is None):
             timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
@@ -1022,7 +1062,8 @@ class VCenterService(BaseVCenterService):
                 file_name = url.url[url.url.rfind('/') + 1:]
                 target_file = os.path.join(target_path, file_name)
                 keepalive_thread = Thread(target=self.keep_lease_alive,
-                                          args=(lease,), name="keepalive-export")
+                                          args=(lease,),
+                                          name="keepalive-export")
                 keepalive_thread.daemon = True
                 keepalive_thread.start()
                 # Disable verification as VMDK download happens directly
@@ -1153,9 +1194,9 @@ class VCenterService(BaseVCenterService):
             vm_name = "Encryptor-VM-" + timestamp
         if import_spec.importSpec is None or \
            import_spec.importSpec.configSpec is None:
-           log.error("Import specification error %s warning %s",
+            log.error("Import specification error %s warning %s",
                       import_spec.error, import_spec.warning)
-           raise Exception("Cannot import OVF specification")
+            raise Exception("Cannot import OVF specification")
         import_spec.importSpec.configSpec.name = vm_name
         n_intf = vim.vm.device.VirtualVmxnet3()
         n_intf.key = -1
@@ -1167,8 +1208,8 @@ class VCenterService(BaseVCenterService):
             port_connection = vim.dvs.PortConnection()
             port_connection.portKey = pg_obj.key
             port_connection.switchUuid = pg_obj.dvsUuid
-            n_intf.backing = \
-                vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+            v_eth = vim.vm.device.VirtualEthernetCard
+            n_intf.backing = v_eth.DistributedVirtualPortBackingInfo()
             n_intf.backing.port = port_connection
         elif (self.nic_type == "DistributedVirtualPortGroup"):
             pg_obj = self.__get_obj(content,
@@ -1176,9 +1217,10 @@ class VCenterService(BaseVCenterService):
                                     self.network_name)
             port_connection = vim.dvs.PortConnection()
             port_connection.portgroupKey = pg_obj.key
-            port_connection.switchUuid = pg_obj.config.distributedVirtualSwitch.uuid
-            n_intf.backing = \
-                vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+            port_connection.switchUuid = \
+                pg_obj.config.distributedVirtualSwitch.uuid
+            v_eth = vim.vm.device.VirtualEthernetCard
+            n_intf.backing = v_eth.DistributedVirtualPortBackingInfo()
             n_intf.backing.port = port_connection
         else:
             n_intf.backing.deviceName = self.network_name
@@ -1206,7 +1248,8 @@ class VCenterService(BaseVCenterService):
         try:
             count = 0
             for device_url in lease.info.deviceUrl:
-                d_file_name = (os.path.split(import_spec.fileItem[count].path))[1]
+                path = import_spec.fileItem[count].path
+                d_file_name = os.path.split(path)[1]
                 file_path = os.path.join(target_path,
                                          import_spec.fileItem[count].path)
                 if os.path.exists(file_path) is False:
@@ -1219,27 +1262,28 @@ class VCenterService(BaseVCenterService):
                     if vm:
                         lease.HttpNfcLeaseComplete()
                         self.destroy_vm(vm)
-                    raise Exception("Failed to find VMDKs for the Metavisor OVF")
+                    raise Exception("Failed to find VMDKs for the Metavisor"
+                                    " OVF")
                 if validate_mf:
                     # Validate the checksum of the file
                     file_checksum = mf_checksum[d_file_name]
                     if file_checksum != compute_sha1_of_file(file_path):
-                        raise ValidationError("Disk file %s checksum does not match. "
-                                              "Validate the Metavisor OVF image."
-                                              % d_file_name)
+                        raise ValidationError("Disk file %s checksum does not"
+                                              " match. Validate the Metavisor"
+                                              " OVF image." % d_file_name)
                 count = count + 1
                 dev_url = device_url.url
                 if self.esx_host:
                     host_name = "https://" + self.host
                     dev_url = device_url.url.replace("https://*", host_name)
-                headers = {"Content-Type" : "application/x-vnd.vmware-streamVmdk",
-                           "Connection" : "Keep-Alive"}
+                hdrs = {"Content-Type": "application/x-vnd.vmware-streamVmdk",
+                        "Connection": "Keep-Alive"}
                 with open(file_path, 'rb') as f:
                     # Disable verification as VMDK upload happens directly
                     # to the ESX host.
                     retry(requests.post,
                           on=requests.exceptions.ConnectionError)(
-                          dev_url, data=f, verify=False, headers=headers)
+                          dev_url, data=f, verify=False, headers=hdrs)
             vm = self.__get_obj(content, [vim.VirtualMachine], vm_name)
         except Exception as e:
             log.error("Exception while uploading OVF %s" % e)
@@ -1279,21 +1323,18 @@ class VCenterService(BaseVCenterService):
         self.__wait_for_task(task)
 
     def add_static_ip_ovf_properties(self, vm):
-        self.add_ovf_properties(vm, "IP Address", "ip0",
-            "The IP address. Leave blank if DHCP is desired.",
-            "string", 2)
-        self.add_ovf_properties(vm, "Netmask", "netmask0",
-            "The netmask. Leave blank if DHCP is desired.",
-            "string", 3)
+        self.add_ovf_properties(vm, "IP Address", "ip0", "The IP address. "
+                                "Leave blank if DHCP is desired.", "string", 2)
+        self.add_ovf_properties(vm, "Netmask", "netmask0", "The netmask. "
+                                "Leave blank if DHCP is desired.", "string", 3)
         self.add_ovf_properties(vm, "Default Gateway", "gateway",
-            "The default gateway address. Leave blank if DHCP is desired.",
-            "string", 4)
-        self.add_ovf_properties(vm, "DNS", "DNS",
-            "The domain name servers (comma separated). Leave blank if DHCP is desired.",
-            "string", 5)
+                                "The default gateway address. "
+                                "Leave blank if DHCP is desired.", "string", 4)
+        self.add_ovf_properties(vm, "DNS", "DNS", "The domain name servers "
+                                "(comma separated). Leave blank if DHCP is "
+                                "desired.", "string", 5)
         self.add_ovf_properties(vm, "Custom Hostname", "custom_hostname",
-            "Hostname of the VM.",
-            "string", 6)
+                                "Hostname of the VM.", "string", 6)
 
 
 def initialize_vcenter(host, user, password, port,
@@ -1351,14 +1392,17 @@ def download_ovf_from_s3(bucket_name, version=None, proxy=None):
         _environ = dict(os.environ)
 
         if proxy:
-            #TODO(workaround) https://github.com/boto/boto3/issues/338
-            os.environ["HTTP_PROXY"] = "http://%s:%d" % (proxy.host, proxy.port)
-            os.environ["HTTPS_PROXY"] = "https://%s:%d" % (proxy.host, proxy.port)
+            # TODO(workaround) https://github.com/boto/boto3/issues/338
+            proxy_host = "%s:%d" % (proxy.host, proxy.port)
+            os.environ["HTTP_PROXY"] = "http://" + proxy_host
+            os.environ["HTTPS_PROXY"] = "https://" + proxy_host
 
         s3 = boto3.resource('s3')
 
-        if not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <= set(os.environ)):
-            s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
+        if not (set(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) <=
+                set(os.environ)):
+            s3.meta.client.meta.events.register('choose-signer.s3.*',
+                                                disable_signing)
 
         mv = mv_version.get_version(version=version,
                                     bucket=bucket_name)
@@ -1367,13 +1411,13 @@ def download_ovf_from_s3(bucket_name, version=None, proxy=None):
         prefix = mv + '/'
         blist = list(bucket.objects.filter(Prefix=prefix))
 
-        ovfs = [ o for o in blist if o.key.endswith('.ovf') ]
+        ovfs = [o for o in blist if o.key.endswith('.ovf')]
         if ovfs:
             ovf_key = sorted(ovfs, key=attrgetter('last_modified'))[-1].key
             ovf_name = ovf_key[ovf_key.rfind('/')+1:]
             ovf_prefix = ovf_key[:ovf_key.rfind('/')+1]
-            ovf_filenames = [ o.key[o.key.rfind('/')+1:]
-                              for o in blist if o.key.startswith(ovf_prefix) ]
+            ovf_filenames = [o.key[o.key.rfind('/')+1:]
+                             for o in blist if o.key.startswith(ovf_prefix)]
             if need_to_download_from_s3(ovf_filenames):
                 for ovf_file in ovf_filenames:
                     bucket.download_file(os.path.join(ovf_prefix, ovf_file),

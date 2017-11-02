@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
 # Run the unit tests with and without the cryptography library.
 ./test
