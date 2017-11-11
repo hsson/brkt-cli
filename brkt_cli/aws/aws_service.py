@@ -856,20 +856,19 @@ def stop_and_wait(aws_svc, instance_id):
 
 
 def wait_for_image(aws_svc, image_id):
-    log.debug('Waiting for %s to become available.', image_id)
-    image = None
+    # Wait indefinitely for the image to become available
+    while True:
+        log.debug('Waiting for %s to become available.', image_id)
 
-    for i in range(240):
-        sleep(5)
-        image = aws_svc.get_image(image_id)
-        log.debug('%s: %s', image.id, image.state)
-        if image.state == 'available':
-            return image
-        if image.state == 'failed':
-            raise BracketError('Image state became failed')
-
-    raise BracketError(
-        'Image failed to become available (%s)' % image.state)
+        # Log the above every 5 minutes
+        for i in range(60):
+            sleep(5)
+            image = aws_svc.get_image(image_id)
+            log.debug('%s: %s', image.id, image.state)
+            if image.state == 'available':
+                return image
+            if image.state == 'failed':
+                raise BracketError('Image state became failed')
 
 
 def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=80):
