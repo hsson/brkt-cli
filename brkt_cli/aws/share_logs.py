@@ -28,7 +28,7 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
     log.info('Sharing logs')
     snapshot = None
     new_instance = None
-    KeyName = None
+    key_name = None
     new_snapshot = False
 
     try:
@@ -55,9 +55,7 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
             snapshot = aws_svc.get_snapshot(snapshot_id)
 
         # Split destination path name into path and file
-        os.path.split(dest)
-        path = os.path.split(dest)[0]
-        logs_file = os.path.basename(dest)
+        path, logs_file = os.path.split(dest)
 
         # Specifies volume to be attached to instance
         mv_disk = boto3_device.make_device(
@@ -89,9 +87,9 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
         image_id = IMAGES_BY_REGION[region]
 
         # name key_pair
-        KeyName = 'ShareLogsKey' + time.strftime("%Y%m%d%H%M")
+        key_name = 'ShareLogsKey' + time.strftime("%Y%m%d%H%M")
         # generate new random key to use for scp
-        logs_svc.create_key(aws_svc.ec2client, path, KeyName)
+        logs_svc.create_key(aws_svc.ec2client, path, key_name)
         # start up script for new instance
         amzn = '#!/bin/bash\n' + \
         'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/xvdg4 /mnt\n' + \
@@ -102,7 +100,7 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
         new_instance = aws_svc.ec2client.run_instances(
             ImageId=image_id, MinCount=1, MaxCount=1, InstanceType='m4.large',
             BlockDeviceMappings=bdm, UserData=amzn, EbsOptimized=False,
-            SubnetId=subnet_id, KeyName=KeyName)
+            SubnetId=subnet_id, KeyName=key_name)
 
         instance_id = new_instance['Instances'][0]['InstanceId']
 
@@ -114,16 +112,16 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
 
         # wait for file to download
         log.info('Waiting for file to download')
-        logs_svc.wait_file(instance_ip, logs_file, dest, KeyName, path,
+        logs_svc.wait_file(instance_ip, logs_file, dest, key_name, path,
                            bast_key, bast_user, bast_ip)
 
         log.info('Deleting new snapshot, instance, and key')
 
     finally:
         # delete only new instances, snapshots, and keys
-        if KeyName:
-            aws_svc.ec2client.delete_key_pair(KeyName=KeyName)
-            os.remove("%s/%s.pem" % (path, KeyName))
+        if key_name:
+            aws_svc.ec2client.delete_key_pair(KeyName=key_name)
+            os.remove("%s/%s.pem" % (path, key_name))
         if new_snapshot and new_instance:
             aws_service.clean_up(aws_svc, instance_ids=[instance_id],
                 snapshot_ids=[snapshot.id])
@@ -184,8 +182,8 @@ class ShareLogsService():
         # create new key and put file in destination dir
         outfile = open("%s/%s.pem" % (dest, key), 'w')
         key_pair = ec2client.create_key_pair(KeyName=key)
-        KeyPairOut = str(key_pair['KeyMaterial'])
-        outfile.write(KeyPairOut)
+        key_pair_out = str(key_pair['KeyMaterial'])
+        outfile.write(key_pair_out)
         # change permissions on key file
         subprocess.check_output("chmod 400 %s/%s.pem" %
             (dest, key), shell=True)

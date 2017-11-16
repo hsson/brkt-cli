@@ -50,21 +50,21 @@ def setup_share_logs_args(parser, parsed_config):
         default=""
     )
     parser.add_argument(
-        '--bastion_key',
-        metavar='NAME',
+        '--bastion-key',
+        metavar='PATH',
         dest='bast_key',
         help='SSH key for bastion',
         default=None
     )
     parser.add_argument(
-        '--bastion_user',
+        '--bastion-user',
         metavar='NAME',
         dest='bast_user',
         help='Name of bastion user to ssh with (e.g. <name>@ip)',
         default=None
     )
     parser.add_argument(
-        '--bastion_ip',
+        '--bastion-ip',
         metavar='ADDRESS',
         dest='bast_ip',
         help='IP address of bastion',

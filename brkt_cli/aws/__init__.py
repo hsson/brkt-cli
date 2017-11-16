@@ -130,9 +130,6 @@ def run_share_logs(values):
         raise ValidationError("--dest must end with filename "
                               "not a directory")
 
-    if '.tar.gz' not in values.dest:
-        raise ValidationError("--dest filename must end with .tar.gz")
-
     if values.validate:
         # Validate the region before connecting.
         region_names = [r.name for r in aws_svc.get_regions()]
@@ -149,8 +146,8 @@ def run_share_logs(values):
         pass
     else:
         raise ValidationError(
-            'When using bastion: bastiion_key,'
-            ' bastion_user, and bastion_ip must'
+            'When using bastion: bastion-key,'
+            ' bastion-user, and bastion-ip must'
             ' all be specified')
 
     aws_svc.connect(values.region)
