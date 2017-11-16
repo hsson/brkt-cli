@@ -36,25 +36,39 @@ def setup_share_logs_args(parser, parsed_config):
         required=True
     )
     parser.add_argument(
-        '--bucket',
-        metavar='NAME',
-        dest='bucket',
-        help='Bucket that logs file is uploaded to',
-        required=True
-    )
-    parser.add_argument(
-        '--log-path',
+        '--destination',
         metavar='PATH',
-        dest='path',
-        help='PATH in bucket to store logs file',
-        default='logs.tar.gz'
+        dest='dest',
+        help='local path to put logs in(e.g. ~/Desktop/logs/logs.tar.gz',
+        default="./logs.tar.gz"
     )
     parser.add_argument(
         '--subnet',
         metavar='ID',
         dest='subnet_id',
         help='Launch instances in this subnet',
-        required=False
+        default=""
+    )
+    parser.add_argument(
+        '--bastion_key',
+        metavar='NAME',
+        dest='bast_key',
+        help='SSH key for bastion',
+        default=None
+    )
+    parser.add_argument(
+        '--bastion_user',
+        metavar='NAME',
+        dest='bast_user',
+        help='Name of bastion user to ssh with (e.g. <name>@ip)',
+        default=None
+    )
+    parser.add_argument(
+        '--bastion_ip',
+        metavar='ADDRESS',
+        dest='bast_ip',
+        help='IP address of bastion',
+        default=None
     )
     aws_args.add_no_validate(parser)
     aws_args.add_retry_timeout(parser)
