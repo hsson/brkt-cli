@@ -126,6 +126,13 @@ def run_share_logs(values):
         raise ValidationError("--instance-id or --snapshot-id "
                               "must be specified")
 
+    if values.dest.endswith('/'):
+        raise ValidationError("--dest must end with filename "
+                              "not a directory")
+
+    if '.tar.gz' not in values.dest:
+        raise ValidationError("--dest filename must end with .tar.gz")
+
     if values.validate:
         # Validate the region before connecting.
         region_names = [r.name for r in aws_svc.get_regions()]
@@ -133,6 +140,18 @@ def run_share_logs(values):
             raise ValidationError(
                 'Invalid region %s.  Supported regions: %s.' %
                 (values.region, ', '.join(region_names)))
+
+    # if bastion is used all args must be given
+    bastion_args = [values.bast_key, values.bast_user, values.bast_ip]
+    if all(v is not None for v in bastion_args):
+        pass
+    elif all(v is None for v in bastion_args):
+        pass
+    else:
+        raise ValidationError(
+            'When using bastion: bastiion_key,'
+            ' bastion_user, and bastion_ip must'
+            ' all be specified')
 
     aws_svc.connect(values.region)
     logs_svc = share_logs.ShareLogsService()
@@ -143,9 +162,11 @@ def run_share_logs(values):
         instance_id=values.instance_id,
         snapshot_id=values.snapshot_id,
         region=values.region,
-        bucket=values.bucket,
-        path=values.path,
-        subnet_id=values.subnet_id
+        dest=values.dest,
+        subnet_id=values.subnet_id,
+        bast_key=values.bast_key,
+        bast_user=values.bast_user,
+        bast_ip=values.bast_ip
     )
     return 0
 
