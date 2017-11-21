@@ -211,13 +211,8 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
             why = "default"
         else:
             why = "command-line"
-        # Staggered introduction of single-disk encryption...
-        if values.subparser_name in ['gcp', 'vmware']:
-            log.info("Single-disk encryption: %s (%s)", values.single_disk,
-                     why)
-            brkt_config['single_disk'] = values.single_disk
-        elif values.single_disk:
-            log.info("Single-disk encryption not supported.")
+        log.info("Single-disk encryption: %s (%s)", values.single_disk, why)
+        brkt_config['single_disk'] = values.single_disk
 
     add_brkt_env_to_brkt_config(brkt_env, brkt_config)
 
@@ -236,7 +231,7 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
     if proxy_config:
         ic.add_brkt_file('proxy.yaml', proxy_config)
 
-    if 'ca_cert' in values and values.ca_cert:
+    if hasattr(values, 'ca_cert') and values.ca_cert:
         if not brkt_env:
             raise ValidationError(
                 'Must specify --service-domain or --brkt-env when specifying '
@@ -248,7 +243,7 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
         ca_cert_filename = 'ca_cert.pem.' + domain
         ic.add_brkt_file(ca_cert_filename, ca_cert_data)
 
-    if 'guest_fqdn' in values and values.guest_fqdn:
+    if hasattr(values, 'guest_fqdn') and values.guest_fqdn:
         ic.add_brkt_file('vpn.yaml', 'fqdn: ' + values.guest_fqdn)
 
     return ic

@@ -24,7 +24,7 @@ from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
 
-from brkt_cli import util, encryptor_service
+from brkt_cli import util
 from brkt_cli.aws import boto3_device, boto3_tag
 from brkt_cli.aws.aws_constants import (
     NAME_ENCRYPTOR_SECURITY_GROUP,
@@ -208,7 +208,7 @@ class BaseAWSService(object):
 
     @abc.abstractmethod
     def modify_instance_attribute(self, instance_id, attribute,
-        value, dry_run=False):
+                                  value, dry_run=False):
         pass
 
     @abc.abstractmethod
@@ -427,8 +427,8 @@ class AWSService(BaseAWSService):
     def iam_role_exists(self, role):
         try:
             iam = boto3.resource('iam')
-            iamRole = iam.Role(role)
-            iamRole.load()
+            iam_role = iam.Role(role)
+            iam_role.load()
         except ClientError as e:
             code, _ = get_code_and_message(e)
             if code != 'NoSuchEntity':
@@ -856,24 +856,22 @@ def stop_and_wait(aws_svc, instance_id):
 
 
 def wait_for_image(aws_svc, image_id):
-    log.debug('Waiting for %s to become available.', image_id)
-    image = None
+    # Wait indefinitely for the image to become available
+    while True:
+        log.debug('Waiting for %s to become available.', image_id)
 
-    for i in range(180):
-        sleep(5)
-        image = aws_svc.get_image(image_id)
-        log.debug('%s: %s', image.id, image.state)
-        if image.state == 'available':
-            return image
-        if image.state == 'failed':
-            raise BracketError('Image state became failed')
-
-    raise BracketError(
-        'Image failed to become available (%s)' % image.state)
+        # Log the above every 5 minutes
+        for i in range(60):
+            sleep(5)
+            image = aws_svc.get_image(image_id)
+            log.debug('%s: %s', image.id, image.state)
+            if image.state == 'available':
+                return image
+            if image.state == 'failed':
+                raise BracketError('Image state became failed')
 
 
-def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=\
-                                    encryptor_service.ENCRYPTOR_STATUS_PORT):
+def create_encryptor_security_group(aws_svc, vpc_id=None, status_port=80):
     sg_name = NAME_ENCRYPTOR_SECURITY_GROUP % {'nonce': make_nonce()}
     sg_desc = DESCRIPTION_ENCRYPTOR_SECURITY_GROUP
     sg = aws_svc.create_security_group(sg_name, sg_desc, vpc_id=vpc_id)
@@ -999,7 +997,8 @@ def snapshot_log_volume(aws_svc, instance_id):
 
     # Snapshot root volume.
     instance = aws_svc.get_instance(instance_id)
-    device = boto3_device.get_device(instance.block_device_mappings, '/dev/sda1')
+    device = boto3_device.get_device(instance.block_device_mappings,
+                                     '/dev/sda1')
     vol = aws_svc.get_volume(boto3_device.get_volume_id(device))
     image = aws_svc.get_image(instance.image_id)
     snapshot = aws_svc.create_snapshot(

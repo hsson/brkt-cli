@@ -15,7 +15,6 @@ import email
 import json
 import os
 import unittest
-import zlib
 
 import brkt_cli
 import brkt_cli.aws
@@ -31,25 +30,18 @@ from brkt_cli.instance_config import (
     BRKT_CONFIG_CONTENT_TYPE,
     INSTANCE_UPDATER_MODE,
 )
-from brkt_cli.instance_config_args import (
-    instance_config_args_to_values,
-    instance_config_from_values
-)
+from brkt_cli.instance_config_args import instance_config_from_values
 from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
 )
-from brkt_cli.util import CRYPTO_GCM
+from brkt_cli.util import (
+    CRYPTO_GCM,
+    CRYPTO_XTS
+)
 
 
 class TestEncryptedImageName(unittest.TestCase):
-
-    def test_encrypted_image_suffix(self):
-        """ Test that generated suffixes are unique.
-        """
-        s1 = encrypt_ami.get_encrypted_suffix()
-        s2 = encrypt_ami.get_encrypted_suffix()
-        self.assertNotEqual(s1, s2)
 
     def test_name_validation(self):
         name = 'Test123 ()[]./-\'@_'
@@ -81,6 +73,27 @@ class CantContactEncryptionService(encryptor_service.BaseEncryptorService):
         }
 
 
+class DummyValues():
+    def __init__(self, encryptor, guest):
+        self.ami = guest
+        self.ca_cert = None
+        self.crypto = CRYPTO_XTS
+        self.encrypted_ami_name = None
+        self.encryptor_ami = encryptor
+        self.encryptor_instance_type = None
+        self.guest_instance_type = None
+        self.ntp_servers = None
+        self.proxies = None
+        self.proxy_config_file = None
+        self.save_encryptor_logs = None
+        self.security_group_ids = None
+        self.single_disk = False
+        self.subnet_id = None
+        self.status_port = 80
+        self.terminate_encryptor_on_failure = True
+        self.updater_instance_type = None
+
+
 class TestRunEncryption(unittest.TestCase):
 
     def setUp(self):
@@ -90,25 +103,24 @@ class TestRunEncryption(unittest.TestCase):
         """ Run the entire process and test that nothing obvious is broken.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+
         encrypted_ami_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
 
         image = aws_svc.get_image(encrypted_ami_id)
         dev_names = boto3_device.get_device_names(image.block_device_mappings)
-        self.assertEqual(2, len(dev_names))
+        self.assertEqual(len(dev_names), 2)
         self.assertTrue('/dev/sda1' in dev_names)
-        self.assertTrue('/dev/sdf' in dev_names)
 
     def test_encryption_error_console_output_available(self):
         """ Test that when an encryption failure occurs, we write the
-        console log to a temp file.
+            console log to a temp file.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         # Create callbacks that make sure that we stop the encryptor
         # instance before collecting logs.
@@ -132,53 +144,47 @@ class TestRunEncryption(unittest.TestCase):
             encrypt_ami.encrypt(
                 aws_svc=aws_svc,
                 enc_svc_cls=FailedEncryptionService,
-                image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id,
-                crypto_policy=CRYPTO_GCM
-            )
+                values=values)
             self.fail('Encryption should have failed')
         except encryptor_service.EncryptionError as e:
             with open(e.console_output_file.name) as f:
                 content = f.read()
-                self.assertEquals(test_aws_service.CONSOLE_OUTPUT_TEXT, content)
+                self.assertEquals(test_aws_service.CONSOLE_OUTPUT_TEXT,
+                                  content)
             os.remove(e.console_output_file.name)
 
         self.assertTrue(self.encryptor_stopped)
 
     def test_encryption_error_console_output_not_available(self):
         """ Test that we handle the case when encryption fails and console
-        output is not available.
+            output is not available.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
-        aws_svc.console_output_text = None
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
+        aws_svc.console_output_text = None
         try:
             encrypt_ami.encrypt(
                 aws_svc=aws_svc,
                 enc_svc_cls=FailedEncryptionService,
-                image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id,
-                crypto_policy=CRYPTO_GCM
-            )
+                values=values)
             self.fail('Encryption should have failed')
         except encryptor_service.EncryptionError as e:
             self.assertIsNone(e.console_output_file)
 
     def test_console_output_when_encryptor_cant_be_reached(self):
         """ Test that we save the console log when we can't reach
-        the encryption service.
+            the encryption service.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         try:
             encrypt_ami.encrypt(
                 aws_svc=aws_svc,
                 enc_svc_cls=CantContactEncryptionService,
-                image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id,
-                crypto_policy=CRYPTO_GCM,
-                encryption_start_timeout=0
-            )
+                values=values,
+                encryption_start_timeout=0)
             self.fail('Encryption should have failed')
         except encryptor_service.EncryptionError as e:
             self.assertIsNotNone(e.console_output_file)
@@ -187,6 +193,7 @@ class TestRunEncryption(unittest.TestCase):
         """ Test that we clean up instance volumes that are orphaned by AWS.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         # Simulate a tagged orphaned volume.
         volume = Volume()
@@ -205,10 +212,7 @@ class TestRunEncryption(unittest.TestCase):
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
 
         # Verify that the volume was deleted.
         self.assertIsNone(aws_svc.volumes.get(volume.id, None))
@@ -216,91 +220,95 @@ class TestRunEncryption(unittest.TestCase):
     def test_encrypted_ami_name(self):
         """ Test that the name is set on the encrypted AMI when specified.
         """
-        aws_svc, encryptor_image, guest_image = build_aws_service()
+        test_name = 'Am I an AMI?'
 
-        name = 'Am I an AMI?'
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+        values.encrypted_ami_name = test_name
+
         image_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            encrypted_ami_name=name,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
         ami = aws_svc.get_image(image_id)
-        self.assertEqual(name, ami.name)
+        self.assertEqual(ami.name, test_name)
 
     def test_subnet_with_security_groups(self):
         """ Test that the subnet and security groups are passed to the
-        calls to AWSService.run_instance().
+            calls to AWSService.run_instance().
         """
+        test_subnet = 'subnet-1'
+        test_secgrps = ['sg-1', 'sg-2']
+
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+        values.subnet_id = test_subnet
+        values.security_group_ids = test_secgrps
+
         self.call_count = 0
 
         def run_instance_callback(args):
             self.call_count += 1
-            self.assertEqual('subnet-1', args.subnet_id)
+            self.assertEqual(args.subnet_id, test_subnet)
             if self.call_count == 1:
                 # Snapshotter.
                 self.assertIsNone(args.security_group_ids)
             elif self.call_count == 2:
                 # Encryptor.
-                self.assertEqual(['sg-1', 'sg-2'], args.security_group_ids)
+                self.assertEqual(args.security_group_ids, test_secgrps)
             else:
                 self.fail('Unexpected number of calls to run_instance()')
 
-        aws_svc, encryptor_image, guest_image = build_aws_service()
         aws_svc.run_instance_callback = run_instance_callback
+
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM,
-            subnet_id='subnet-1',
-            security_group_ids=['sg-1', 'sg-2']
-        )
+            values=values)
 
     def test_subnet_without_security_groups(self):
         """ Test that we create the temporary security group in the subnet
-        that the user specified.
+            that the user specified.
         """
+        test_subnet = 'subnet-2'
+        test_vpc = 'vpc-1'
+
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+        values.subnet_id = test_subnet
+
         self.security_group_was_created = False
 
         def create_security_group_callback(vpc_id):
             self.security_group_was_created = True
-            self.assertEqual('vpc-1', vpc_id)
+            self.assertEqual(vpc_id, test_vpc)
 
-        aws_svc, encryptor_image, guest_image = build_aws_service()
-        aws_svc.create_security_group_callback = \
-            create_security_group_callback
+        aws_svc.create_security_group_callback = create_security_group_callback
 
         subnet = Subnet()
-        subnet.id = 'subnet-1'
-        subnet.vpc_id = 'vpc-1'
+        subnet.id = test_subnet
+        subnet.vpc_id = test_vpc
         aws_svc.subnets = {subnet.id: subnet}
 
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM,
-            subnet_id='subnet-1'
-        )
+            values=values)
         self.assertTrue(self.security_group_was_created)
 
     def test_instance_type(self):
-        """ Test that we launch the guest as m4.large and the encryptor
-        as c4.xlarge.
+        """ Test that we launch the guest and the encryptor with the default
+            instance type.  The DummyValues define both as None.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         def run_instance_callback(args):
             if args.image_id == guest_image.id:
-                self.assertEqual('m4.large', args.instance_type)
+                self.assertEqual(args.instance_type, None)
                 self.assertFalse(args.ebs_optimized)
             elif args.image_id == encryptor_image.id:
-                self.assertEqual('c4.xlarge', args.instance_type)
+                self.assertEqual(args.instance_type, None)
                 self.assertTrue(args.ebs_optimized)
             else:
                 self.fail('Unexpected image id: ' + args.image_id)
@@ -309,55 +317,55 @@ class TestRunEncryption(unittest.TestCase):
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
 
     def test_guest_instance_type(self):
         """ Test that we use the specified instance type to launch the guest
-        instance.
+            instance.
         """
+        test_insttype = 't2.micro'
+
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+        values.guest_instance_type = test_insttype
 
         def run_instance_callback(args):
             if args.image_id == guest_image.id:
-                self.assertEqual('t2.micro', args.instance_type)
+                self.assertEqual(args.instance_type, test_insttype)
 
         aws_svc.run_instance_callback = run_instance_callback
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM,
-            guest_instance_type='t2.micro'
-        )
+            values=values)
 
     def test_encryptor_instance_type(self):
         """ Test that we use the specified instance type to launch the
-        encryptor instance.
+            encryptor instance.
         """
+        test_insttype = 'c3.xlarge'
+
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+        values.encryptor_instance_type = test_insttype
 
         def run_instance_callback(args):
-            if args.image_id == guest_image.id:
-                self.assertEqual('c3.xlarge', args.instance_type)
+            if args.image_id == encryptor_image.id:
+                self.assertEqual(args.instance_type, test_insttype)
 
         aws_svc.run_instance_callback = run_instance_callback
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM,
-            guest_instance_type='c3.xlarge'
-        )
+            values=values)
 
     def test_terminate_guest(self):
         """ Test that we terminate the guest instance if an exception is
-        raised while waiting for it to come up.
+            raised while waiting for it to come up.
         """
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+
         self.terminate_instance_called = False
         self.instance_id = None
 
@@ -369,7 +377,6 @@ class TestRunEncryption(unittest.TestCase):
             self.terminate_instance_called = True
             self.assertEqual(self.instance_id, instance.id)
 
-        aws_svc, encryptor_image, guest_image = build_aws_service()
         aws_svc.get_instance_callback = get_instance_callback
         aws_svc.terminate_instance_callback = terminate_instance_callback
 
@@ -377,10 +384,7 @@ class TestRunEncryption(unittest.TestCase):
             encrypt_ami.encrypt(
                 aws_svc=aws_svc,
                 enc_svc_cls=DummyEncryptorService,
-                image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id,
-                crypto_policy=CRYPTO_GCM
-            )
+                values=values)
         except TestException:
             pass
 
@@ -388,9 +392,10 @@ class TestRunEncryption(unittest.TestCase):
 
     def test_clean_up_root_snapshot(self):
         """ Test that we clean up the root snapshot if an exception is
-        raised while waiting for it to complete.
+            raised while waiting for it to complete.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+
         guest_instance = aws_svc.run_instance(guest_image.id)
         self.snapshot = None
         self.snapshot_was_deleted = False
@@ -419,9 +424,11 @@ class TestRunEncryption(unittest.TestCase):
 
     def test_no_terminate_encryptor_on_failure(self):
         """ Test that when terminate_encryptor_on_failure=False, we terminate
-        the encryptor only when encryption succeeds.
+            the encryptor only when encryption succeeds.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+        values.terminate_encryptor_on_failure = False
 
         self.guest_instance_id = None
         self.guest_terminated = False
@@ -459,11 +466,7 @@ class TestRunEncryption(unittest.TestCase):
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM,
-            terminate_encryptor_on_failure=False
-        )
+            values=values)
 
         self.assertIsNotNone(self.encryptor_instance_id)
         self.assertTrue(self.snapshot_deleted)
@@ -483,11 +486,7 @@ class TestRunEncryption(unittest.TestCase):
             encrypt_ami.encrypt(
                 aws_svc=aws_svc,
                 enc_svc_cls=FailedEncryptionService,
-                image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id,
-                crypto_policy=CRYPTO_GCM,
-                terminate_encryptor_on_failure=False
-            )
+                values=values)
         self.assertIsNotNone(self.encryptor_instance_id)
         self.assertTrue(self.snapshot_deleted)
         self.assertTrue(self.guest_terminated)
@@ -510,10 +509,9 @@ class TestBrktEnv(unittest.TestCase):
     def setUp(self):
         brkt_cli.util.SLEEP_ENABLED = False
 
-    def _get_brkt_config_from_mime(self, compressed_mime_data):
+    def _get_brkt_config_from_mime(self, mime_data):
         """Look for a 'brkt-config' part in the multi-part MIME input"""
-        data = zlib.decompress(compressed_mime_data, 16 + zlib.MAX_WBITS)
-        msg = email.message_from_string(data)
+        msg = email.message_from_string(mime_data)
         for part in msg.walk():
             if part.get_content_type() == BRKT_CONFIG_CONTENT_TYPE:
                 return part.get_payload(decode=True)
@@ -521,96 +519,79 @@ class TestBrktEnv(unittest.TestCase):
 
     def test_brkt_env_encrypt(self):
         """ Test that we parse the brkt_env value and pass the correct
-        values to user_data when launching the encryptor instance.
+            values to user_data when launching the encryptor instance.
         """
-        crypto = CRYPTO_GCM
+        test_crypto = CRYPTO_GCM
+
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+        values.crypto = test_crypto
 
         def run_instance_callback(args):
-            if args.image_id == encryptor_image.id:
-                brkt_config = self._get_brkt_config_from_mime(args.user_data)
-                d = json.loads(brkt_config)
-                self.assertEquals(
-                    'api.example.com:777',
-                    d['brkt']['api_host']
-                )
-                self.assertEquals(
-                    'hsmproxy.example.com:888',
-                    d['brkt']['hsmproxy_host']
-                )
-                self.assertEquals(
-                    'network.example.com:999',
-                    d['brkt']['network_host']
-                )
-                self.assertEquals(
-                    crypto,
-                    d['brkt']['crypto_policy_type']
-                )
+            if args.image_id != encryptor_image.id:
+                return
+            brkt_config = self._get_brkt_config_from_mime(args.user_data)
+            d = json.loads(brkt_config)
+            api_host = '%s:%s' % (_test_brkt_env.api_host,
+                                  _test_brkt_env.api_port)
+            self.assertEquals(d['brkt']['api_host'], api_host)
+            hsmproxy_host = '%s:%s' % (_test_brkt_env.hsmproxy_host,
+                                       _test_brkt_env.hsmproxy_port)
+            self.assertEquals(d['brkt']['hsmproxy_host'], hsmproxy_host)
+            network_host = '%s:%s' % (_test_brkt_env.network_host,
+                                      _test_brkt_env.network_port)
+            self.assertEquals(d['brkt']['network_host'], network_host)
+            self.assertEquals(d['brkt']['crypto_policy_type'], test_crypto)
 
-        values = instance_config_args_to_values('')
-        values.crypto = crypto
         ic = instance_config_from_values(values, brkt_env=_test_brkt_env)
         aws_svc.run_instance_callback = run_instance_callback
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            instance_config=ic,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values,
+            instance_config=ic)
 
     def test_brkt_env_update(self):
         """ Test that the Bracket environment is passed through to metavisor
-        user data.
+            user data.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+
         encrypted_ami_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
 
-        values = instance_config_args_to_values('')
-        ic = instance_config_from_values(
-            values, mode=INSTANCE_UPDATER_MODE, brkt_env=_test_brkt_env)
+        values = DummyValues(encryptor_image.id, encrypted_ami_id)
+        ic = instance_config_from_values(values, mode=INSTANCE_UPDATER_MODE,
+                                         brkt_env=_test_brkt_env)
 
         def run_instance_callback(args):
-            if args.image_id == encryptor_image.id:
-                brkt_config = self._get_brkt_config_from_mime(args.user_data)
-                d = json.loads(brkt_config)
-                self.assertEquals(
-                    'api.example.com:777',
-                    d['brkt']['api_host']
-                )
-                self.assertEquals(
-                    'hsmproxy.example.com:888',
-                    d['brkt']['hsmproxy_host']
-                )
-                self.assertEquals(
-                    'network.example.com:999',
-                    d['brkt']['network_host']
-                )
-                self.assertEquals(
-                    'updater',
-                    d['brkt']['solo_mode']
-                )
+            if args.image_id != encryptor_image.id:
+                return
+            brkt_config = self._get_brkt_config_from_mime(args.user_data)
+            d = json.loads(brkt_config)
+            api_host = '%s:%s' % (_test_brkt_env.api_host,
+                                  _test_brkt_env.api_port)
+            self.assertEquals(d['brkt']['api_host'], api_host)
+            hsmproxy_host = '%s:%s' % (_test_brkt_env.hsmproxy_host,
+                                       _test_brkt_env.hsmproxy_port)
+            self.assertEquals(d['brkt']['hsmproxy_host'], hsmproxy_host)
+            network_host = '%s:%s' % (_test_brkt_env.network_host,
+                                      _test_brkt_env.network_port)
+            self.assertEquals(d['brkt']['network_host'], network_host)
+            self.assertEquals(d['brkt']['solo_mode'], INSTANCE_UPDATER_MODE)
 
         aws_svc.run_instance_callback = run_instance_callback
-        update_ami(
-            aws_svc, encrypted_ami_id, encryptor_image.id,
-            'Test updated AMI',
-            enc_svc_class=DummyEncryptorService,
-            instance_config=ic
-        )
+        update_ami(aws_svc, DummyEncryptorService, values, instance_config=ic)
 
     def test_security_group_eventual_consistency(self):
         """ Test that we handle eventually consistency issues when creating
-        a temporary security group.
+            a temporary security group.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         self.call_count = 0
 
@@ -628,18 +609,16 @@ class TestBrktEnv(unittest.TestCase):
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
 
         self.assertEquals(3, self.call_count)
 
     def test_clean_up_encryptor_instance(self):
         """ Test that we clean up the encryptor instance if an exception is
-        raised inside _run_encryptor_instance().
+            raised inside _run_encryptor_instance().
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         self.encryptor_instance_id = None
         self.encryptor_terminated = False
@@ -665,17 +644,16 @@ class TestBrktEnv(unittest.TestCase):
             encrypt_ami.encrypt(
                 aws_svc=aws_svc,
                 enc_svc_cls=DummyEncryptorService,
-                image_id=guest_image.id,
-                encryptor_ami=encryptor_image.id,
-                crypto_policy=CRYPTO_GCM
-            )
+                values=values)
 
         self.assertTrue(self.encryptor_terminated)
 
     def test_ena_support(self):
         """ Test that we enable ENA support on the guest instance when ENA
-        support is enabled on the Metavisor instance."""
+            support is enabled on the Metavisor instance.
+        """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         self.guest_instance = None
 
@@ -691,9 +669,6 @@ class TestBrktEnv(unittest.TestCase):
         encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
 
         self.assertTrue(self.guest_instance.ena_support)

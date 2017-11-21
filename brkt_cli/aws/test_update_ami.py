@@ -26,7 +26,28 @@ from brkt_cli.test_encryptor_service import (
     DummyEncryptorService,
     FailedEncryptionService
 )
-from brkt_cli.util import CRYPTO_GCM
+from brkt_cli.util import CRYPTO_XTS
+
+
+class DummyValues():
+    def __init__(self, encryptor, guest):
+        self.ami = guest
+        self.ca_cert = None
+        self.crypto = CRYPTO_XTS
+        self.encrypted_ami_name = None
+        self.encryptor_ami = encryptor
+        self.encryptor_instance_type = None
+        self.guest_instance_type = None
+        self.ntp_servers = None
+        self.proxies = None
+        self.proxy_config_file = None
+        self.save_encryptor_logs = None
+        self.security_group_ids = None
+        self.single_disk = False
+        self.subnet_id = None
+        self.status_port = 80
+        self.terminate_encryptor_on_failure = True
+        self.updater_instance_type = None
 
 
 class TestRunUpdate(unittest.TestCase):
@@ -38,30 +59,35 @@ class TestRunUpdate(unittest.TestCase):
         """ Test that the subnet and security group ids are passed through
         to run_instance().
         """
+        test_subnet = 'subnet-1'
+        test_secgrps = ['sg-1', 'sg-2']
+
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+
         encrypted_ami_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
+
+        values = DummyValues(encryptor_image.id, encrypted_ami_id)
+        values.subnet_id = test_subnet
+        values.security_group_ids = test_secgrps
 
         self.call_count = 0
 
         def run_instance_callback(args):
             if args.image_id == encryptor_image.id:
                 self.call_count += 1
-                self.assertEqual('subnet-1', args.subnet_id)
-                self.assertEqual(['sg-1', 'sg-2'], args.security_group_ids)
+                self.assertEqual(args.subnet_id, test_subnet)
+                self.assertEqual(args.security_group_ids, test_secgrps)
 
         aws_svc.run_instance_callback = run_instance_callback
+
         ami_id = update_ami(
-            aws_svc, encrypted_ami_id, encryptor_image.id,
-            'Test updated AMI',
-            subnet_id='subnet-1', security_group_ids=['sg-1', 'sg-2'],
-            enc_svc_class=DummyEncryptorService
-        )
+            aws_svc=aws_svc,
+            enc_svc_class=DummyEncryptorService,
+            values=values)
 
         self.assertEqual(1, self.call_count)
         self.assertIsNotNone(ami_id)
@@ -70,61 +96,63 @@ class TestRunUpdate(unittest.TestCase):
         """ Test that the guest instance type is passed through
         to run_instance().
         """
-        aws_svc, encryptor_image, guest_image = \
-            test_aws_service.build_aws_service()
+        test_insttype = 't2.micro'
+
+        aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+
         encrypted_ami_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
+
+        values = DummyValues(encryptor_image.id, encrypted_ami_id)
+        values.guest_instance_type = test_insttype
 
         def run_instance_callback(args):
             if args.image_id == encrypted_ami_id:
-                self.assertEqual('t2.micro', args.instance_type)
-            elif args.image_id == encryptor_image.id:
-                self.assertEqual('m4.large', args.instance_type)
-            else:
-                self.fail('Unexpected image: ' + args.image_id)
+                self.assertEqual(args.instance_type, test_insttype)
 
         aws_svc.run_instance_callback = run_instance_callback
+
         update_ami(
-            aws_svc, encrypted_ami_id, encryptor_image.id, 'Test updated AMI',
-            subnet_id='subnet-1', security_group_ids=['sg-1', 'sg-2'],
-            enc_svc_class=DummyEncryptorService, guest_instance_type='t2.micro'
-        )
+            aws_svc=aws_svc,
+            enc_svc_class=DummyEncryptorService,
+            values=values)
 
     def test_security_group_eventual_consistency(self):
         """ Test that we handle eventually consistency issues when creating
         a temporary security group.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
+
         encrypted_ami_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
+
+        values = DummyValues(encryptor_image.id, encrypted_ami_id)
 
         self.call_count = 0
 
         def run_instance_callback(args):
-            if args.image_id == encryptor_image.id:
-                self.call_count += 1
-                if self.call_count < 3:
-                    # Simulate eventual consistency error while creating
-                    # security group.
-                    raise test_aws_service.new_client_error(
-                        'InvalidGroup.NotFound')
+            if args.image_id != encryptor_image.id:
+                return
+            self.call_count += 1
+            if self.call_count >= 3:
+                return
+            # Simulate eventual consistency error while creating
+            # security group.
+            raise test_aws_service.new_client_error('InvalidGroup.NotFound')
 
         aws_svc.run_instance_callback = run_instance_callback
+
         update_ami(
-            aws_svc, encrypted_ami_id, encryptor_image.id,
-            'Test updated AMI',
-            enc_svc_class=DummyEncryptorService
-        )
+            aws_svc=aws_svc,
+            enc_svc_class=DummyEncryptorService,
+            values=values)
+
         self.assertEqual(3, self.call_count)
 
     def test_update_error_console_output(self):
@@ -132,14 +160,14 @@ class TestRunUpdate(unittest.TestCase):
         console log to a temp file.
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         encrypted_ami_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
+
+        values = DummyValues(encryptor_image.id, encrypted_ami_id)
 
         # Create callbacks that make sure that we stop the updater
         # instance before collecting logs.
@@ -161,10 +189,10 @@ class TestRunUpdate(unittest.TestCase):
 
         try:
             update_ami(
-                aws_svc, encrypted_ami_id, encryptor_image.id,
-                'Test updated AMI',
-                enc_svc_class=FailedEncryptionService
-            )
+                aws_svc=aws_svc,
+                enc_svc_class=FailedEncryptionService,
+                values=values)
+
             self.fail('Update should have failed')
         except encryptor_service.EncryptionError as e:
             with open(e.console_output_file.name) as f:
@@ -179,14 +207,14 @@ class TestRunUpdate(unittest.TestCase):
         """ Test that we enable ENA support on the guest instance when ENA
         support is enabled on the Metavisor instance."""
         aws_svc, encryptor_image, guest_image = build_aws_service()
+        values = DummyValues(encryptor_image.id, guest_image.id)
 
         encrypted_ami_id = encrypt_ami.encrypt(
             aws_svc=aws_svc,
             enc_svc_cls=DummyEncryptorService,
-            image_id=guest_image.id,
-            encryptor_ami=encryptor_image.id,
-            crypto_policy=CRYPTO_GCM
-        )
+            values=values)
+
+        values = DummyValues(encryptor_image.id, encrypted_ami_id)
 
         self.encrypted_instance = None
 
@@ -200,9 +228,8 @@ class TestRunUpdate(unittest.TestCase):
         aws_svc.run_instance_callback = run_instance_callback
 
         update_ami(
-            aws_svc, encrypted_ami_id, encryptor_image.id,
-            'Test updated AMI',
-            enc_svc_class=DummyEncryptorService
-        )
+            aws_svc=aws_svc,
+            enc_svc_class=DummyEncryptorService,
+            values=values)
 
         self.assertTrue(self.encrypted_instance.ena_support)
