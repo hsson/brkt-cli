@@ -113,6 +113,7 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
         # wait for file to download
         log.info('Waiting for file to download')
         logs_svc.wait_file(instance_ip, logs_file, dest, key_name, path,
+
                            bast_key, bast_user, bast_ip)
 
         log.info('Deleting new snapshot, instance, and key')
