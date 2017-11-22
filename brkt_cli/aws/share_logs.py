@@ -14,37 +14,24 @@
 
 import logging
 import os
-import boto3
-import re
 import time
-import botocore
+import subprocess
 from brkt_cli.aws import aws_service, boto3_device
-from brkt_cli.validation import ValidationError
-from brkt_cli import util
 
 log = logging.getLogger(__name__)
 
 
 def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
-          snapshot_id=None, bucket=None, path=None, subnet_id=None):
+          snapshot_id=None, dest=None, subnet_id=None, bast_key=None,
+          bast_user=None, bast_ip=None):
 
     log.info('Sharing logs')
     snapshot = None
     new_instance = None
+    key_name = None
+    new_snapshot = False
 
     try:
-        s3 = logs_svc.s3_connect()
-        # Check bucket for file and bucket permissions
-        bucket_exists = logs_svc.check_bucket_file(bucket, path, region, s3)
-
-        if not bucket_exists:
-            log.info('Creating new bucket')
-            # If bucket isn't already owned create new one
-            new_bucket = logs_svc.make_bucket(bucket, region, s3)
-            # Reconnect with updated bucket list
-            s3 = logs_svc.s3_connect()
-            # Allow public write access to new bucket
-            new_bucket.Acl().put(ACL='public-read-write')
 
         if not snapshot_id:
             # Get instance from ID
@@ -62,23 +49,13 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
             # Wait for snapshot to post
             log.info('Waiting for snapshot...')
             aws_service.wait_for_snapshots(aws_svc, snapshot.id)
+            new_snapshot = True
 
         else:  # Taking logs from a snapshot
             snapshot = aws_svc.get_snapshot(snapshot_id)
 
-        # Split path name into path and file
-        os.path.split(path)
-        logs_file = os.path.basename(path)
-
-        # Updates ACL on logs file object
-        acl = '--no-sign-request --acl public-read-write'
-        # Startup script for new instance
-        # This creates logs file and copys to bucket
-        amzn = '#!/bin/bash\n' + \
-        'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/xvdg4 /mnt\n' + \
-        'sudo tar czvf /tmp/%s -C /mnt ./log ./crash\n' % (logs_file) + \
-        'aws configure set default.s3.multipart_threshold 256MB\n' + \
-        'aws s3 cp /tmp/%s s3://%s/%s %s\n' % (logs_file, bucket, path, acl)
+        # Split destination path name into path and file
+        path, logs_file = os.path.split(dest)
 
         # Specifies volume to be attached to instance
         mv_disk = boto3_device.make_device(
@@ -109,98 +86,104 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
 
         image_id = IMAGES_BY_REGION[region]
 
-        # Launch new instance, with volume and startup script
+        # name key_pair
+        key_name = 'ShareLogsKey' + time.strftime("%Y%m%d%H%M")
+        # generate new random key to use for scp
+        logs_svc.create_key(aws_svc.ec2client, path, key_name)
+        # start up script for new instance
+        amzn = '#!/bin/bash\n' + \
+        'sudo mount -t ufs -o ro,ufstype=ufs2 /dev/xvdg4 /mnt\n' + \
+        'sudo tar czvf /tmp/temp_logs -C /mnt ./log ./crash\n' + \
+        'mv /tmp/temp_logs /tmp/%s' % (logs_file)
 
-        new_instance = aws_svc.run_instance(
-            image_id, instance_type='m4.large', block_device_mappings=bdm,
-            user_data=amzn, ebs_optimized=False, subnet_id=subnet_id)
+        # Launch new instance, with volume and startup script
+        new_instance = aws_svc.ec2client.run_instances(
+            ImageId=image_id, MinCount=1, MaxCount=1, InstanceType='m4.large',
+            BlockDeviceMappings=bdm, UserData=amzn, EbsOptimized=False,
+            SubnetId=subnet_id, KeyName=key_name)
+
+        instance_id = new_instance['Instances'][0]['InstanceId']
 
         # wait for instance to launch
-        log.info('Waiting for instance...')
-        aws_service.wait_for_instance(aws_svc, new_instance.id)
+        log.info('Waiting for instance to launch')
+        aws_service.wait_for_instance(aws_svc, instance_id)
 
-        # wait for file to upload
-        log.info('Waiting for file to upload')
-        logs_svc.wait_bucket_file(bucket, path, region, s3)
-        log.info('Deleting new snapshot and instance')
+        instance_ip = logs_svc.get_instance_ip(aws_svc.ec2, instance_id)
+
+        # wait for file to download
+        log.info('Waiting for file to download')
+        logs_svc.wait_file(instance_ip, logs_file, dest, key_name, path,
+                           bast_key, bast_user, bast_ip)
+
+        log.info('Deleting new snapshot, instance, and key')
 
     finally:
-        if snapshot and new_instance:
-            aws_service.clean_up(aws_svc, instance_ids=[new_instance.id],
+        # delete only new instances, snapshots, and keys
+        if key_name:
+            aws_svc.ec2client.delete_key_pair(KeyName=key_name)
+            os.remove("%s/%s.pem" % (path, key_name))
+        if new_snapshot and new_instance:
+            aws_service.clean_up(aws_svc, instance_ids=[instance_id],
                 snapshot_ids=[snapshot.id])
-        if snapshot and not new_instance:
+        if not new_snapshot and new_instance:
+            aws_service.clean_up(aws_svc, instance_ids=[instance_id])
+            new_snapshot = False
+        if new_snapshot and not new_instance:
             aws_service.clean_up(aws_svc, snapshot_ids=[snapshot.id])
 
 
 class ShareLogsService():
 
-    def wait_bucket_file(self, bucket, path, region, s3):
-        bucket = s3.Bucket(bucket)
-        for i in range(40):
+    def wait_file(self, ip, logs_file, dest, key, path,
+                  bast_key, bast_user, bast_ip):
+        for i in range(60):
             try:
-                bucket.Object(path).get()
-                log.info('Logs available at https://s3-%s.amazonaws.com/%s/%s'
-                    % (region, bucket.name, path))
+                self.scp(ip, "/tmp/%s" % logs_file, dest, key, path,
+                         bast_key, bast_user, bast_ip)
                 return
-            except botocore.exceptions.ClientError as e:
-                if e.response['Error']['Code'] == 'NoSuchKey':
-                    time.sleep(7)
-                else:
-                    raise
-        raise util.BracketError("Can't upload logs file")
+            except subprocess.CalledProcessError:
+                time.sleep(15)
+                pass
+        log.error("Timed out waiting for file to download")
 
-    def make_bucket(self, bucket, region, s3):
-        # Since bucket isn't owned, create it
-        return s3.create_bucket(Bucket=bucket, CreateBucketConfiguration={
-                    'LocationConstraint': region})
+    def scp(self, external_ip, src, dest, key, path,
+            bast_key, bast_user, bast_ip):
+        sshflags = " ".join([
+            "-o ServerAliveInterval=10",
+            "-o UserKnownHostsFile=/dev/null",
+            "-o StrictHostKeyChecking=no",
+            "-o ConnectTimeout=5",
+            "-o LogLevel=quiet",
+        ])
+        if bast_key:
+            bastion = "ssh -i %s -W %%h:%%p %s@%s" % (bast_key,
+                bast_user, bast_ip)
+            sshflags += " -o ProxyCommand='%s'" % bastion
 
-    def check_bucket_file(self, bucket, path, region, s3):
-        # go through all owned buckets
-        for b in s3.buckets.all():
-            # Check if users owns a bucket matching input
-            if bucket == b.name:
-                try:
-                    s3.meta.client.head_bucket(Bucket=bucket)
-                except botocore.exceptions.ClientError as e:
-                    code = int(e.response['Error']['Code'])
-                    # If bucket is owned, but in wrong region
-                    if code == 400:
-                        raise ValidationError("Bucket must be in %s" % region)
-                    raise
-                # check for a matching file in bucket
-                for file in b.objects.all():
-                    if file.key == path:
-                        raise ValidationError(
-                            "File already exists, delete and retry")
-                # check that everyone has write access to bucket
-                acl = b.Acl()
-                for grant in acl.grants:
-                    if grant['Grantee']['Type'] == 'CanonicalUser':
-                        continue
-                    uri = grant['Grantee']['URI']
-                    perm = grant['Permission']
-                    if perm == 'WRITE' and uri == 'http:' + \
-                        '//acs.amazonaws.com/groups/global/AllUsers':
-                        # check that file name is valid
-                        self.validate_file_name(path)
-                        return True
-                    else:
-                        raise ValidationError("Bucket permissions invalid:" +
-                            "Everyone must have 'Write' object access")
-        return False
+        command = 'scp %s -i %s/%s.pem ec2-user@%s:%s %s >& /dev/null' % (
+            sshflags, path, key, external_ip, src, dest)
+        return subprocess.check_output(command, shell=True)
 
-    def validate_file_name(self, path):
-        """
-        Verify that the name is a valid object key name.
-        :raises ValidationError if the name is invalid
-        """
-        m = re.match(r'[A-Za-z0-9()\!._/\-\'\*]+$', path)
-        if not m:
-            raise ValidationError(
-                "path may only contain letters, numbers, "
-                "and the following characters: !-_.*'()"
-            )
-        return 0
+    def get_instance_ip(self, ec2, instance_id):
+        ip = None
+        for i in range(40):
+            instance = ec2.Instance(instance_id)
+            ip = instance.public_dns_name
+            if ip:
+                return ip
+            if instance.state == 'terminated':
+                raise Exception('Instance died on launch')
 
-    def s3_connect(self):
-        return boto3.resource('s3')
+            time.sleep(5)
+
+        log.error('Failed finding IP address for instance %s' % instance_id)
+
+    def create_key(self, ec2client, dest, key):
+        # create new key and put file in destination dir
+        outfile = open("%s/%s.pem" % (dest, key), 'w')
+        key_pair = ec2client.create_key_pair(KeyName=key)
+        key_pair_out = str(key_pair['KeyMaterial'])
+        outfile.write(key_pair_out)
+        # change permissions on key file
+        subprocess.check_output("chmod 400 %s/%s.pem" %
+            (dest, key), shell=True)

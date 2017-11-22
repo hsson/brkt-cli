@@ -16,84 +16,40 @@ import unittest
 import brkt_cli
 from brkt_cli.aws import share_logs, boto3_device
 from brkt_cli.aws.model import Instance, Snapshot
-from brkt_cli.validation import ValidationError
 
 
-class S3():
-    def __init__(self):
-        self.buckets = Buckets()
-        self.bucket = Bucket()
-        self.meta = Meta()
+class EC2():
 
-    def Bucket(self, name):
-        return self.bucket
-
-
-class Bucket():
-    def __init__(self):
-        self.name = 'test-bucket'
-        self.acl = ACL()
-        self.region = 'matching-region'
-        self.objects = Objects()
-
-    def Acl(self):
-        return self.acl
-
-    def Object(self, path):
-        return self.objects
+    def Instance(self, instance_id):
+        instance = Instance()
+        instance.id = instance_id
+        instance.public_dns_name = 'test-name'
+        instance.state = 'running'
+        return instance
 
 
-class Buckets():
-    def __init__(self):
-        self.bucket = Bucket()
+class EC2Client():
 
-    def all(self):
-        return [self.bucket]
-
-
-class Meta():
-    def __init__(self):
-        self.client = Client()
-
-
-class Client():
-    def __init__(self):
-        self.region = 'matching'
-        self.value = None
-
-    def head_bucket(self, Bucket):
-        if self.region == 'unmatching':
-            raise ValidationError()
-        return self.value
-
-
-class Objects():
-    def __init__(self):
-        self.list = List()
-
-    def all(self):
-        return [self.list]
-
-    def get(self):
+    def delete_key_pair(self, KeyName):
         return
 
+    def create_key_pair(self, KeyName):
+        return {'KeyMaterial': 123}
 
-class List():
-    def __init__(self):
-        self.key = 'matching'
+    def run_instances(self, ImageId, MinCount, MaxCount, InstanceType,
+            BlockDeviceMappings, UserData, EbsOptimized,
+            SubnetId, KeyName):
+        instance = {'Instances': [{'InstanceId': 'test-id'}]}
 
-
-class ACL():
-    def __init__(self):
-        self.grant = {'Grantee': {'Type': 'User',
-                'URI': 'http://acs.amazonaws.com/groups/global/AllUsers'},
-                'Permission': 'WRITE'}
-        self.grants = [self.grant]
+        return instance
 
 
 # This class is used for testing ShareLogs
 class ShareLogsTestService(share_logs.ShareLogsService):
-    created = False
+
+    def __init__(self):
+        self.ec2client = EC2Client()
+        self.ec2 = EC2()
 
     def get_instance(self, instance_id):
         instance = Instance()
@@ -108,9 +64,6 @@ class ShareLogsTestService(share_logs.ShareLogsService):
         instance.block_device_mappings = [dev]
         return instance
 
-    def s3_connect(self):
-        return S3()
-
     def create_snapshot(self, volume_id, name):
         snapshot = Snapshot()
         snapshot.id = 'test-id'
@@ -122,11 +75,14 @@ class ShareLogsTestService(share_logs.ShareLogsService):
         snapshot.state = 'completed'
         return [snapshot]
 
-    def run_instance(self, image_id, instance_type, block_device_mappings,
-                     user_data, ebs_optimized, subnet_id):
-        instance = Instance()
-        ShareLogsTestService.created = True
-        return instance
+    def get_snapshot(self, snapshot_id):
+        snapshot = Snapshot()
+        snapshot.state = 'completed'
+        return snapshot
+
+    def wait_file(self, ip, logs_file, dest, key, path,
+                  bast_key=None, bast_user=None, bast_ip=None):
+        return
 
 
 class TestShareLogs(unittest.TestCase):
@@ -134,55 +90,26 @@ class TestShareLogs(unittest.TestCase):
     def setUp(self):
         brkt_cli.util.SLEEP_ENABLED = False
 
-    def test_path(self):
-        aws_svc = ShareLogsTestService()
-        paths = ['#path', '\path', '@path', '$path', 'path%']
-        for p in paths:
-            with self.assertRaises(ValidationError):
-                aws_svc.validate_file_name(p)
-
-        # These charictors are all valid
-        path = "!-_'/.*()PaTh8"
-        result = aws_svc.validate_file_name(path)
-        self.assertEqual(result, 0)
-
-    def test_bucket_file(self):
-        aws_svc = ShareLogsTestService()
-        s3 = S3()
-
-        # Tests if user doesn't already own bucket
-        result = aws_svc.check_bucket_file(
-            "different-bucket", "file", "matching", s3)
-        self.assertEqual(result, 0)
-
-        # Tests if user owns bucket in wrong region
-        s3.meta.client.region = 'unmatching'
-        with self.assertRaises(ValidationError):
-            aws_svc.check_bucket_file(
-                'test-bucket', "file", "unmatching", s3)
-
-        s3.meta.client.region = 'matching'
-        # Tests if the bucket has a matching file
-        with self.assertRaises(ValidationError):
-            aws_svc.check_bucket_file(
-                "test-bucket", "matching", "matching", s3)
-
-        # Tests if the bucket doesn't have write permission
-        for b in s3.buckets.all():
-            b.acl.grant['Permission'] = 'read'
-        with self.assertRaises(ValidationError):
-            aws_svc.check_bucket_file(
-                "test-bucket", "file", "matching", s3)
-
-    def test_normal(self):
+    def test_with_instance_id(self):
         aws_svc = ShareLogsTestService()
         logs_svc = ShareLogsTestService()
         instance_id = 'test-instance'
         snapshot_id = None
         region = 'us-west-2'
-        bucket = 'test-bucket'
-        path = 'test/path'
+        destination = "./logs.tar.gz"
 
-        share_logs.share(aws_svc, logs_svc, instance_id=instance_id, 
-        snapshot_id=snapshot_id, region=region, bucket=bucket, path=path,
-        subnet_id=None)
+        share_logs.share(aws_svc, logs_svc, instance_id=instance_id,
+        snapshot_id=snapshot_id, region=region, dest=destination,
+        subnet_id=None, bast_key=None, bast_user=None, bast_ip=None)
+
+    def test_with_snapshot_id(self):
+        aws_svc = ShareLogsTestService()
+        logs_svc = ShareLogsTestService()
+        instance_id = None
+        snapshot_id = 'test-snapshot'
+        region = 'us-west-2'
+        destination = "./logs.tar.gz"
+
+        share_logs.share(aws_svc, logs_svc, instance_id=instance_id,
+        snapshot_id=snapshot_id, region=region, dest=destination,
+        subnet_id=None, bast_key=None, bast_user=None, bast_ip=None)
