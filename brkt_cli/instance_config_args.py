@@ -186,32 +186,9 @@ def instance_config_from_values(values=None, mode=INSTANCE_CREATOR_MODE,
         brkt_config['crypto_policy_type'] = values.crypto
 
         if values.single_disk is None:
-            # Neither single-disk flag has been given. Let's pick a
-            # reasonable default. This is a little ugly, but it's
-            # temporary.
-            encryptor = ((values.subparser_name == 'gcp' and
-                          values.encryptor_image) or
-                         (values.subparser_name == 'aws' and
-                          values.encryptor_ami) or
-                         (values.subparser_name == 'vmware' and
-                          values.image_name))
-            if encryptor:
-                # If an encryptor image has been specified, then we
-                # assume that this is an unreleased image, which
-                # supports single-disk encryption. In a sense, we're
-                # defaulting on behalf of forward progress.
-                values.single_disk = True
-            else:
-                # If no encryptor image has been specified, then we
-                # typically grab the latest from some bucket.  We
-                # don't know enough about the image at this time to
-                # assume that single-disk encryption is supported.
-                # Maybe later...
-                values.single_disk = False
-            why = "default"
-        else:
-            why = "command-line"
-        log.info("Single-disk encryption: %s (%s)", values.single_disk, why)
+            values.single_disk = True
+
+        log.info("Single-disk encryption: %s", values.single_disk)
         brkt_config['single_disk'] = values.single_disk
 
     add_brkt_env_to_brkt_config(brkt_env, brkt_config)

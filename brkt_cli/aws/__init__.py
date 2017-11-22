@@ -383,6 +383,9 @@ def run_encrypt(values, config, verbose=False):
             append_suffix(guest_image.name, suffix,
                           max_length=AMI_NAME_MAX_LENGTH)
 
+    if values.single_disk is None:
+        values.single_disk = True if values.encryptor_ami else False
+
     if not values.encryptor_ami:
         values.encryptor_ami = _get_encryptor_ami(values.region,
                                                   values.metavisor_version)
