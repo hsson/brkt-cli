@@ -129,7 +129,7 @@ def run_share_logs(values):
 
     path, logs_file = os.path.split(values.dest)
     if path == "" or logs_file == "":
-        raise ValidationError("--dest must be in the form: "
+        raise ValidationError("--destination must be in the form: "
                               "<path>/<filename>")
 
     if values.validate:
