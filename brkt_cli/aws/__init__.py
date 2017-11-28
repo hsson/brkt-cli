@@ -16,6 +16,7 @@ import logging
 import re
 import tempfile
 import urllib2
+import os
 
 import botocore
 from botocore.exceptions import ClientError
@@ -126,9 +127,10 @@ def run_share_logs(values):
         raise ValidationError("--instance-id or --snapshot-id "
                               "must be specified")
 
-    if values.dest.endswith('/'):
-        raise ValidationError("--dest must end with filename "
-                              "not a directory")
+    path, logs_file = os.path.split(values.dest)
+    if path == "" or logs_file == "":
+        raise ValidationError("--dest must be in the form: "
+                              "<path>/<filename>")
 
     if values.validate:
         # Validate the region before connecting.
